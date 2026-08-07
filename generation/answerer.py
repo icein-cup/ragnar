@@ -4,14 +4,14 @@ from enum import Enum
 from core.models import SearchResult, Citation
 from generation.guards import should_refuse_aggregation
 from generation.prompts import (
-    SYSTEM_PROMPT, build_user_prompt,
+    SYSTEM_PROMPT,
+    CONVERSATION_SYSTEM_PROMPT,
+    build_user_prompt,
     build_history_summary_prompt,
 )
 from generation.agentic_prompts import SYNTHESIS_PROMPT
 
-NO_RESULTS_MESSAGE = (
-    "I could not find anything relevant in the indexed documents."
-)
+NO_RESULTS_MESSAGE = "I could not find anything relevant in the indexed documents."
 
 # How many of the most recent messages are replayed verbatim to the answer
 # call. Summarization (summarize_history) always sees the full transcript —
@@ -53,14 +53,16 @@ def build_citations(results: list[SearchResult]) -> list[Citation]:
         if label not in seen:
             seen.add(label)
             meta = result.chunk.citation_meta()
-            citations.append(Citation(
-                label=label,
-                doc_id=meta["doc_id"],
-                filename=meta["filename"],
-                page=meta["page"],
-                sheet=meta["sheet"],
-                chunk_index=meta["chunk_index"],
-            ))
+            citations.append(
+                Citation(
+                    label=label,
+                    doc_id=meta["doc_id"],
+                    filename=meta["filename"],
+                    page=meta["page"],
+                    sheet=meta["sheet"],
+                    chunk_index=meta["chunk_index"],
+                )
+            )
     return citations
 
 
@@ -75,8 +77,7 @@ class AnswerMode(Enum):
     ANSWER = "answer"
 
 
-def classify(question: str, refused: bool,
-             results: list[SearchResult]) -> AnswerMode:
+def classify(question: str, refused: bool, results: list[SearchResult]) -> AnswerMode:
     """The single source of truth for the refuse / guard / answer decision.
 
     Both the UI and the eval harness route through this so the policy —
@@ -101,8 +102,9 @@ class Answerer:
     def __init__(self, llm):
         self._llm = llm
 
-    def summarize_history(self, history: list[dict],
-                           model: str | None = None) -> str | None:
+    def summarize_history(
+        self, history: list[dict], model: str | None = None
+    ) -> str | None:
         """Condense previous Q&A into 2-3 sentences, or None if too short.
 
         One turn or an empty history has nothing useful to summarize — the
@@ -120,11 +122,16 @@ class Answerer:
         except Exception:
             return None
 
-    def answer(self, question: str, results: list[SearchResult], *,
-               model: str | None = None,
-               temperature: float | None = None,
-               history: list[dict] | None = None,
-               context_summary: str | None = None) -> Answer:
+    def answer(
+        self,
+        question: str,
+        results: list[SearchResult],
+        *,
+        model: str | None = None,
+        temperature: float | None = None,
+        history: list[dict] | None = None,
+        context_summary: str | None = None,
+    ) -> Answer:
         if not results:
             # Skip the model entirely — a refusal it cannot embellish.
             return Answer(text=NO_RESULTS_MESSAGE, refused=True)
@@ -133,18 +140,26 @@ class Answerer:
             context_summary = self.summarize_history(history or [], model=model)
         text = self._llm.generate(
             SYSTEM_PROMPT,
-            build_user_prompt(question, build_excerpts(results),
-                              context_summary=context_summary),
-            model=model, temperature=temperature,
+            build_user_prompt(
+                question, build_excerpts(results), context_summary=context_summary
+            ),
+            model=model,
+            temperature=temperature,
             history=_recent(history),
         )
 
         return Answer(text=text, citations=citation_labels(results))
 
-    def stream(self, question: str, results: list[SearchResult], *,
-               model: str | None = None, temperature: float | None = None,
-               history: list[dict] | None = None,
-               context_summary: str | None = None):
+    def stream(
+        self,
+        question: str,
+        results: list[SearchResult],
+        *,
+        model: str | None = None,
+        temperature: float | None = None,
+        history: list[dict] | None = None,
+        context_summary: str | None = None,
+    ):
         """Yield answer-text deltas for the UI's st.write_stream.
 
         Citations are not part of the stream — they come from
@@ -156,8 +171,51 @@ class Answerer:
             context_summary = self.summarize_history(history or [], model=model)
         yield from self._llm.stream(
             SYSTEM_PROMPT,
-            build_user_prompt(question, build_excerpts(results),
-                              context_summary=context_summary),
-            model=model, temperature=temperature,
+            build_user_prompt(
+                question, build_excerpts(results), context_summary=context_summary
+            ),
+            model=model,
+            temperature=temperature,
+            history=_recent(history),
+        )
+
+    def converse(
+        self,
+        question: str,
+        *,
+        model: str | None = None,
+        temperature: float | None = None,
+        history: list[dict] | None = None,
+    ) -> Answer:
+        """Answer personal / chitchat questions from conversation history.
+
+        Used when document retrieval found nothing but there is prior
+        conversation context. The model may use what the user said earlier
+        (e.g. their name) while still declining to fabricate document content.
+        Returns no citations since no documents were retrieved.
+        """
+        text = self._llm.generate(
+            CONVERSATION_SYSTEM_PROMPT,
+            question,
+            model=model,
+            temperature=temperature,
+            history=_recent(history),
+        )
+        return Answer(text=text, citations=[], refused=False)
+
+    def converse_stream(
+        self,
+        question: str,
+        *,
+        model: str | None = None,
+        temperature: float | None = None,
+        history: list[dict] | None = None,
+    ):
+        """Streaming variant of converse() for the UI's st.write_stream."""
+        yield from self._llm.stream(
+            CONVERSATION_SYSTEM_PROMPT,
+            question,
+            model=model,
+            temperature=temperature,
             history=_recent(history),
         )
