@@ -1,4 +1,5 @@
 import logging
+import time
 import uuid
 
 import httpx
@@ -9,6 +10,7 @@ import streamlit as st
 # only ever reached stderr at WARNING+. INFO surfaces both.
 logging.basicConfig(level=logging.INFO)
 
+from core.timing import log_elapsed
 from generation.guards import aggregation_refusal
 from generation.answerer import (
     AnswerMode,
@@ -121,9 +123,11 @@ def _render_citations(citations: list) -> None:
             st.caption(label)
 
 
-def _render_agentic_trace(outcome) -> None:
+def _render_agentic_trace(outcome, elapsed: float | None = None) -> None:
     """Show the agentic reasoning trace in a collapsible section."""
     trace_parts: list[str] = []
+    if elapsed is not None:
+        trace_parts.append(f"Round-trip time: {elapsed:.2f}s")
     if outcome.rewritten_query:
         trace_parts.append(f"Rewritten query: {outcome.rewritten_query}")
     if outcome.queries_executed:
@@ -182,6 +186,8 @@ if question := st.chat_input("Ask about your documents"):
         st.markdown(question)
 
     with st.chat_message("assistant"):
+        start = time.perf_counter()
+
         # Build conversation history from all messages before the
         # current question (which was just appended). Strip the
         # app-only 'citations' key — the LLM doesn't need it.
@@ -290,9 +296,12 @@ if question := st.chat_input("Ask about your documents"):
                     ]
                 )
 
+        elapsed = time.perf_counter() - start
+        log_elapsed("query_round_trip", elapsed, question=question)
+
         # Render agentic trace if available
         if hasattr(outcome, "hops_performed"):
-            _render_agentic_trace(outcome)
+            _render_agentic_trace(outcome, elapsed=elapsed)
 
     st.session_state.messages.append(
         {
