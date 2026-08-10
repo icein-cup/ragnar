@@ -9,7 +9,6 @@ from generation.prompts import (
     build_user_prompt,
     build_history_summary_prompt,
 )
-from generation.agentic_prompts import SYNTHESIS_PROMPT
 
 NO_RESULTS_MESSAGE = "I could not find anything relevant in the indexed documents."
 

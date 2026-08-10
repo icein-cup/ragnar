@@ -51,10 +51,12 @@ class FakeLLM:
         self._responses = responses or {}
         self._call_count = 0
         self._calls = []
+        self._call_kwargs = []
 
     def generate(self, system: str, user: str, **kwargs):
         self._call_count += 1
         self._calls.append((system, user))
+        self._call_kwargs.append(kwargs)
         # Return based on prompt content hints
         if "rewrite" in system.lower() or "rewrite" in user.lower():
             return self._responses.get("rewrite", "rewritten query")
@@ -218,6 +220,42 @@ def test_multi_hop_follows_up_when_information_is_insufficient():
     assert outcome.hops_performed >= 1
 
 
+def test_multi_hop_continues_on_partial_result():
+    """'Sufficient: partial' means a follow-up could still help — it must
+    not be treated the same as 'yes' (fully answered), or multi-hop only
+    ever executes zero or one hop regardless of max_hops.
+    """
+    results = [_result("some info", page=1)]
+    base = StubSearch({
+        "question": results,
+        "follow up": [_result("more info", page=2)],
+    })
+
+    class PartialThenSufficientLLM(FakeLLM):
+        """Returns 'partial' on the first multi-hop call, 'yes' after that."""
+
+        def generate(self, system, user, **kwargs):
+            if "Sufficient" not in user:
+                return super().generate(system, user, **kwargs)
+            self._call_count += 1
+            self._calls.append((system, user))
+            self._call_kwargs.append(kwargs)
+            if self._call_count == 1:
+                return "Sufficient: partial\nMissing: more details\nFollowUp: follow up"
+            return "Sufficient: yes\nMissing: none\nFollowUp: none"
+
+    agentic = AgenticSearch(
+        base, PartialThenSufficientLLM(),
+        enable_rewrite=False, enable_multi_query=False,
+        enable_multi_hop=True, enable_self_correction=False,
+        max_hops=3,
+    )
+
+    outcome = agentic.find("question")
+
+    assert outcome.hops_performed == 1
+
+
 def test_multi_hop_stops_when_sufficient():
     results = [_result("complete answer", page=1)]
     base = StubSearch({"question": results})
@@ -319,6 +357,89 @@ def test_parse_tag_finds_value():
 def test_parse_tag_returns_default_when_missing():
     text = "Sufficient: yes"
     assert AgenticSearch._parse_tag(text, "FollowUp", "none") == "none"
+
+
+def test_model_and_temperature_thread_through_every_agentic_llm_call():
+    """The model/temperature picked in the UI must reach every internal
+    agentic LLM call (rewrite, multi-query, multi-hop, self-correction) —
+    not just the final answer — so Ollama isn't thrashing between two
+    resident models on every turn.
+    """
+    results = [_result("relevant content")]
+    # Both keys covered: the default FakeLLM rewrite response changes the
+    # query before the base search runs.
+    base = StubSearch({"question": results, "rewritten query": results})
+    llm = FakeLLM()
+    agentic = AgenticSearch(base, llm)  # all stages enabled by default
+
+    agentic.find("question", model="custom-model", temperature=0.7)
+
+    assert llm._call_count >= 4
+    assert all(
+        kwargs.get("model") == "custom-model" and kwargs.get("temperature") == 0.7
+        for kwargs in llm._call_kwargs
+    )
+
+
+def test_self_correction_draft_only_sees_floored_results():
+    """Self-correction must run on the post-floor result set, not the raw
+    fused set — otherwise the draft (which the UI can reuse verbatim as the
+    displayed answer) could rest on a chunk whose citation was filtered out.
+    """
+    kept = _result("KEEPS-floor")
+    kept.score = 0.9
+    kept.vector_score = 0.9
+    dropped = _result("DROPPED-below-floor", chunk_index=1)
+    dropped.score = 0.1
+    dropped.vector_score = 0.1
+
+    class RerankedStubSearch(StubSearch):
+        def __init__(self):
+            super().__init__({"question": [kept, dropped]})
+            self._reranker = object()  # non-None so _apply_floors engages
+
+    llm = FakeLLM({
+        "self_correct": "Complete: yes\nContradictions: no\nImprovement: none",
+    })
+    agentic = AgenticSearch(
+        RerankedStubSearch(), llm,
+        enable_rewrite=False, enable_multi_query=False,
+        enable_multi_hop=False, enable_self_correction=True,
+    )
+
+    outcome = agentic.find("question")
+
+    assert [r.chunk.text for r in outcome.results] == ["KEEPS-floor"]
+    draft_system, draft_prompt = llm._calls[0]
+    assert "DROPPED-below-floor" not in draft_prompt
+    assert "KEEPS-floor" in draft_prompt
+
+
+def test_refusal_preserves_related_and_queries_executed():
+    """A base-search refusal must not silently drop the 'related documents'
+    fallback or the query trace — both used to be lost because early
+    returns rebuilt AgenticSearchOutcome from scratch and forgot a field.
+    """
+    from retrieval.search import SearchOutcome
+
+    related_chunk = _result("weakly related")
+
+    class RelatedOnlyStubSearch(StubSearch):
+        def find(self, question, doc_ids=None, score_floor=None,
+                  vector_floor=None, use_reranker=True, context_summary=None):
+            return SearchOutcome(related=[related_chunk], refused=True)
+
+    agentic = AgenticSearch(
+        RelatedOnlyStubSearch(), FakeLLM(),
+        enable_rewrite=False, enable_multi_query=False,
+        enable_multi_hop=False, enable_self_correction=False,
+    )
+
+    outcome = agentic.find("question")
+
+    assert outcome.refused is True
+    assert outcome.related == [related_chunk]
+    assert outcome.queries_executed == ["question"]
 
 
 # ──────────────────────────────────────────────────────────────────────────────

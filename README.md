@@ -161,8 +161,9 @@ qdrant_storage        ← a Docker volume holding the vectors
 ```
 
 Converted documents are cached by content hash, so re-uploading the same file costs
-nothing and a chunking change can be replayed without re-parsing. The vectors are the
-one thing that would have to be rebuilt from scratch — see Known gaps.
+nothing and a chunking change can be replayed without re-parsing — the parsed blocks
+are cached alongside the markdown (`converted/{doc_id}.blocks.json`) and reused. The
+vectors are the one thing that would have to be rebuilt from scratch — see Known gaps.
 
 ---
 
@@ -263,7 +264,8 @@ Tracked rather than glossed over:
 - **Both floors are hand-tuned**, not calibrated — see `eval/README.md`. They
   need a much larger golden set before the numbers deserve trust.
 - **No recovery path if the vector store is lost.** Re-embedding from the converted
-  document cache is designed for and not implemented.
+  document cache (the parsed blocks, not just the markdown) would need a "rebuild all"
+  action wired up in the UI; the cache itself exists but nothing drives it end to end.
 
 The test suite runs against real Ollama, Qdrant and Docling rather than mocks, which is
 why it is slow and why it catches integration breakage that mocks would hide.

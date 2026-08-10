@@ -17,6 +17,13 @@ services:
       OLLAMA_BASE_URL: http://host.docker.internal:11434
       QDRANT_URL: http://qdrant:6333
       HF_TOKEN: ${HF_TOKEN:-}
+      # Docling's AcceleratorOptions reads this directly (env_prefix
+      # "DOCLING_"). Default is 4 regardless of host size. 8 assumes Docker
+      # Desktop's VM has been given at least that many CPUs — check with
+      # `docker compose exec app nproc` and match this to what's actually
+      # available; requesting more threads than the VM has just adds
+      # scheduling overhead.
+      DOCLING_NUM_THREADS: 8
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:

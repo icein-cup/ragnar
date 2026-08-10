@@ -2,8 +2,14 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from docling.document_converter import DocumentConverter, PdfFormatOption
-from docling.datamodel.pipeline_options import PdfPipelineOptions
+from docling.datamodel.pipeline_options import PdfPipelineOptions, TableFormerMode
 from docling.datamodel.base_models import InputFormat
+
+# Thread count for Docling's layout/table models is read from the
+# DOCLING_NUM_THREADS env var (docling's AcceleratorOptions is a pydantic
+# BaseSettings with env_prefix="DOCLING_") — set in docker-compose.yml
+# rather than hardcoded here, since the right value depends on how many
+# CPUs the container actually gets.
 
 
 def _default_converter() -> DocumentConverter:
@@ -14,6 +20,11 @@ def _default_converter() -> DocumentConverter:
     # near-empty.
     options = PdfPipelineOptions()
     options.do_ocr = False
+    # ACCURATE (the default) roughly doubles TableFormer's cost for a
+    # precision gain this pipeline doesn't need — table content also gets a
+    # deterministic aggregate summary block (table_summary.py), so exact
+    # cell-level structure isn't load-bearing here.
+    options.table_structure_options.mode = TableFormerMode.FAST
     return DocumentConverter(format_options={
         InputFormat.PDF: PdfFormatOption(pipeline_options=options)
     })
@@ -24,6 +35,7 @@ def _ocr_converter() -> DocumentConverter:
     # with near-empty text — typically scanned/image-only PDFs.
     options = PdfPipelineOptions()
     options.do_ocr = True
+    options.table_structure_options.mode = TableFormerMode.FAST
     return DocumentConverter(format_options={
         InputFormat.PDF: PdfFormatOption(pipeline_options=options)
     })
@@ -53,7 +65,18 @@ def _sheet_name(item, doc) -> str | None:
     return None
 
 
-def _looks_like_a_table(item, doc) -> bool:
+def _export_table_df(item, doc):
+    """A table item's content lives in a structured grid, not `.text` — this
+    is the one place that grid is materialized. Exported once per item and
+    shared by `_looks_like_a_table` and `_table_summary` below (it used to be
+    exported twice, once for each)."""
+    try:
+        return item.export_to_dataframe(doc)
+    except Exception:
+        return None
+
+
+def _looks_like_a_table(df) -> bool:
     """Filters out Docling's occasional misclassification of repetitive or
     fixed-position text as a table.
 
@@ -65,14 +88,12 @@ def _looks_like_a_table(item, doc) -> bool:
     table can occasionally get split into 2+ columns too — but it's a
     cheap, safe filter for the common case with no real downside.
     """
-    try:
-        df = item.export_to_dataframe(doc)
-    except Exception:
-        return True  # can't verify — trust Docling's own classification
+    if df is None:
+        return True  # export failed — can't verify, trust Docling's own classification
     return df.shape[1] >= 2
 
 
-def _table_summary(item, doc, sheet: str | None) -> str | None:
+def _table_summary(df, sheet: str | None) -> str | None:
     """Deterministic aggregate summary for a table item, or None.
 
     A summary is a nice-to-have on top of the table's own (already-indexed)
@@ -81,9 +102,10 @@ def _table_summary(item, doc, sheet: str | None) -> str | None:
     take down parsing of the whole document, so the whole thing is one
     try/except rather than two.
     """
+    if df is None:
+        return None
     from ingestion.table_summary import summarize_table
     try:
-        df = item.export_to_dataframe(doc)
         return summarize_table(df, sheet=sheet)
     except Exception:
         return None
@@ -155,11 +177,13 @@ class DoclingParser:
                 except Exception:
                     text = ""
                 sheet = _sheet_name(item, doc)
-                is_table = _looks_like_a_table(item, doc)
+                df = _export_table_df(item, doc)
+                is_table = _looks_like_a_table(df)
             else:
                 text = getattr(item, "text", "") or ""
                 sheet = None
                 is_table = False
+                df = None
 
             if not text.strip():
                 continue
@@ -190,7 +214,7 @@ class DoclingParser:
             # up rows it may only partially see. is_table=False so it reads as
             # a prose fact, not a table fragment.
             if is_table:
-                summary = _table_summary(item, doc, sheet)
+                summary = _table_summary(df, sheet)
                 if summary:
                     blocks.append(Block(
                         text=summary, page=page, sheet=sheet,

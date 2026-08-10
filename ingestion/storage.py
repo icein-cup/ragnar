@@ -1,6 +1,10 @@
 import hashlib
+import json
 import shutil
+from dataclasses import asdict
 from pathlib import Path
+
+from ingestion.parser import Block, ParsedDocument
 
 
 class Storage:
@@ -57,6 +61,26 @@ class Storage:
 
     def remove_converted(self, doc_id: str) -> None:
         (self.converted / f"{doc_id}.md").unlink(missing_ok=True)
+        (self.converted / f"{doc_id}.blocks.json").unlink(missing_ok=True)
+
+    def write_parsed(self, doc_id: str, parsed: ParsedDocument) -> None:
+        """Cache the parsed blocks so a chunking-only change can skip the
+        (expensive) Docling parse. Markdown is not duplicated here — it's
+        already on disk via write_converted, keyed by the same doc_id."""
+        payload = {
+            "low_confidence": parsed.low_confidence,
+            "blocks": [asdict(b) for b in parsed.blocks],
+        }
+        (self.converted / f"{doc_id}.blocks.json").write_text(json.dumps(payload))
+
+    def read_parsed(self, doc_id: str) -> ParsedDocument | None:
+        path = self.converted / f"{doc_id}.blocks.json"
+        if not path.exists():
+            return None
+        payload = json.loads(path.read_text())
+        blocks = [Block(**b) for b in payload["blocks"]]
+        return ParsedDocument(markdown="", blocks=blocks,
+                              low_confidence=payload["low_confidence"])
 
     def pending_files(self) -> list[Path]:
         return sorted(p for p in self.inbox.iterdir() if p.is_file())

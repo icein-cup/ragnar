@@ -69,22 +69,6 @@ Contradictions: <yes|no>
 Improvement: <description of what's needed, or "none">
 """
 
-# ── Answer Synthesis (for multi-hop / aggregated results) ─────────────────────
-SYNTHESIS_PROMPT = """\
-You answer questions strictly from the provided document excerpts.
-
-Rules:
-- Use ONLY information in the excerpts. Never use outside knowledge.
-- If the excerpts do not contain the answer, say so plainly. Do not guess.
-- Answer in the SAME LANGUAGE as the question.
-- Be concise and factual. Do not speculate or embellish.
-- Citations are added separately after your answer — do not include your own citations.
-
-Synthesize information across ALL provided excerpts to construct the best answer.
-If excerpts conflict, note the conflict and explain the discrepancy.
-"""
-
-
 def build_rewrite_prompt(question: str, context_summary: str | None = None) -> tuple[str, str]:
     """Build (system, user) prompts for query rewriting."""
     user = question

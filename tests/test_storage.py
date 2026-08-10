@@ -1,4 +1,5 @@
 import pytest
+from ingestion.parser import Block
 from ingestion.storage import Storage
 
 
@@ -65,6 +66,39 @@ def test_remove_converted_deletes_artifacts(storage):
     storage.write_converted("d1", markdown="# Title")
     storage.remove_converted("d1")
     assert storage.read_markdown("d1") is None
+
+
+def test_write_parsed_round_trips_blocks(storage):
+    from ingestion.parser import ParsedDocument
+
+    parsed = ParsedDocument(
+        markdown="# Title",
+        blocks=[
+            Block(text="hello", page=1, is_table=False, sheet=None, is_summary=False),
+            Block(text="| a | b |", page=None, is_table=True, sheet="Q1", is_summary=False),
+        ],
+        low_confidence=True,
+    )
+
+    storage.write_parsed("d1", parsed)
+    result = storage.read_parsed("d1")
+
+    assert result.low_confidence is True
+    assert [b.text for b in result.blocks] == ["hello", "| a | b |"]
+    assert result.blocks[1].sheet == "Q1"
+    assert result.blocks[1].is_table is True
+
+
+def test_read_parsed_returns_none_when_no_cache_exists(storage):
+    assert storage.read_parsed("unknown") is None
+
+
+def test_remove_converted_deletes_parsed_cache_too(storage):
+    from ingestion.parser import ParsedDocument
+
+    storage.write_parsed("d1", ParsedDocument(markdown="", blocks=[], low_confidence=False))
+    storage.remove_converted("d1")
+    assert storage.read_parsed("d1") is None
 
 
 def test_restore_to_inbox_round_trips_an_archived_original(storage):

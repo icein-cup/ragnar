@@ -97,3 +97,35 @@ def test_worker_writes_converted_markdown(env):
     IngestWorker(storage, registry, pipeline).process_next()
 
     assert storage.read_markdown(doc_id) == "# doc"
+
+
+def test_worker_caches_parsed_blocks_on_first_ingest(env):
+    storage, registry, pipeline, _ = env
+    path = _drop(storage, "a.pdf")
+    doc_id = storage.doc_id(path)
+    registry.add(doc_id, "a.pdf")
+
+    IngestWorker(storage, registry, pipeline).process_next()
+
+    cached = storage.read_parsed(doc_id)
+    assert cached is not None
+    assert [b.text for b in cached.blocks] == ["hello world"]
+
+
+def test_worker_skips_reparsing_on_a_cache_hit(env):
+    """Re-chunking (restore_to_inbox + requeue) must not re-run the parser —
+    that's the whole point of caching by content hash."""
+    storage, registry, pipeline, store = env
+    path = _drop(storage, "a.pdf")
+    doc_id = storage.doc_id(path)
+    registry.add(doc_id, "a.pdf")
+    worker = IngestWorker(storage, registry, pipeline)
+    worker.process_next()
+
+    # Simulate the re-chunk button: original restored to inbox, requeued.
+    storage.restore_to_inbox("a.pdf", doc_id)
+    registry.requeue(doc_id)
+    pipeline._parser.fail = True  # if the parser gets called again, this blows up
+    worker.process_next()
+
+    assert registry.get(doc_id).status == IngestStatus.DONE

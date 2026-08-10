@@ -1,7 +1,13 @@
+import logging
 import uuid
 
 import httpx
 import streamlit as st
+
+# No logging config existed anywhere in the app, so ingestion's per-stage
+# timing (ingestion/pipeline.py) and worker failures (ingestion/worker.py)
+# only ever reached stderr at WARNING+. INFO surfaces both.
+logging.basicConfig(level=logging.INFO)
 
 from generation.guards import aggregation_refusal
 from generation.answerer import (
@@ -118,12 +124,7 @@ def _render_citations(citations: list) -> None:
 def _render_agentic_trace(outcome) -> None:
     """Show the agentic reasoning trace in a collapsible section."""
     trace_parts: list[str] = []
-    if (
-        outcome.rewritten_query
-        and outcome.rewritten_query != outcome.queries_executed[0]
-        if outcome.queries_executed
-        else False
-    ):
+    if outcome.rewritten_query:
         trace_parts.append(f"Rewritten query: {outcome.rewritten_query}")
     if outcome.queries_executed:
         trace_parts.append(f"Queries executed: {len(outcome.queries_executed)}")
@@ -205,6 +206,9 @@ if question := st.chat_input("Ask about your documents"):
                 vector_floor=query["vector_floor"],
                 use_reranker=query["use_reranker"],
                 context_summary=context_summary,
+                history=history,
+                model=query["model"],
+                temperature=query["temperature"],
             )
         else:
             outcome = svc["search"].find(
@@ -255,16 +259,24 @@ if question := st.chat_input("Ask about your documents"):
             rich_citations = build_citations(outcome.results)
             citations = [c.label for c in rich_citations]
 
-            text = st.write_stream(
-                svc["answerer"].stream(
-                    question,
-                    outcome.results,
-                    model=query["model"],
-                    temperature=query["temperature"],
-                    history=history,
-                    context_summary=context_summary,
+            # Reuse the self-correction draft when available — it was
+            # built with the same prompt/context as Answerer.stream
+            # would use, so displaying it directly avoids a duplicate
+            # LLM call without any quality drift.
+            if getattr(outcome, "draft_answer", None):
+                text = outcome.draft_answer
+                st.markdown(text)
+            else:
+                text = st.write_stream(
+                    svc["answerer"].stream(
+                        question,
+                        outcome.results,
+                        model=query["model"],
+                        temperature=query["temperature"],
+                        history=history,
+                        context_summary=context_summary,
+                    )
                 )
-            )
             with st.expander("Sources"):
                 _render_citations(
                     [

@@ -3,9 +3,12 @@ multi-hop reasoning, and self-correction.
 """
 from __future__ import annotations
 
+import functools
 import logging
+import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
+from typing import Callable
 
 from core.models import Chunk, SearchResult
 from generation.agentic_prompts import (
@@ -21,6 +24,29 @@ DEFAULT_MAX_HOPS = 3
 DEFAULT_MULTI_QUERY_COUNT = 3
 FAST_PATH_MIN_RESULTS = 3         # Need at least N results clearing the floor
 
+# Strips leading bullets/numbering ("1.", "-", "*", "1)") that a model adds
+# despite being told not to.
+_BULLET_RE = re.compile(r"^\s*(?:[-*•]|\d+[.)])\s*")
+
+
+def _clean_llm_line(line: str) -> str:
+    """Strip bullets/numbering and surrounding quotes from one line of LLM output."""
+    line = _BULLET_RE.sub("", line.strip())
+    return line.strip("\"'").strip()
+
+
+def _clean_llm_lines(text: str) -> list[str]:
+    """Clean each line of a multi-line LLM reply, dropping blanks and label
+    lines like "Rewritten query:" that a model prepends despite instructions.
+    """
+    cleaned = []
+    for raw in text.splitlines():
+        line = _clean_llm_line(raw)
+        if not line or line.endswith(":"):
+            continue
+        cleaned.append(line)
+    return cleaned
+
 
 @dataclass
 class AgenticSearchOutcome:
@@ -35,6 +61,11 @@ class AgenticSearchOutcome:
     self_corrected: bool = False
     correction_notes: str | None = None
     fast_path: bool = False  # True when expensive stages were skipped
+    # Draft answer generated during self-correction. Reused by the UI to
+    # avoid a duplicate LLM call when self-correction deemed the answer
+    # complete. None when self-correction didn't run or triggered a
+    # follow-up retrieval (the draft is stale in that case).
+    draft_answer: str | None = None
 
 
 class AgenticSearch:
@@ -86,8 +117,18 @@ class AgenticSearch:
         vector_floor: float | None = None,
         use_reranker: bool = True,
         context_summary: str | None = None,
+        history: list[dict] | None = None,
+        model: str | None = None,
+        temperature: float | None = None,
     ) -> AgenticSearchOutcome:
         """Agentic retrieval pipeline.
+
+        model/temperature are threaded through to every internal LLM call
+        (rewrite, multi-query, multi-hop, self-correction) so the whole
+        pipeline runs on the model the caller picked — not just the final
+        answer. Bound per-call via a partial rather than mutated on self,
+        since _retrieve_multi_query fans out across threads on a shared
+        AgenticSearch instance.
 
         Pipeline order:
         1. Optional query rewriting.
@@ -95,13 +136,16 @@ class AgenticSearch:
         3. Optional multi-query retrieval (parallel).
         4. Fast-path check: if results are strong, skip to answer.
         5. Optional multi-hop retrieval.
-        6. Optional self-correction.
-        7. Apply floors and return.
+        6. Apply floors.
+        7. Optional self-correction, evaluated against the floored results
+           so a reused draft answer never rests on a chunk that got
+           filtered out of the citations shown to the user.
         """
+        gen = functools.partial(self._llm.generate, model=model, temperature=temperature)
         outcome = AgenticSearchOutcome()
 
         # 1. Query rewriting
-        query = self._rewrite(question, context_summary) \
+        query = self._rewrite(question, context_summary, gen) \
                 if self._enable_rewrite else question
         outcome.rewritten_query = query if self._enable_rewrite else None
 
@@ -112,9 +156,11 @@ class AgenticSearch:
             use_reranker=use_reranker, context_summary=context_summary,
         )
         outcome.queries_executed.append(query)
+        outcome.related = base_result.related
 
         if not base_result.results and not base_result.related:
-            return AgenticSearchOutcome(refused=True, rewritten_query=outcome.rewritten_query)
+            outcome.refused = True
+            return outcome
 
         all_results: list[SearchResult] = list(base_result.results)
 
@@ -122,7 +168,7 @@ class AgenticSearch:
         if self._enable_multi_query and not self._is_fast_path(all_results, score_floor):
             extra = self._retrieve_multi_query(
                 query, doc_ids, score_floor, vector_floor, use_reranker,
-                context_summary, outcome,
+                context_summary, outcome, gen,
             )
             all_results.extend(extra)
 
@@ -138,38 +184,51 @@ class AgenticSearch:
         if self._enable_multi_hop:
             all_results = self._multi_hop(
                 question, all_results, doc_ids, score_floor, vector_floor,
-                use_reranker, context_summary, outcome,
+                use_reranker, context_summary, outcome, gen,
             )
 
-        # 6. Deduplicate and sort
+        # 6. Deduplicate, sort, and apply floors
         final_results = self._fuse_results(all_results)
 
         if not final_results:
-            return AgenticSearchOutcome(
-                refused=True, rewritten_query=outcome.rewritten_query,
-                queries_executed=outcome.queries_executed,
-            )
+            outcome.refused = True
+            return outcome
 
-        # 7. Self-correction check (expensive — only if multi-hop didn't already run)
-        if self._enable_self_correction and outcome.hops_performed == 0:
-            correction = self._self_correct(question, final_results)
-            if correction and correction.get("needs_more"):
-                outcome.self_corrected = True
-                outcome.correction_notes = correction.get("reason")
-                follow_up = correction.get("follow_up")
-                if follow_up and follow_up.lower() != "none":
-                    extra = self._base_search.find(
-                        follow_up, doc_ids=doc_ids,
-                        score_floor=score_floor, vector_floor=vector_floor,
-                        use_reranker=use_reranker, context_summary=context_summary,
-                    )
-                    if extra.results:
-                        final_results = self._fuse_results(final_results + extra.results)
-                        outcome.hops_performed += 1
-
-        return self._apply_floors(
+        outcome = self._apply_floors(
             final_results, score_floor, vector_floor, use_reranker, outcome,
         )
+
+        # 7. Self-correction check (expensive — only if multi-hop didn't
+        # already run), evaluated against outcome.results — the floored
+        # set the user will actually see cited.
+        if self._enable_self_correction and outcome.hops_performed == 0 and outcome.results:
+            correction = self._self_correct(
+                question, outcome.results, gen,
+                context_summary=context_summary, history=history,
+            )
+            if correction:
+                if correction.get("needs_more"):
+                    outcome.self_corrected = True
+                    outcome.correction_notes = correction.get("reason")
+                    follow_up = correction.get("follow_up")
+                    if follow_up and follow_up.lower() != "none":
+                        extra = self._base_search.find(
+                            follow_up, doc_ids=doc_ids,
+                            score_floor=score_floor, vector_floor=vector_floor,
+                            use_reranker=use_reranker, context_summary=context_summary,
+                        )
+                        if extra.results:
+                            merged = self._fuse_results(outcome.results + extra.results)
+                            outcome.hops_performed += 1
+                            outcome = self._apply_floors(
+                                merged, score_floor, vector_floor, use_reranker, outcome,
+                            )
+                else:
+                    # Answer was deemed complete — carry the draft so the
+                    # UI can display it without a duplicate LLM call.
+                    outcome.draft_answer = correction.get("draft")
+
+        return outcome
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -200,16 +259,11 @@ class AgenticSearch:
         use_reranker: bool,
         outcome: AgenticSearchOutcome,
     ) -> AgenticSearchOutcome:
-        """Apply score floors and return the final outcome."""
+        """Apply score floors, updating results/refused/related on outcome in place."""
         if not final_results:
-            return AgenticSearchOutcome(
-                refused=True, rewritten_query=outcome.rewritten_query,
-                queries_executed=outcome.queries_executed,
-                hops_performed=outcome.hops_performed,
-                self_corrected=outcome.self_corrected,
-                correction_notes=outcome.correction_notes,
-                fast_path=outcome.fast_path,
-            )
+            outcome.results = []
+            outcome.refused = True
+            return outcome
 
         if use_reranker and self._base_search._reranker is not None:
             floor = self._base_search.score_floor if score_floor is None else score_floor
@@ -219,32 +273,25 @@ class AgenticSearch:
                 if r.score >= floor or (r.vector_score is not None and r.vector_score >= vfloor)
             ]
             if not kept:
-                return AgenticSearchOutcome(
-                    refused=True, related=final_results[:3],
-                    rewritten_query=outcome.rewritten_query,
-                    queries_executed=outcome.queries_executed,
-                    hops_performed=outcome.hops_performed,
-                    self_corrected=outcome.self_corrected,
-                    correction_notes=outcome.correction_notes,
-                    fast_path=outcome.fast_path,
-                )
+                outcome.results = []
+                outcome.related = final_results[:3]
+                outcome.refused = True
+                return outcome
             final_results = kept
 
-        return AgenticSearchOutcome(
-            results=final_results,
-            rewritten_query=outcome.rewritten_query,
-            queries_executed=outcome.queries_executed,
-            hops_performed=outcome.hops_performed,
-            self_corrected=outcome.self_corrected,
-            correction_notes=outcome.correction_notes,
-            fast_path=outcome.fast_path,
-        )
+        outcome.results = final_results
+        outcome.refused = False
+        return outcome
 
-    def _rewrite(self, question: str, context_summary: str | None = None) -> str:
+    def _rewrite(
+        self, question: str, context_summary: str | None, gen: Callable[..., str],
+    ) -> str:
         """Use the LLM to rewrite the query for better retrieval."""
         system, user = build_rewrite_prompt(question, context_summary)
         try:
-            rewritten = self._llm.generate(system, user).strip()
+            raw = gen(system, user).strip()
+            lines = _clean_llm_lines(raw)
+            rewritten = lines[-1] if lines else ""
             if rewritten and len(rewritten) > 5:
                 logger.debug("Rewrote query: %r -> %r", question, rewritten)
                 return rewritten
@@ -252,12 +299,12 @@ class AgenticSearch:
             logger.warning("Query rewrite failed: %s", exc)
         return question
 
-    def _generate_multi_queries(self, question: str) -> list[str]:
+    def _generate_multi_queries(self, question: str, gen: Callable[..., str]) -> list[str]:
         """Generate N query variants."""
         system, user = build_multi_query_prompt(question, self._multi_query_count)
         try:
-            raw = self._llm.generate(system, user).strip()
-            queries = [q.strip() for q in raw.split("\n") if q.strip()]
+            raw = gen(system, user).strip()
+            queries = _clean_llm_lines(raw)
             # Deduplicate while preserving order
             seen: set[str] = set()
             unique = []
@@ -282,6 +329,7 @@ class AgenticSearch:
         use_reranker: bool,
         context_summary: str | None,
         outcome: AgenticSearchOutcome,
+        gen: Callable[..., str],
     ) -> list[SearchResult]:
         """Execute multi-query retrieval in parallel using a thread pool.
 
@@ -289,7 +337,7 @@ class AgenticSearch:
         run them concurrently. The LLM multi-query generation still happens
         sequentially since it's one prompt.
         """
-        queries = self._generate_multi_queries(query)
+        queries = self._generate_multi_queries(query, gen)
         all_results: list[SearchResult] = []
 
         # Run all base searches concurrently
@@ -331,6 +379,7 @@ class AgenticSearch:
         use_reranker: bool,
         context_summary: str | None,
         outcome: AgenticSearchOutcome,
+        gen: Callable[..., str],
     ) -> list[SearchResult]:
         """Iteratively retrieve additional information if gaps remain."""
         accumulated = list(current_results)
@@ -339,7 +388,7 @@ class AgenticSearch:
             excerpts = [(r.chunk.citation_label(), r.chunk.text) for r in accumulated]
             system, user = build_multi_hop_prompt(original_question, excerpts)
             try:
-                raw = self._llm.generate(system, user).strip()
+                raw = gen(system, user).strip()
             except Exception as exc:
                 logger.warning("Multi-hop reasoning failed at hop %d: %s", hop, exc)
                 break
@@ -347,7 +396,11 @@ class AgenticSearch:
             sufficient = self._parse_tag(raw, "Sufficient", "no").lower()
             follow_up = self._parse_tag(raw, "FollowUp", "none")
 
-            if sufficient in ("yes", "partial") or follow_up.lower() in ("none", "", "n/a"):
+            # "partial" means more hops could still help — only "yes" (fully
+            # answered) or the absence of a follow-up query should stop the
+            # loop. Treating "partial" as a stop condition made max_hops
+            # effectively cap out at 1 hop regardless of its configured value.
+            if sufficient == "yes" or follow_up.lower() in ("none", "", "n/a"):
                 break
 
             outcome.hops_performed += 1
@@ -369,24 +422,42 @@ class AgenticSearch:
         return accumulated
 
     def _self_correct(
-        self, question: str, results: list[SearchResult],
+        self,
+        question: str,
+        results: list[SearchResult],
+        gen: Callable[..., str],
+        *,
+        context_summary: str | None = None,
+        history: list[dict] | None = None,
     ) -> dict[str, str | bool | None] | None:
-        """Evaluate whether the current results adequately answer the question."""
-        # We need a draft answer to evaluate — generate one quickly
+        """Evaluate whether the current results adequately answer the question.
+
+        The draft is built with the same prompt construction that
+        ``Answerer.answer`` uses — ``SYSTEM_PROMPT`` +
+        ``build_user_prompt`` with ``context_summary`` and ``history``
+        — so there is no drift between the draft and what the final
+        answer path would produce.  When self-correction deems the
+        answer complete, the draft is carried through the outcome and
+        reused by the UI, avoiding a duplicate LLM call.
+        """
         from generation.prompts import SYSTEM_PROMPT, build_user_prompt
-        from generation.answerer import build_excerpts
+        from generation.answerer import build_excerpts, _recent
 
         excerpts = build_excerpts(results)
-        draft_prompt = build_user_prompt(question, excerpts)
+        draft_prompt = build_user_prompt(
+            question, excerpts, context_summary=context_summary,
+        )
         try:
-            draft = self._llm.generate(SYSTEM_PROMPT, draft_prompt)
+            draft = gen(
+                SYSTEM_PROMPT, draft_prompt, history=_recent(history),
+            )
         except Exception as exc:
             logger.warning("Self-correction draft generation failed: %s", exc)
             return None
 
         system, user = build_self_correction_prompt(question, excerpts, draft)
         try:
-            raw = self._llm.generate(system, user).strip()
+            raw = gen(system, user).strip()
         except Exception as exc:
             logger.warning("Self-correction evaluation failed: %s", exc)
             return None
@@ -397,7 +468,12 @@ class AgenticSearch:
 
         needs_more = complete.lower() in ("no", "partial") or contradictions.lower() == "yes"
         follow_up = improvement if needs_more and improvement.lower() not in ("none", "", "n/a") else None
-        return {"needs_more": needs_more, "reason": improvement, "follow_up": follow_up}
+        return {
+            "needs_more": needs_more,
+            "reason": improvement,
+            "follow_up": follow_up,
+            "draft": draft,
+        }
 
     @staticmethod
     def _fuse_results(results: list[SearchResult]) -> list[SearchResult]:
