@@ -49,6 +49,11 @@ def build_history_summary_prompt(history: list[dict]) -> tuple[str, str]:
     return SUMMARIZE_HISTORY_PROMPT, "\n\n".join(lines)
 
 
+def format_excerpts(excerpts: list[tuple[str, str]]) -> str:
+    """(source_label, text) pairs as labelled blocks for a prompt body."""
+    return "\n\n".join(f"[{label}]\n{text}" for label, text in excerpts)
+
+
 def build_user_prompt(
     question: str,
     excerpts: list[tuple[str, str]],
@@ -60,7 +65,7 @@ def build_user_prompt(
     When context_summary is provided it is prepended before the excerpts so
     the model can refer back to earlier questions in the conversation.
     """
-    blocks = "\n\n".join(f"[{label}]\n{text}" for label, text in excerpts)
+    blocks = format_excerpts(excerpts)
     parts: list[str] = []
     if context_summary:
         parts.append(f"Conversation so far:\n{context_summary}")

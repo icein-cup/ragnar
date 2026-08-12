@@ -133,18 +133,10 @@ class Answerer:
             # Skip the model entirely — a refusal it cannot embellish.
             return Answer(text=NO_RESULTS_MESSAGE, refused=True)
 
-        if context_summary is None:
-            context_summary = self.summarize_history(history or [], model=model)
-        text = self._llm.generate(
-            SYSTEM_PROMPT,
-            build_user_prompt(
-                question, build_excerpts(results), context_summary=context_summary
-            ),
-            model=model,
-            temperature=temperature,
-            history=_recent(history),
-        )
-
+        text = "".join(self.stream(
+            question, results, model=model, temperature=temperature,
+            history=history, context_summary=context_summary,
+        ))
         return Answer(text=text, citations=citation_labels(results))
 
     def stream(

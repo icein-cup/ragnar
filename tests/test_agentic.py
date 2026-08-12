@@ -81,7 +81,7 @@ class StubSearch:
         self._results_by_query = results_by_query or {}
         self.score_floor = 0.55
         self.vector_floor = 0.42
-        self._reranker = None
+        self.reranker = None
 
     def find(self, question, doc_ids=None, score_floor=None, vector_floor=None,
              use_reranker=True, context_summary=None):
@@ -396,7 +396,7 @@ def test_self_correction_draft_only_sees_floored_results():
     class RerankedStubSearch(StubSearch):
         def __init__(self):
             super().__init__({"question": [kept, dropped]})
-            self._reranker = object()  # non-None so _apply_floors engages
+            self.reranker = object()  # non-None so _apply_floors engages
 
     llm = FakeLLM({
         "self_correct": "Complete: yes\nContradictions: no\nImprovement: none",

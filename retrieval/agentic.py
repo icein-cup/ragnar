@@ -11,7 +11,9 @@ from dataclasses import dataclass, field
 from typing import Callable
 
 from core.models import SearchResult
-from retrieval.search import SearchOutcome
+from retrieval.search import RELATED_COUNT, SearchOutcome, clears_floor
+from generation.answerer import build_excerpts, _recent
+from generation.prompts import SYSTEM_PROMPT, build_user_prompt
 from generation.agentic_prompts import (
     build_rewrite_prompt,
     build_multi_query_prompt,
@@ -271,16 +273,13 @@ class AgenticSearch:
             outcome.refused = True
             return outcome
 
-        if use_reranker and self._base_search._reranker is not None:
+        if use_reranker and self._base_search.reranker is not None:
             floor = self._base_search.score_floor if score_floor is None else score_floor
             vfloor = self._base_search.vector_floor if vector_floor is None else vector_floor
-            kept = [
-                r for r in final_results
-                if r.score >= floor or (r.vector_score is not None and r.vector_score >= vfloor)
-            ]
+            kept = [r for r in final_results if clears_floor(r, floor, vfloor)]
             if not kept:
                 outcome.results = []
-                outcome.related = final_results[:3]
+                outcome.related = final_results[:RELATED_COUNT]
                 outcome.refused = True
                 return outcome
             final_results = kept
@@ -391,8 +390,8 @@ class AgenticSearch:
         accumulated = list(current_results)
 
         for hop in range(1, self._max_hops + 1):
-            excerpts = [(r.chunk.citation_label(), r.chunk.text) for r in accumulated]
-            system, user = build_multi_hop_prompt(original_question, excerpts)
+            system, user = build_multi_hop_prompt(
+                original_question, build_excerpts(accumulated))
             try:
                 raw = gen(system, user).strip()
             except Exception as exc:
@@ -446,9 +445,6 @@ class AgenticSearch:
         answer complete, the draft is carried through the outcome and
         reused by the UI, avoiding a duplicate LLM call.
         """
-        from generation.prompts import SYSTEM_PROMPT, build_user_prompt
-        from generation.answerer import build_excerpts, _recent
-
         excerpts = build_excerpts(results)
         draft_prompt = build_user_prompt(
             question, excerpts, context_summary=context_summary,

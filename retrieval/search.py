@@ -5,6 +5,18 @@ from core.models import SearchResult
 RELATED_COUNT = 3
 
 
+def clears_floor(result: SearchResult, floor: float, vfloor: float) -> bool:
+    """Keep a result if EITHER signal clears its floor.
+
+    sigmoid(0) == 0.5 on the rerank scale, so "no opinion" and "irrelevant"
+    land in the same place there; the raw vector score is the second opinion
+    that rescues genuinely relevant content (table rows especially).
+    """
+    return result.score >= floor or (
+        result.vector_score is not None and result.vector_score >= vfloor
+    )
+
+
 @dataclass
 class SearchOutcome:
     results: list[SearchResult] = field(default_factory=list)
@@ -25,7 +37,7 @@ class Search:
                  vector_floor: float = 0.0):
         self._embedder = embedder
         self._store = store
-        self._reranker = reranker
+        self.reranker = reranker
         self._candidates = candidates
         self._top_k = top_k
         # Public so the UI can adjust them per-query without rebuilding
@@ -71,15 +83,11 @@ class Search:
         if not candidates:
             return SearchOutcome(refused=True)
 
-        if not (use_reranker and self._reranker is not None):
+        if not (use_reranker and self.reranker is not None):
             return SearchOutcome(results=candidates[: self._top_k])
 
-        ranked = self._reranker.rerank(search_query, candidates, self._top_k)
-        kept = [
-            r for r in ranked
-            if r.score >= floor
-            or (r.vector_score is not None and r.vector_score >= vfloor)
-        ]
+        ranked = self.reranker.rerank(search_query, candidates, self._top_k)
+        kept = [r for r in ranked if clears_floor(r, floor, vfloor)]
 
         if not kept:
             return SearchOutcome(

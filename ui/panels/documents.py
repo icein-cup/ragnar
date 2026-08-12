@@ -6,12 +6,6 @@ from ui.services import format_eta
 STATUS_ICONS = {"queued": "⏳", "processing": "⚙️", "done": "✅", "failed": "❌"}
 
 
-def _get_original_path(svc, doc_id: str, filename: str) -> Path | None:
-    """Get the path to the original uploaded file for a document."""
-    path = svc["storage"].archived_path(filename, doc_id)
-    return path if path.exists() else None
-
-
 def _open_file_at_page(path: Path, page: int | None = None) -> None:
     """Open the original file using the system default application.
 
@@ -19,6 +13,7 @@ def _open_file_at_page(path: Path, page: int | None = None) -> None:
     fragment (honored by macOS Preview and most PDF viewers) or a viewer-
     specific flag as a fallback.
     """
+    import os
     import platform
     import subprocess
     import urllib.parse
@@ -43,7 +38,7 @@ def _open_file_at_page(path: Path, page: int | None = None) -> None:
         elif system == "Linux":
             subprocess.run(["xdg-open", str(path)], check=False)
         elif system == "Windows":
-            subprocess.run(["start", "", str(path)], check=False, shell=True)
+            os.startfile(str(path))
     except Exception:
         pass  # Best-effort: if opening fails, the user can still view markdown
 
@@ -174,7 +169,9 @@ def _render_status_strip(svc) -> None:
 
 def _render_document_viewer(svc, doc_id: str, filename: str) -> None:
     """Render the document viewer with optional page/sheet navigation."""
-    original_path = _get_original_path(svc, doc_id, filename)
+    original_path = svc["storage"].archived_path(filename, doc_id)
+    if not original_path.exists():
+        original_path = None
     # Read (not pop) the navigation targets so they survive across reruns
     # until the user actually clicks "Open" — popping on the first render
     # meant the button click on the next rerun always saw None.
@@ -205,15 +202,13 @@ def _render_document_viewer(svc, doc_id: str, filename: str) -> None:
 
     # Show converted markdown
     markdown = svc["storage"].read_markdown(doc_id)
-    if markdown:
-        # If a specific page/sheet is targeted, try to show a jump indicator
-        if page_target:
-            st.info(f"📍 Jumped to content from page {page_target} — scroll to find the relevant section below.")
-            st.markdown(markdown)
-        elif sheet_target:
-            st.info(f"📍 Jumped to sheet {sheet_target} — scroll to find the relevant section below.")
-            st.markdown(markdown)
-        else:
-            st.markdown(markdown)
-    else:
+    if not markdown:
         st.markdown("_Not yet converted_")
+        return
+
+    # If a specific page/sheet is targeted, show a jump indicator above it.
+    if page_target:
+        st.info(f"📍 Jumped to content from page {page_target} — scroll to find the relevant section below.")
+    elif sheet_target:
+        st.info(f"📍 Jumped to sheet {sheet_target} — scroll to find the relevant section below.")
+    st.markdown(markdown)

@@ -16,16 +16,20 @@ AGGREGATION_TERMS = {
 
 TABLE_MAJORITY = 0.5
 
+# Single-word terms match on word boundaries ("total" but not "totally");
+# multi-word ones are plain substrings. Both are derived from
+# AGGREGATION_TERMS above, which stays the one place to edit the vocabulary.
+_WORD_RE = re.compile(
+    r"\b(?:%s)\b" % "|".join(
+        re.escape(t) for t in sorted(AGGREGATION_TERMS) if " " not in t
+    )
+)
+_PHRASES = tuple(sorted(t for t in AGGREGATION_TERMS if " " in t))
+
 
 def _has_aggregation_intent(question: str) -> bool:
     lowered = question.lower()
-    for term in AGGREGATION_TERMS:
-        if " " in term:
-            if term in lowered:
-                return True
-        elif re.search(rf"\b{re.escape(term)}\b", lowered):
-            return True
-    return False
+    return bool(_WORD_RE.search(lowered)) or any(p in lowered for p in _PHRASES)
 
 
 def _is_table_heavy(results: list[SearchResult]) -> bool:

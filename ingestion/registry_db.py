@@ -1,8 +1,7 @@
-import sqlite3
-import threading
 import time
 from pathlib import Path
 
+from core.db import connect, write
 from core.models import Document, IngestStatus
 
 SCHEMA = """
@@ -68,12 +67,8 @@ class Registry:
     """
 
     def __init__(self, path: Path):
-        path.parent.mkdir(parents=True, exist_ok=True)
-        self._conn = sqlite3.connect(str(path), check_same_thread=False)
-        self._conn.row_factory = sqlite3.Row
-        self._lock = threading.Lock()
+        self._conn, self._lock = connect(path, SCHEMA)
         with self._lock:
-            self._conn.executescript(SCHEMA)
             self._migrate()
             self._conn.commit()
 
@@ -87,9 +82,7 @@ class Registry:
                 )
 
     def _write(self, sql: str, params: tuple) -> None:
-        with self._lock:
-            self._conn.execute(sql, params)
-            self._conn.commit()
+        write(self._conn, self._lock, sql, params)
 
     def _row_to_doc(self, row) -> Document:
         return Document(

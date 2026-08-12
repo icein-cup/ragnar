@@ -1,9 +1,8 @@
 import json
-import sqlite3
-import threading
 import time
 from pathlib import Path
 
+from core.db import connect, write
 from core.models import SavedChat
 
 SCHEMA = """
@@ -54,13 +53,7 @@ class ChatStore:
     """
 
     def __init__(self, path: Path):
-        path.parent.mkdir(parents=True, exist_ok=True)
-        self._conn = sqlite3.connect(str(path), check_same_thread=False)
-        self._conn.row_factory = sqlite3.Row
-        self._lock = threading.Lock()
-        with self._lock:
-            self._conn.executescript(SCHEMA)
-            self._conn.commit()
+        self._conn, self._lock = connect(path, SCHEMA)
 
     def _row_to_chat(self, row) -> SavedChat:
         return SavedChat(
@@ -80,17 +73,16 @@ class ChatStore:
         now = time.time()
         payload = json.dumps(messages, ensure_ascii=False,
                              default=dataclass_to_dict)
-        with self._lock:
-            self._conn.execute(
-                "INSERT INTO chats "
-                "(chat_id, title, messages, created_at, updated_at) "
-                "VALUES (?, ?, ?, ?, ?) "
-                "ON CONFLICT(chat_id) DO UPDATE SET "
-                "title = excluded.title, messages = excluded.messages, "
-                "updated_at = excluded.updated_at",
-                (chat_id, title, payload, now, now),
-            )
-            self._conn.commit()
+        write(
+            self._conn, self._lock,
+            "INSERT INTO chats "
+            "(chat_id, title, messages, created_at, updated_at) "
+            "VALUES (?, ?, ?, ?, ?) "
+            "ON CONFLICT(chat_id) DO UPDATE SET "
+            "title = excluded.title, messages = excluded.messages, "
+            "updated_at = excluded.updated_at",
+            (chat_id, title, payload, now, now),
+        )
 
     def all(self) -> list[SavedChat]:
         """Saved chats, most recently updated first."""
@@ -101,8 +93,5 @@ class ChatStore:
         return [self._row_to_chat(r) for r in rows]
 
     def delete(self, chat_id: str) -> None:
-        with self._lock:
-            self._conn.execute(
-                "DELETE FROM chats WHERE chat_id = ?", (chat_id,)
-            )
-            self._conn.commit()
+        write(self._conn, self._lock,
+              "DELETE FROM chats WHERE chat_id = ?", (chat_id,))

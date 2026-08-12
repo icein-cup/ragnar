@@ -1,4 +1,5 @@
 """Agentic RAG prompts for query rewriting, multi-query generation, multi-hop reasoning, and self-correction."""
+from generation.prompts import format_excerpts
 
 # ── Query Rewriting ──────────────────────────────────────────────────────────
 QUERY_REWRITE_PROMPT = """\
@@ -84,11 +85,11 @@ def build_multi_query_prompt(question: str, num_queries: int = 3) -> tuple[str, 
 
 def build_multi_hop_prompt(question: str, excerpts: list[tuple[str, str]]) -> tuple[str, str]:
     """Build (system, user) prompts for multi-hop reasoning."""
-    blocks = "\n\n".join(f"[{label}]\n{text}" for label, text in excerpts)
-    return "", MULTI_HOP_PROMPT.format(question=question, excerpts=blocks)
+    return "", MULTI_HOP_PROMPT.format(
+        question=question, excerpts=format_excerpts(excerpts))
 
 
 def build_self_correction_prompt(question: str, excerpts: list[tuple[str, str]], answer: str) -> tuple[str, str]:
     """Build (system, user) prompts for self-correction evaluation."""
-    blocks = "\n\n".join(f"[{label}]\n{text}" for label, text in excerpts)
-    return "", SELF_CORRECTION_PROMPT.format(question=question, excerpts=blocks, answer=answer)
+    return "", SELF_CORRECTION_PROMPT.format(
+        question=question, excerpts=format_excerpts(excerpts), answer=answer)

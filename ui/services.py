@@ -62,6 +62,16 @@ def build_services():
     }
 
 
+def _ollama_models(ollama_url: str, path: str) -> list[dict]:
+    """Model entries from an Ollama listing endpoint, or [] if unreachable."""
+    try:
+        resp = httpx.get(f"{ollama_url}{path}", timeout=5)
+        resp.raise_for_status()
+        return resp.json().get("models", [])
+    except Exception:
+        return []
+
+
 @st.cache_data(ttl=30)
 def list_chat_models(ollama_url: str, exclude: str) -> list[str]:
     """Chat-capable models pulled in Ollama, excluding the embedding model.
@@ -70,20 +80,15 @@ def list_chat_models(ollama_url: str, exclude: str) -> list[str]:
     no local data (size == 0) — those either require external subscriptions
     or are not actually available to run locally.
     """
-    try:
-        resp = httpx.get(f"{ollama_url}/api/tags", timeout=5)
-        resp.raise_for_status()
-        # Exclude the embedding model and any tagged variant of it
-        # ("bge-m3", "bge-m3:latest", ...) — only chat models belong here.
-        base = exclude.split(":")[0]
-        return sorted(
-            m["name"] for m in resp.json().get("models", [])
-            if not m["name"].startswith(base)
-            and not m["name"].endswith(":cloud")
-            and m.get("size", 0) > 0
-        )
-    except Exception:
-        return []
+    # Exclude the embedding model and any tagged variant of it
+    # ("bge-m3", "bge-m3:latest", ...) — only chat models belong here.
+    base = exclude.split(":")[0]
+    return sorted(
+        m["name"] for m in _ollama_models(ollama_url, "/api/tags")
+        if not m["name"].startswith(base)
+        and not m["name"].endswith(":cloud")
+        and m.get("size", 0) > 0
+    )
 
 
 def list_loaded_models(ollama_url: str) -> list[str]:
@@ -91,12 +96,7 @@ def list_loaded_models(ollama_url: str) -> list[str]:
 
     Not cached — callers need a live view of what is actually running.
     """
-    try:
-        resp = httpx.get(f"{ollama_url}/api/ps", timeout=5)
-        resp.raise_for_status()
-        return [m["name"] for m in resp.json().get("models", [])]
-    except Exception:
-        return []
+    return [m["name"] for m in _ollama_models(ollama_url, "/api/ps")]
 
 
 def warm_model(ollama_url: str, model: str) -> bool:
