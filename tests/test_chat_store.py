@@ -17,15 +17,15 @@ def _msgs(question="What is the contract number?", answer="SC-4471"):
     ]
 
 
-def test_save_then_get_round_trips_messages(store):
+def test_save_then_read_back_round_trips_messages(store):
     store.save("c1", "a title", _msgs())
-    got = store.get("c1")
+    got = store.all()[0]
     assert got.title == "a title"
     assert got.messages == _msgs()
 
 
-def test_get_unknown_chat_returns_none(store):
-    assert store.get("nope") is None
+def test_empty_store_lists_nothing(store):
+    assert store.all() == []
 
 
 def test_all_orders_by_most_recently_updated_first(store):
@@ -37,12 +37,12 @@ def test_all_orders_by_most_recently_updated_first(store):
 
 def test_saving_same_id_updates_in_place_and_preserves_created_at(store):
     store.save("c1", "old", _msgs(answer="v1"))
-    created = store.get("c1").created_at
+    created = store.all()[0].created_at
     time.sleep(0.01)
     store.save("c1", "new", _msgs(answer="v2"))
 
-    got = store.get("c1")
     assert len(store.all()) == 1          # updated, not duplicated
+    got = store.all()[0]
     assert got.title == "new"
     assert got.messages[1]["content"] == "v2"
     assert got.created_at == created       # created_at is stable
@@ -53,13 +53,12 @@ def test_delete_removes_only_the_named_chat(store):
     store.save("c1", "one", _msgs())
     store.save("c2", "two", _msgs())
     store.delete("c1")
-    assert store.get("c1") is None
     assert {c.chat_id for c in store.all()} == {"c2"}
 
 
 def test_unicode_content_survives_json_round_trip(store):
     store.save("c1", "polski", _msgs(question="Jaka jest łączna suma?"))
-    assert store.get("c1").messages[0]["content"] == "Jaka jest łączna suma?"
+    assert store.all()[0].messages[0]["content"] == "Jaka jest łączna suma?"
 
 
 # --- chat_title --------------------------------------------------------------

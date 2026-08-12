@@ -57,7 +57,7 @@ when it's added, but no external API calls happen today.
 
 ## Comparing configurations
 
-    # edit config.yaml: chunking.strategy: fixed (or back to structural)
+    # edit config.yaml: chunking.strategy: semantic (or back to structural)
     docker compose restart app
     # re-ingest the corpus via the UI or a script
     docker compose exec app python eval/run_eval.py

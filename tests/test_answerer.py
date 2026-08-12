@@ -334,47 +334,7 @@ def test_stream_with_history_includes_context_summary():
 # --- conversational fallback (no document results) ---------------------------
 
 
-def test_converse_calls_llm_with_conversation_prompt():
-    llm = StubLLM(reply="Your name is Alex.")
-    answerer = Answerer(llm)
-    history = [
-        {"role": "user", "content": "my name is Alex"},
-        {"role": "assistant", "content": NO_RESULTS_MESSAGE},
-    ]
-
-    answer = answerer.converse("what is my name?", history=history)
-
-    assert llm.prompts  # the LLM was actually called
-    system, _user = llm.prompts[0]
-    assert system is CONVERSATION_SYSTEM_PROMPT
-    assert answer.text == "Your name is Alex."
-    assert answer.citations == []
-    assert answer.refused is False
-
-
-def test_converse_passes_history_to_llm():
-    llm = StubLLM(reply="Your name is Alex.")
-    answerer = Answerer(llm)
-    history = [
-        {"role": "user", "content": "my name is Alex"},
-        {"role": "assistant", "content": NO_RESULTS_MESSAGE},
-    ]
-
-    answerer.converse("what is my name?", history=history)
-
-    assert llm.histories[0] == history
-
-
-def test_converse_threads_model_and_temperature():
-    llm = StubLLM()
-    answerer = Answerer(llm)
-
-    answerer.converse("hi", model="llama3", temperature=0.5)
-
-    assert llm.opts[0] == ("llama3", 0.5)
-
-
-def test_converse_stream_yields_tokens():
+def test_converse_stream_uses_conversation_prompt_and_yields_tokens():
     llm = StubLLM(reply="Your name is Alex.")
     answerer = Answerer(llm)
     history = [
@@ -385,15 +345,26 @@ def test_converse_stream_yields_tokens():
     chunks = list(answerer.converse_stream("what is my name?", history=history))
 
     assert "".join(chunks) == "Your name is Alex."
+    system, _user = llm.prompts[0]
+    assert system is CONVERSATION_SYSTEM_PROMPT
+    assert llm.histories[0] == history
 
 
-def test_converse_with_no_history_still_calls_llm():
-    # Unlike the NO_RESULTS path in answer(), converse() always calls the
-    # LLM — it's the caller's responsibility to decide when to use it.
+def test_converse_stream_threads_model_and_temperature():
+    llm = StubLLM()
+    answerer = Answerer(llm)
+
+    list(answerer.converse_stream("hi", model="llama3", temperature=0.5))
+
+    assert llm.opts[0] == ("llama3", 0.5)
+
+
+def test_converse_stream_with_no_history_still_calls_llm():
+    # Unlike the NO_RESULTS path in answer(), converse_stream() always calls
+    # the LLM — it's the caller's responsibility to decide when to use it.
     llm = StubLLM(reply="I don't have any context yet.")
     answerer = Answerer(llm)
 
-    answer = answerer.converse("what is my name?", history=None)
+    list(answerer.converse_stream("what is my name?", history=None))
 
     assert llm.prompts  # LLM was called
-    assert answer.citations == []

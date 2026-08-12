@@ -173,13 +173,6 @@ class Registry:
             self._conn.commit()
             return cursor.rowcount
 
-    def counts(self) -> dict[str, int]:
-        with self._lock:
-            rows = self._conn.execute(
-                "SELECT status, COUNT(*) AS n FROM documents GROUP BY status"
-            ).fetchall()
-        return {r["status"]: r["n"] for r in rows}
-
     def ingest_eta(self) -> tuple[int, int, float | None]:
         """(processing count, queued count, estimated seconds remaining).
 

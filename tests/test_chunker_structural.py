@@ -1,7 +1,6 @@
 import pytest
 
 from ingestion.parser import Block, ParsedDocument
-from ingestion.chunkers.fixed import FixedChunker
 from ingestion.chunkers.structural import StructuralChunker
 from ingestion.chunkers.registry import build_chunker
 
@@ -86,11 +85,6 @@ def test_build_chunker_structural_applies_config():
     chunker = build_chunker({"strategy": "structural", "target_tokens": 300})
     assert isinstance(chunker, StructuralChunker)
     assert chunker.target_chars == int(300 * 3.5)
-
-
-def test_build_chunker_fixed_returns_fixed_chunker():
-    chunker = build_chunker({"strategy": "fixed"})
-    assert isinstance(chunker, FixedChunker)
 
 
 def test_low_confidence_propagates_to_chunks():

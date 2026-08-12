@@ -10,7 +10,6 @@ import streamlit as st
 # only ever reached stderr at WARNING+. INFO surfaces both.
 logging.basicConfig(level=logging.INFO)
 
-from core.timing import log_elapsed
 from generation.guards import aggregation_refusal
 from generation.answerer import (
     AnswerMode,
@@ -19,7 +18,7 @@ from generation.answerer import (
     citation_labels,
     build_citations,
 )
-from history.chat_store import chat_title
+from history.chat_store import chat_title, dataclass_to_dict
 from ui.services import build_services
 from ui.panels import settings, documents, chats
 
@@ -52,24 +51,6 @@ div[data-testid="stExpander"] summary p {
     font-size: 1.5rem !important;
     font-weight: 600 !important;
 }
-/* Citation links */
-.citation-link {
-    display: inline-block;
-    padding: 2px 8px;
-    margin: 2px 4px 2px 0;
-    background-color: #1e1e2e;
-    border: 1px solid #4a4a6a;
-    border-radius: 4px;
-    color: #89b4fa;
-    font-size: 0.8rem;
-    text-decoration: none;
-    cursor: pointer;
-    transition: background-color 0.2s;
-}
-.citation-link:hover {
-    background-color: #313244;
-    color: #b4befe;
-}
 /* Agentic trace expander styling */
 .agentic-trace {
     font-size: 0.8rem;
@@ -84,15 +65,34 @@ div[data-testid="stExpander"] summary p {
 
 
 def _open_citation(doc_id: str, page: int | None, sheet: str | None) -> None:
-    """Set session state so the Documents panel will jump to the cited location."""
+    """Open the cited document at the referenced location.
+
+    Tries to open the original file directly at the cited page (so the
+    user lands on the right spot immediately) and also sets session state
+    so the Documents panel shows the converted-markdown viewer with a
+    jump indicator as a fallback.
+    """
     st.session_state[f"show_md_{doc_id}"] = True
     st.session_state[f"scroll_to_page_{doc_id}"] = page
     st.session_state[f"scroll_to_sheet_{doc_id}"] = sheet
-    st.session_state["_focus_doc_id"] = doc_id
+
+    # Best-effort: open the original file directly at the cited page.
+    doc = svc["registry"].get(doc_id)
+    if doc:
+        original_path = svc["storage"].archived_path(doc.filename, doc_id)
+        if original_path.exists():
+            from ui.panels.documents import _open_file_at_page
+            _open_file_at_page(original_path, page)
 
 
-def _render_citations(citations: list) -> None:
-    """Render clickable citation badges that open the source document."""
+def _render_citations(citations: list, scope: str = "live") -> None:
+    """Render clickable citation badges that open the source document.
+
+    scope disambiguates the button key across messages — citation_label()
+    dedupes by filename+page, so the same source cited in two different
+    chat turns would otherwise produce the same widget key and crash the
+    replay loop with a duplicate-element-key error.
+    """
     for cite in citations:
         if isinstance(cite, dict):
             label = cite.get("label", cite)
@@ -106,15 +106,9 @@ def _render_citations(citations: list) -> None:
             sheet = None
 
         if doc_id:
-            st.markdown(
-                f'<a class="citation-link" href="#" '
-                f'title="Open {label}">📄 {label}</a>',
-                unsafe_allow_html=True,
-            )
-            # Streamlit button to actually open the document
             if st.button(
-                f"Open {label}",
-                key=f"cite_btn_{doc_id}_{page or 0}_{sheet or 'none'}",
+                f"📄 {label}",
+                key=f"cite_btn_{scope}_{doc_id}_{page or 0}_{sheet or 'none'}",
                 help=f"Open {label} at the referenced location",
             ):
                 _open_citation(doc_id, page, sheet)
@@ -124,18 +118,27 @@ def _render_citations(citations: list) -> None:
 
 
 def _render_agentic_trace(outcome, elapsed: float | None = None) -> None:
-    """Show the agentic reasoning trace in a collapsible section."""
+    """Show the query timing and, when available, the agentic reasoning trace.
+
+    Accepts either a live AgenticSearchOutcome or the dict snapshot
+    _build_trace() persisted with the message — _build_trace uses the same
+    field names, so one lookup covers both.
+    """
+    trace = outcome if isinstance(outcome, dict) else _build_trace(outcome) or {}
+
     trace_parts: list[str] = []
     if elapsed is not None:
         trace_parts.append(f"Round-trip time: {elapsed:.2f}s")
-    if outcome.rewritten_query:
-        trace_parts.append(f"Rewritten query: {outcome.rewritten_query}")
-    if outcome.queries_executed:
-        trace_parts.append(f"Queries executed: {len(outcome.queries_executed)}")
-    if outcome.hops_performed:
-        trace_parts.append(f"Multi-hops performed: {outcome.hops_performed}")
-    if outcome.self_corrected:
-        trace_parts.append(f"Self-corrected: {outcome.correction_notes or 'yes'}")
+    if trace.get("rewritten_query"):
+        trace_parts.append(f"Rewritten query: {trace['rewritten_query']}")
+    if trace.get("queries_executed"):
+        trace_parts.append(f"Queries executed: {trace['queries_executed']}")
+    if trace.get("hops_performed"):
+        trace_parts.append(f"Multi-hops performed: {trace['hops_performed']}")
+    if trace.get("self_corrected"):
+        trace_parts.append(
+            f"Self-corrected: {trace.get('correction_notes') or 'yes'}"
+        )
 
     if trace_parts:
         with st.expander("🧠 Agentic reasoning trace", expanded=False):
@@ -144,6 +147,47 @@ def _render_agentic_trace(outcome, elapsed: float | None = None) -> None:
                     f"<div class='agentic-trace'><span class='trace-label'>{part}</span></div>",
                     unsafe_allow_html=True,
                 )
+
+
+def _citations_to_dicts(citations: list) -> list[dict]:
+    """Citation dataclasses as plain dicts, JSON-safe for session state."""
+    return [c if isinstance(c, dict) else dataclass_to_dict(c) for c in citations]
+
+
+def _render_sources_expander(citations: list, related: list | None = None, scope: str = "live") -> None:
+    """Render the Sources panel: real citations, related docs, or a no-match note."""
+    with st.expander("Sources"):
+        if citations:
+            _render_citations(citations, scope=scope)
+        if related:
+            st.markdown(
+                "<div class='agentic-trace'>Related documents that did not "
+                "clear the relevance floor:</div>",
+                unsafe_allow_html=True,
+            )
+            for label in related:
+                st.caption(label)
+        if not citations and not related:
+            st.caption(
+                "No documents matched this question above the current "
+                "relevance floor."
+            )
+
+
+def _build_trace(outcome) -> dict | None:
+    """Build a JSON-serializable agentic trace snapshot from a search outcome."""
+    trace: dict = {}
+    if getattr(outcome, "rewritten_query", None):
+        trace["rewritten_query"] = outcome.rewritten_query
+    if getattr(outcome, "queries_executed", None):
+        trace["queries_executed"] = len(outcome.queries_executed)
+    if getattr(outcome, "hops_performed", None):
+        trace["hops_performed"] = outcome.hops_performed
+    if getattr(outcome, "self_corrected", None):
+        trace["self_corrected"] = True
+        if getattr(outcome, "correction_notes", None):
+            trace["correction_notes"] = outcome.correction_notes
+    return trace if trace else None
 
 
 with st.sidebar:
@@ -173,12 +217,17 @@ if "messages" not in st.session_state:
 # None until the current conversation has been saved for the first time.
 st.session_state.setdefault("current_chat_id", None)
 
-for message in st.session_state.messages:
+for _msg_idx, message in enumerate(st.session_state.messages):
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
-        if message.get("citations"):
-            with st.expander("Sources"):
-                _render_citations(message["citations"])
+        _render_sources_expander(
+            message.get("citations") or [],
+            message.get("related"),
+            scope=str(_msg_idx),
+        )
+        _render_agentic_trace(
+            message.get("trace") or {}, elapsed=message.get("elapsed")
+        )
 
 if question := st.chat_input("Ask about your documents"):
     st.session_state.messages.append({"role": "user", "content": question})
@@ -197,14 +246,11 @@ if question := st.chat_input("Ask about your documents"):
             history, model=query["model"]
         )
 
-        # Use agentic search if available
+        # Use agentic search if available. Flags are passed per-call, not
+        # mutated on the shared (st.cache_resource) instance — see find()'s
+        # docstring in retrieval/agentic.py: concurrent sessions would
+        # otherwise clobber each other's settings mid-request.
         if svc.get("agentic_search") is not None:
-            svc["agentic_search"]._enable_rewrite = query["enable_rewrite"]
-            svc["agentic_search"]._enable_multi_query = query["enable_multi_query"]
-            svc["agentic_search"]._enable_multi_hop = query["enable_multi_hop"]
-            svc["agentic_search"]._enable_self_correction = query[
-                "enable_self_correction"
-            ]
             outcome = svc["agentic_search"].find(
                 question,
                 doc_ids=doc_ids_filter,
@@ -215,6 +261,10 @@ if question := st.chat_input("Ask about your documents"):
                 history=history,
                 model=query["model"],
                 temperature=query["temperature"],
+                enable_rewrite=query["enable_rewrite"],
+                enable_multi_query=query["enable_multi_query"],
+                enable_multi_hop=query["enable_multi_hop"],
+                enable_self_correction=query["enable_self_correction"],
             )
         else:
             outcome = svc["search"].find(
@@ -228,15 +278,15 @@ if question := st.chat_input("Ask about your documents"):
 
         mode = classify(question, outcome.refused, outcome.results)
 
+        related_labels = citation_labels(outcome.related)
+        related_dicts = [
+            {"label": label, "doc_id": None, "page": None, "sheet": None}
+            for label in related_labels
+        ]
+
         if mode is AnswerMode.NO_RESULTS:
             citations = []
             rich_citations = []
-
-            related_labels = citation_labels(outcome.related)
-            if related_labels:
-                with st.expander("Related documents you might check"):
-                    for label in related_labels:
-                        st.caption(label)
 
             # When there is conversation history, fall back to a
             # conversational answer so the assistant can recall things the
@@ -283,43 +333,47 @@ if question := st.chat_input("Ask about your documents"):
                         context_summary=context_summary,
                     )
                 )
-            with st.expander("Sources"):
-                _render_citations(
-                    [
-                        {
-                            "label": c.label,
-                            "doc_id": c.doc_id,
-                            "page": c.page,
-                            "sheet": c.sheet,
-                        }
-                        for c in rich_citations
-                    ]
-                )
 
         elapsed = time.perf_counter() - start
-        log_elapsed("query_round_trip", elapsed, question=question)
+        logging.info("query_round_trip took %.2fs (question=%r)", elapsed, question)
 
-        # Render agentic trace if available
-        if hasattr(outcome, "hops_performed"):
-            _render_agentic_trace(outcome, elapsed=elapsed)
+        # Commit the answer to session state (and disk) BEFORE any further
+        # rendering below. A streamed answer only survives st.rerun() if it
+        # made it into st.session_state.messages — the replay loop at the
+        # top of the script is the only thing that redraws it. If a later
+        # render call (sources/timing/trace) throws or a background rerun
+        # request lands, the answer must already be safe, or it's gone for
+        # good and the next full render falls back to whatever was last
+        # committed (i.e. the refusal from a previous turn).
+        st.session_state.messages.append(
+            {
+                "role": "assistant",
+                "content": text,
+                "citations": _citations_to_dicts(rich_citations),
+                "related": related_dicts,
+                "elapsed": elapsed,
+                "trace": _build_trace(outcome),
+            }
+        )
 
-    st.session_state.messages.append(
-        {
-            "role": "assistant",
-            "content": text,
-            "citations": rich_citations if "rich_citations" in locals() else citations,
-        }
-    )
+        # Persist the conversation. Mint an id on first save so a chat only
+        # appears in the list once it actually has content.
+        if st.session_state.current_chat_id is None:
+            st.session_state.current_chat_id = uuid.uuid4().hex
+        try:
+            svc["chats"].save(
+                st.session_state.current_chat_id,
+                chat_title(st.session_state.messages),
+                st.session_state.messages,
+            )
+        except Exception as exc:
+            logging.exception("Failed to persist chat: %s", exc)
+            st.warning("Couldn't save this chat — the answer above is still shown, but a page reload may lose it.")
 
-    # Persist the conversation. Mint an id on first save so a chat only
-    # appears in the list once it actually has content. Rerun so the newly
-    # saved/updated chat shows in the Chats panel immediately (the sidebar
-    # renders above this handler, so it hasn't seen the save yet this run).
-    if st.session_state.current_chat_id is None:
-        st.session_state.current_chat_id = uuid.uuid4().hex
-    svc["chats"].save(
-        st.session_state.current_chat_id,
-        chat_title(st.session_state.messages),
-        st.session_state.messages,
-    )
+        _render_sources_expander(_citations_to_dicts(rich_citations), related_dicts)
+        _render_agentic_trace(outcome, elapsed=elapsed)
+
+    # Rerun so the newly saved/updated chat shows in the Chats panel
+    # immediately (the sidebar renders above this handler, so it hasn't
+    # seen the save yet this run).
     st.rerun()

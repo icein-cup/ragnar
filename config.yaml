@@ -5,7 +5,7 @@ models:
   reranker: BAAI/bge-reranker-v2-m3
 
 chunking:
-  strategy: structural   # fixed | structural | semantic
+  strategy: structural   # structural | semantic
   target_tokens: 500
   overlap_tokens: 50
   table_rows_per_group: 20

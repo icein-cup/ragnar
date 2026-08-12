@@ -33,8 +33,12 @@ def chat_title(messages: list[dict]) -> str:
     return "New chat"
 
 
-def _json_default(obj):
-    """Convert dataclass instances to plain dicts so they survive json.dumps."""
+def dataclass_to_dict(obj):
+    """Convert dataclass instances to plain dicts so they survive json.dumps.
+
+    Doubles as json.dumps' `default=` hook, hence the TypeError on anything
+    that isn't a dataclass.
+    """
     if hasattr(obj, "__dataclass_fields__"):
         return {f: getattr(obj, f) for f in obj.__dataclass_fields__}
     raise TypeError(
@@ -75,7 +79,7 @@ class ChatStore:
         """
         now = time.time()
         payload = json.dumps(messages, ensure_ascii=False,
-                             default=_json_default)
+                             default=dataclass_to_dict)
         with self._lock:
             self._conn.execute(
                 "INSERT INTO chats "
@@ -87,13 +91,6 @@ class ChatStore:
                 (chat_id, title, payload, now, now),
             )
             self._conn.commit()
-
-    def get(self, chat_id: str) -> SavedChat | None:
-        with self._lock:
-            row = self._conn.execute(
-                "SELECT * FROM chats WHERE chat_id = ?", (chat_id,)
-            ).fetchone()
-        return self._row_to_chat(row) if row else None
 
     def all(self) -> list[SavedChat]:
         """Saved chats, most recently updated first."""

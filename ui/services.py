@@ -48,16 +48,10 @@ def build_services():
         candidates=cfg.candidates, top_k=cfg.top_k,
         score_floor=cfg.score_floor, vector_floor=cfg.vector_floor,
     )
-    agentic_cfg = getattr(cfg, "agentic", None) or {}
-    agentic_search = AgenticSearch(
-        base_search, llm,
-        max_hops=agentic_cfg.get("max_hops", 3),
-        multi_query_count=agentic_cfg.get("multi_query_count", 3),
-        enable_rewrite=agentic_cfg.get("enable_rewrite", True),
-        enable_multi_query=agentic_cfg.get("enable_multi_query", True),
-        enable_multi_hop=agentic_cfg.get("enable_multi_hop", True),
-        enable_self_correction=agentic_cfg.get("enable_self_correction", True),
-    )
+    # config.yaml's `agentic:` keys are the AgenticSearch parameter names, so
+    # the defaults live in its signature alone. An unknown key here is a
+    # startup TypeError rather than a silently ignored setting.
+    agentic_search = AgenticSearch(base_search, llm, **cfg.agentic)
 
     return {
         "cfg": cfg, "storage": storage, "registry": registry, "chats": chats,

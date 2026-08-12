@@ -31,6 +31,33 @@ class ScriptedEmbedder:
         return [self.vectors[t] for t in texts]
 
 
+class FakeChunker:
+    """Naive character-window chunker, for driving Pipeline/Worker tests.
+
+    Deliberately dumber than the real chunkers — those have their own tests;
+    this one just needs to turn blocks into a predictable number of chunks.
+    """
+
+    def __init__(self, target_chars: int = 2000, overlap_chars: int = 200):
+        self.target_chars = target_chars
+        self.overlap_chars = overlap_chars
+
+    def chunk(self, parsed, doc_id: str, filename: str) -> list[Chunk]:
+        chunks: list[Chunk] = []
+        step = max(self.target_chars - self.overlap_chars, 1)
+        for block in parsed.blocks:
+            text = block.text.strip()
+            for start in range(0, len(text), step):
+                chunks.append(Chunk(
+                    doc_id=doc_id, filename=filename,
+                    text=text[start:start + self.target_chars],
+                    chunk_index=len(chunks), page=block.page,
+                    sheet=block.sheet, is_table=block.is_table,
+                    low_confidence=parsed.low_confidence,
+                ))
+        return chunks
+
+
 class FakeStore:
     def __init__(self):
         self.chunks: list[Chunk] = []

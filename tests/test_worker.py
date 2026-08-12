@@ -4,9 +4,8 @@ from ingestion.parser import Block
 from ingestion.registry_db import Registry
 from ingestion.storage import Storage
 from ingestion.pipeline import Pipeline
-from ingestion.chunkers.fixed import FixedChunker
 from ingestion.worker import IngestWorker
-from tests.fakes import FakeEmbedder, FakeStore, FakeParser
+from tests.fakes import FakeChunker, FakeEmbedder, FakeStore, FakeParser
 
 
 @pytest.fixture
@@ -16,7 +15,7 @@ def env(tmp_path):
     store = FakeStore()
     pipeline = Pipeline(
         FakeParser(blocks=[Block(text="hello world", page=1)]),
-        FixedChunker(target_chars=100),
+        FakeChunker(target_chars=100),
         FakeEmbedder(),
         store,
     )
@@ -59,7 +58,7 @@ def test_worker_leaves_original_in_inbox_on_failure(env):
     doc_id = storage.doc_id(path)
     registry.add(doc_id, "bad.pdf")
 
-    failing = Pipeline(FakeParser(fail=True), FixedChunker(),
+    failing = Pipeline(FakeParser(fail=True), FakeChunker(),
                        FakeEmbedder(), store)
     IngestWorker(storage, registry, failing).process_next()
 

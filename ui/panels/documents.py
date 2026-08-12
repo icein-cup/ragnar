@@ -15,25 +15,31 @@ def _get_original_path(svc, doc_id: str, filename: str) -> Path | None:
 def _open_file_at_page(path: Path, page: int | None = None) -> None:
     """Open the original file using the system default application.
 
-    For PDFs on macOS, attempts to open at the specific page using Preview
-    or the default PDF viewer.
+    For PDFs, attempts to open at the specific page using the #page=N URL
+    fragment (honored by macOS Preview and most PDF viewers) or a viewer-
+    specific flag as a fallback.
     """
     import platform
     import subprocess
+    import urllib.parse
 
     system = platform.system()
     try:
         if system == "Darwin":  # macOS
             if page and path.suffix.lower() == ".pdf":
-                # Try to open at specific page using AppleScript
-                script = f'''
-                tell application "Finder"
-                    open POSIX file "{path}"
-                end tell
-                '''
-                subprocess.run(["osascript", "-e", script], check=False, capture_output=True)
+                # Preview and most macOS PDF viewers honor the #page=N
+                # fragment on a file:// URL. This opens the document and
+                # jumps straight to the cited page.
+                file_url = (
+                    "file://"
+                    + urllib.parse.quote(str(path))
+                    + f"#page={page}"
+                )
+                subprocess.run(
+                    ["open", file_url], check=False, capture_output=True
+                )
             else:
-                subprocess.run(["open", str(path)], check=False)
+                subprocess.run(["open", str(path)], check=False, capture_output=True)
         elif system == "Linux":
             subprocess.run(["xdg-open", str(path)], check=False)
         elif system == "Windows":
@@ -83,8 +89,26 @@ def render(svc) -> None:
         _status_strip(svc)
 
 
-@st.fragment(run_every="2s")
 def _status_strip(svc) -> None:
+    # Poll only while ingestion is actually running. run_every is baked
+    # into the fragment decorator, so it can't be toggled at call time —
+    # instead this recomputes it and re-applies the decorator on every
+    # full script rerun (the pattern Streamlit's own docs use for
+    # starting/stopping a fragment's auto-rerun). Polling unconditionally
+    # every 2s would request a rerun in the middle of a chat answer
+    # streaming elsewhere on the page (st.write_stream checks for a
+    # pending rerun on every token) and silently kill it before it's saved.
+    processing, queued, _ = svc["registry"].ingest_eta()
+    run_every = "2s" if (processing or queued) else None
+
+    @st.fragment(run_every=run_every)
+    def _strip() -> None:
+        _render_status_strip(svc)
+
+    _strip()
+
+
+def _render_status_strip(svc) -> None:
     processing, queued, eta = svc["registry"].ingest_eta()
 
     if processing or queued:
@@ -151,8 +175,11 @@ def _status_strip(svc) -> None:
 def _render_document_viewer(svc, doc_id: str, filename: str) -> None:
     """Render the document viewer with optional page/sheet navigation."""
     original_path = _get_original_path(svc, doc_id, filename)
-    page_target = st.session_state.pop(f"scroll_to_page_{doc_id}", None)
-    sheet_target = st.session_state.pop(f"scroll_to_sheet_{doc_id}", None)
+    # Read (not pop) the navigation targets so they survive across reruns
+    # until the user actually clicks "Open" — popping on the first render
+    # meant the button click on the next rerun always saw None.
+    page_target = st.session_state.get(f"scroll_to_page_{doc_id}")
+    sheet_target = st.session_state.get(f"scroll_to_sheet_{doc_id}")
 
     # Open original file button (top of viewer)
     if original_path:
@@ -167,6 +194,11 @@ def _render_document_viewer(svc, doc_id: str, filename: str) -> None:
                 open_label = f"Open sheet {sheet_target}"
             if st.button(open_label, key=f"open_orig_{doc_id}"):
                 _open_file_at_page(original_path, page_target)
+                # Clear the navigation target after opening so a later
+                # manual "Open original" click doesn't jump to a stale page.
+                st.session_state.pop(f"scroll_to_page_{doc_id}", None)
+                st.session_state.pop(f"scroll_to_sheet_{doc_id}", None)
+                st.rerun()
     else:
         st.markdown(f"**{filename}**")
         st.caption("Original file not found — showing converted text only")

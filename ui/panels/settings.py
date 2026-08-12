@@ -3,9 +3,6 @@ import streamlit as st
 from ingestion.chunkers.registry import build_chunker
 from ui.services import list_chat_models, list_loaded_models, warm_model
 
-# `fixed` is deliberately not offered here — it's a Phase 1 relic that emits
-# no table summaries, a knowingly worse choice for anyone clicking through
-# the UI. It stays reachable via config.yaml for eval comparisons.
 _STRATEGIES = {"Structural": "structural", "Semantic": "semantic"}
 
 

@@ -1,4 +1,3 @@
-from ingestion.chunkers.fixed import FixedChunker
 from ingestion.chunkers.semantic import SemanticChunker
 from ingestion.chunkers.structural import StructuralChunker
 
@@ -7,7 +6,6 @@ from ingestion.chunkers.structural import StructuralChunker
 # a much later task), which is what justifies swappability here and
 # nowhere else in this codebase.
 CHUNKERS = {
-    "fixed": FixedChunker,
     "structural": StructuralChunker,
     "semantic": SemanticChunker,
 }
@@ -19,9 +17,6 @@ def build_chunker(config: dict, embedder=None):
         raise ValueError(
             f"Unknown chunker '{name}'. Available: {sorted(CHUNKERS)}"
         )
-
-    if name == "fixed":
-        return FixedChunker()
 
     if name == "semantic":
         if embedder is None:

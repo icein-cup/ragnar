@@ -10,7 +10,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from typing import Callable
 
-from core.models import Chunk, SearchResult
+from core.models import SearchResult
+from retrieval.search import SearchOutcome
 from generation.agentic_prompts import (
     build_rewrite_prompt,
     build_multi_query_prompt,
@@ -20,8 +21,6 @@ from generation.agentic_prompts import (
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_MAX_HOPS = 3
-DEFAULT_MULTI_QUERY_COUNT = 3
 FAST_PATH_MIN_RESULTS = 3         # Need at least N results clearing the floor
 
 # Strips leading bullets/numbering ("1.", "-", "*", "1)") that a model adds
@@ -29,19 +28,14 @@ FAST_PATH_MIN_RESULTS = 3         # Need at least N results clearing the floor
 _BULLET_RE = re.compile(r"^\s*(?:[-*•]|\d+[.)])\s*")
 
 
-def _clean_llm_line(line: str) -> str:
-    """Strip bullets/numbering and surrounding quotes from one line of LLM output."""
-    line = _BULLET_RE.sub("", line.strip())
-    return line.strip("\"'").strip()
-
-
 def _clean_llm_lines(text: str) -> list[str]:
-    """Clean each line of a multi-line LLM reply, dropping blanks and label
-    lines like "Rewritten query:" that a model prepends despite instructions.
+    """Clean each line of a multi-line LLM reply, stripping bullets/numbering
+    and surrounding quotes, and dropping blanks and label lines like
+    "Rewritten query:" that a model prepends despite instructions.
     """
     cleaned = []
     for raw in text.splitlines():
-        line = _clean_llm_line(raw)
+        line = _BULLET_RE.sub("", raw.strip()).strip("\"'").strip()
         if not line or line.endswith(":"):
             continue
         cleaned.append(line)
@@ -49,11 +43,8 @@ def _clean_llm_lines(text: str) -> list[str]:
 
 
 @dataclass
-class AgenticSearchOutcome:
-    """Extended outcome that carries the agentic reasoning trace."""
-    results: list[SearchResult] = field(default_factory=list)
-    related: list[SearchResult] = field(default_factory=list)
-    refused: bool = False
+class AgenticSearchOutcome(SearchOutcome):
+    """A SearchOutcome that also carries the agentic reasoning trace."""
     # Reasoning trace for transparency / debugging
     rewritten_query: str | None = None
     queries_executed: list[str] = field(default_factory=list)
@@ -87,8 +78,8 @@ class AgenticSearch:
         self,
         base_search,          # retrieval.search.Search instance
         llm,                    # generation.llm.OllamaLLM instance
-        max_hops: int = DEFAULT_MAX_HOPS,
-        multi_query_count: int = DEFAULT_MULTI_QUERY_COUNT,
+        max_hops: int = 3,
+        multi_query_count: int = 3,
         enable_rewrite: bool = True,
         enable_multi_query: bool = True,
         enable_multi_hop: bool = True,
@@ -120,15 +111,18 @@ class AgenticSearch:
         history: list[dict] | None = None,
         model: str | None = None,
         temperature: float | None = None,
+        enable_rewrite: bool | None = None,
+        enable_multi_query: bool | None = None,
+        enable_multi_hop: bool | None = None,
+        enable_self_correction: bool | None = None,
     ) -> AgenticSearchOutcome:
         """Agentic retrieval pipeline.
 
-        model/temperature are threaded through to every internal LLM call
-        (rewrite, multi-query, multi-hop, self-correction) so the whole
-        pipeline runs on the model the caller picked — not just the final
-        answer. Bound per-call via a partial rather than mutated on self,
-        since _retrieve_multi_query fans out across threads on a shared
-        AgenticSearch instance.
+        model/temperature/enable_* are threaded through per call, resolved
+        against the instance defaults below, rather than mutated on self —
+        this instance is shared (st.cache_resource) across concurrent
+        Streamlit sessions, and _retrieve_multi_query also fans out across
+        threads on it, so per-call state must never be assigned to self.
 
         Pipeline order:
         1. Optional query rewriting.
@@ -141,13 +135,25 @@ class AgenticSearch:
            so a reused draft answer never rests on a chunk that got
            filtered out of the citations shown to the user.
         """
+        enable_rewrite = self._enable_rewrite if enable_rewrite is None else enable_rewrite
+        enable_multi_query = (
+            self._enable_multi_query if enable_multi_query is None else enable_multi_query
+        )
+        enable_multi_hop = (
+            self._enable_multi_hop if enable_multi_hop is None else enable_multi_hop
+        )
+        enable_self_correction = (
+            self._enable_self_correction if enable_self_correction is None
+            else enable_self_correction
+        )
+
         gen = functools.partial(self._llm.generate, model=model, temperature=temperature)
         outcome = AgenticSearchOutcome()
 
         # 1. Query rewriting
         query = self._rewrite(question, context_summary, gen) \
-                if self._enable_rewrite else question
-        outcome.rewritten_query = query if self._enable_rewrite else None
+                if enable_rewrite else question
+        outcome.rewritten_query = query if enable_rewrite else None
 
         # 2. Base search (single query first — cheap)
         base_result = self._base_search.find(
@@ -165,7 +171,7 @@ class AgenticSearch:
         all_results: list[SearchResult] = list(base_result.results)
 
         # 3. Multi-query retrieval (parallel, only if enabled and base wasn't great)
-        if self._enable_multi_query and not self._is_fast_path(all_results, score_floor):
+        if enable_multi_query and not self._is_fast_path(all_results, score_floor):
             extra = self._retrieve_multi_query(
                 query, doc_ids, score_floor, vector_floor, use_reranker,
                 context_summary, outcome, gen,
@@ -181,7 +187,7 @@ class AgenticSearch:
             )
 
         # 5. Multi-hop retrieval (expensive — only if needed)
-        if self._enable_multi_hop:
+        if enable_multi_hop:
             all_results = self._multi_hop(
                 question, all_results, doc_ids, score_floor, vector_floor,
                 use_reranker, context_summary, outcome, gen,
@@ -201,7 +207,7 @@ class AgenticSearch:
         # 7. Self-correction check (expensive — only if multi-hop didn't
         # already run), evaluated against outcome.results — the floored
         # set the user will actually see cited.
-        if self._enable_self_correction and outcome.hops_performed == 0 and outcome.results:
+        if enable_self_correction and outcome.hops_performed == 0 and outcome.results:
             correction = self._self_correct(
                 question, outcome.results, gen,
                 context_summary=context_summary, history=history,

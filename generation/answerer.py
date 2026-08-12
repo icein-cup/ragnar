@@ -48,20 +48,18 @@ def build_citations(results: list[SearchResult]) -> list[Citation]:
     seen: set[str] = set()
     citations: list[Citation] = []
     for result in results:
-        label = result.chunk.citation_label()
+        chunk = result.chunk
+        label = chunk.citation_label()
         if label not in seen:
             seen.add(label)
-            meta = result.chunk.citation_meta()
-            citations.append(
-                Citation(
-                    label=label,
-                    doc_id=meta["doc_id"],
-                    filename=meta["filename"],
-                    page=meta["page"],
-                    sheet=meta["sheet"],
-                    chunk_index=meta["chunk_index"],
-                )
-            )
+            citations.append(Citation(
+                label=label,
+                doc_id=chunk.doc_id,
+                filename=chunk.filename,
+                page=chunk.page,
+                sheet=chunk.sheet,
+                chunk_index=chunk.chunk_index,
+            ))
     return citations
 
 
@@ -178,30 +176,6 @@ class Answerer:
             history=_recent(history),
         )
 
-    def converse(
-        self,
-        question: str,
-        *,
-        model: str | None = None,
-        temperature: float | None = None,
-        history: list[dict] | None = None,
-    ) -> Answer:
-        """Answer personal / chitchat questions from conversation history.
-
-        Used when document retrieval found nothing but there is prior
-        conversation context. The model may use what the user said earlier
-        (e.g. their name) while still declining to fabricate document content.
-        Returns no citations since no documents were retrieved.
-        """
-        text = self._llm.generate(
-            CONVERSATION_SYSTEM_PROMPT,
-            question,
-            model=model,
-            temperature=temperature,
-            history=_recent(history),
-        )
-        return Answer(text=text, citations=[], refused=False)
-
     def converse_stream(
         self,
         question: str,
@@ -210,7 +184,14 @@ class Answerer:
         temperature: float | None = None,
         history: list[dict] | None = None,
     ):
-        """Streaming variant of converse() for the UI's st.write_stream."""
+        """Answer personal / chitchat questions from conversation history.
+
+        Used when document retrieval found nothing but there is prior
+        conversation context. The model may use what the user said earlier
+        (e.g. their name) while still declining to fabricate document content.
+        Yields deltas for the UI's st.write_stream; no citations, since no
+        documents were retrieved.
+        """
         yield from self._llm.stream(
             CONVERSATION_SYSTEM_PROMPT,
             question,
