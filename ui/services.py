@@ -22,6 +22,7 @@ from retrieval.agentic import AgenticSearch
 from retrieval.reranker import BGEReranker
 from generation.llm import OllamaLLM
 from generation.answerer import Answerer
+from ui.static_files import start_file_server
 
 
 @st.cache_resource
@@ -31,6 +32,8 @@ def build_services():
     storage = Storage(cfg.data_dir)
     registry = Registry(cfg.data_dir / "registry.db")
     chats = ChatStore(cfg.data_dir / "chats.db")
+
+    file_base_url = start_file_server(storage.originals)
 
     embedder = OllamaEmbedder(cfg.ollama_url, cfg.embedding_model)
     store = QdrantStore(cfg.qdrant_url, cfg.collection, cfg.embedding_dim)
@@ -59,6 +62,7 @@ def build_services():
         "search": base_search,
         "agentic_search": agentic_search,
         "answerer": Answerer(llm), "worker": worker,
+        "file_base_url": file_base_url,
     }
 
 

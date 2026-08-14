@@ -9,6 +9,10 @@ services:
     restart: unless-stopped
     ports:
       - "8501:8501"
+      # Loopback only: serves archived originals so the browser can open
+      # PDFs at a cited page (the #page=N fragment is handled client-side).
+      # Never exposed on the LAN.
+      - "127.0.0.1:8510:8510"
     volumes:
       # Bind-mount the whole repo for live code reload during development;
       # this already includes ./data, so no separate data mount is needed.

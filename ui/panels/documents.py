@@ -1,46 +1,9 @@
 import streamlit as st
-from pathlib import Path
 
 from ui.services import format_eta
+from ui.static_files import file_url
 
 STATUS_ICONS = {"queued": "⏳", "processing": "⚙️", "done": "✅", "failed": "❌"}
-
-
-def _open_file_at_page(path: Path, page: int | None = None) -> None:
-    """Open the original file using the system default application.
-
-    For PDFs, attempts to open at the specific page using the #page=N URL
-    fragment (honored by macOS Preview and most PDF viewers) or a viewer-
-    specific flag as a fallback.
-    """
-    import os
-    import platform
-    import subprocess
-    import urllib.parse
-
-    system = platform.system()
-    try:
-        if system == "Darwin":  # macOS
-            if page and path.suffix.lower() == ".pdf":
-                # Preview and most macOS PDF viewers honor the #page=N
-                # fragment on a file:// URL. This opens the document and
-                # jumps straight to the cited page.
-                file_url = (
-                    "file://"
-                    + urllib.parse.quote(str(path))
-                    + f"#page={page}"
-                )
-                subprocess.run(
-                    ["open", file_url], check=False, capture_output=True
-                )
-            else:
-                subprocess.run(["open", str(path)], check=False, capture_output=True)
-        elif system == "Linux":
-            subprocess.run(["xdg-open", str(path)], check=False)
-        elif system == "Windows":
-            os.startfile(str(path))
-    except Exception:
-        pass  # Best-effort: if opening fails, the user can still view markdown
 
 
 def render(svc) -> None:
@@ -178,24 +141,26 @@ def _render_document_viewer(svc, doc_id: str, filename: str) -> None:
     page_target = st.session_state.get(f"scroll_to_page_{doc_id}")
     sheet_target = st.session_state.get(f"scroll_to_sheet_{doc_id}")
 
-    # Open original file button (top of viewer)
+    # Open original file link (top of viewer). PDFs get a #page=N fragment
+    # so the browser viewer jumps to the cited page; the loopback file
+    # server makes this work regardless of whether the app runs in Docker.
     if original_path:
         cols = st.columns([3, 1])
         with cols[0]:
             st.markdown(f"**{filename}**")
         with cols[1]:
+            archived_name = original_path.name
+            page_for_link = page_target if original_path.suffix.lower() == ".pdf" else None
+            url = file_url(svc["file_base_url"], archived_name, page_for_link)
             open_label = "Open original"
-            if page_target:
+            if page_target and page_for_link:
                 open_label = f"Open at page {page_target}"
             elif sheet_target:
                 open_label = f"Open sheet {sheet_target}"
-            if st.button(open_label, key=f"open_orig_{doc_id}"):
-                _open_file_at_page(original_path, page_target)
-                # Clear the navigation target after opening so a later
-                # manual "Open original" click doesn't jump to a stale page.
-                st.session_state.pop(f"scroll_to_page_{doc_id}", None)
-                st.session_state.pop(f"scroll_to_sheet_{doc_id}", None)
-                st.rerun()
+            st.markdown(
+                f"<a href='{url}' target='_blank'>{open_label}</a>",
+                unsafe_allow_html=True,
+            )
     else:
         st.markdown(f"**{filename}**")
         st.caption("Original file not found — showing converted text only")

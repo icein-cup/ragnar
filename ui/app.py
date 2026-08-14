@@ -1,3 +1,4 @@
+import html
 import logging
 import time
 import uuid
@@ -20,6 +21,7 @@ from generation.answerer import (
 )
 from history.chat_store import chat_title, dataclass_to_dict
 from ui.services import build_services
+from ui.static_files import file_url
 from ui.panels import settings, documents, chats
 
 st.set_page_config(page_title="RAGnar", page_icon="📚")
@@ -65,56 +67,65 @@ div[data-testid="stExpander"] summary p {
 
 
 def _open_citation(doc_id: str, page: int | None, sheet: str | None) -> None:
-    """Open the cited document at the referenced location.
+    """Fall back to the Documents panel markdown viewer for a cited source.
 
-    Tries to open the original file directly at the cited page (so the
-    user lands on the right spot immediately) and also sets session state
-    so the Documents panel shows the converted-markdown viewer with a
-    jump indicator as a fallback.
+    PDFs are handled as direct links in _render_citations, so this only
+    covers non-PDF sources (spreadsheets, etc.) that have no page to jump
+    to in a browser viewer.
     """
     st.session_state[f"show_md_{doc_id}"] = True
     st.session_state[f"scroll_to_page_{doc_id}"] = page
     st.session_state[f"scroll_to_sheet_{doc_id}"] = sheet
 
-    # Best-effort: open the original file directly at the cited page.
-    doc = svc["registry"].get(doc_id)
-    if doc:
-        original_path = svc["storage"].archived_path(doc.filename, doc_id)
-        if original_path.exists():
-            from ui.panels.documents import _open_file_at_page
-            _open_file_at_page(original_path, page)
-
 
 def _render_citations(citations: list, scope: str = "live") -> None:
     """Render clickable citation badges that open the source document.
+
+    PDF sources with a page are rendered as direct links to the archived
+    file with a ``#page=N`` fragment, which the browser's PDF viewer honors —
+    this works from inside the Docker container, where host-side ``open``
+    commands don't exist. Everything else falls back to the Documents panel
+    markdown viewer.
 
     scope disambiguates the button key across messages — citation_label()
     dedupes by filename+page, so the same source cited in two different
     chat turns would otherwise produce the same widget key and crash the
     replay loop with a duplicate-element-key error.
     """
-    for cite in citations:
+    for idx, cite in enumerate(citations):
         if isinstance(cite, dict):
             label = cite.get("label", cite)
             doc_id = cite.get("doc_id")
+            filename = cite.get("filename")
             page = cite.get("page")
             sheet = cite.get("sheet")
         else:
             label = str(cite)
             doc_id = None
+            filename = None
             page = None
             sheet = None
 
-        if doc_id:
+        if not doc_id:
+            st.caption(label)
+            continue
+
+        is_pdf = bool(filename) and str(filename).lower().endswith(".pdf")
+        if is_pdf:
+            archived_name = svc["storage"].archived_path(filename, doc_id).name
+            url = file_url(svc["file_base_url"], archived_name, page)
+            st.markdown(
+                f"📄 <a href='{url}' target='_blank'>{html.escape(str(label))}</a>",
+                unsafe_allow_html=True,
+            )
+        else:
             if st.button(
                 f"📄 {label}",
-                key=f"cite_btn_{scope}_{doc_id}_{page or 0}_{sheet or 'none'}",
+                key=f"cite_btn_{scope}_{idx}",
                 help=f"Open {label} at the referenced location",
             ):
                 _open_citation(doc_id, page, sheet)
                 st.rerun()
-        else:
-            st.caption(label)
 
 
 def _render_agentic_trace(outcome, elapsed: float | None = None) -> None:
