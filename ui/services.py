@@ -4,6 +4,8 @@ Kept apart from the panels and the page script so `build_services` (the
 single cached wiring point) and the small formatting helpers can be reused
 without importing Streamlit page logic.
 """
+import logging
+
 import httpx
 import streamlit as st
 
@@ -24,6 +26,12 @@ from generation.llm import OllamaLLM
 from generation.answerer import Answerer
 from ui.static_files import start_file_server
 
+# Eagerly start the loopback file server in the main app process. The server
+# must be running before any browser tab opens, otherwise the host sees the
+# port forwarded to a process with nothing listening and gets an empty reply.
+_FILE_BASE_URL = start_file_server(Storage(Config().data_dir).originals)
+logging.info("Loopback file server ready at %s", _FILE_BASE_URL)
+
 
 @st.cache_resource
 def build_services():
@@ -33,7 +41,7 @@ def build_services():
     registry = Registry(cfg.data_dir / "registry.db")
     chats = ChatStore(cfg.data_dir / "chats.db")
 
-    file_base_url = start_file_server(storage.originals)
+    file_base_url = _FILE_BASE_URL
 
     embedder = OllamaEmbedder(cfg.ollama_url, cfg.embedding_model)
     store = QdrantStore(cfg.qdrant_url, cfg.collection, cfg.embedding_dim)

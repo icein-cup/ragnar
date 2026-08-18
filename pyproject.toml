@@ -19,7 +19,19 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8.3", "pytest-cov>=6.0", "reportlab>=4.2"]
+dev = [
+    "pytest>=8.3",
+    "pytest-cov>=6.0",
+    "reportlab>=4.2",
+    # Eval-only: Ragas judged metrics and the OpenAI-compatible judge
+    # client. Never imported by the app — this gets installed with the
+    # image's `.[dev]` so the eval harness runs inside the container.
+    # ragas 0.4.x imports langchain_community.chat_models.vertexai, which
+    # was removed in langchain-community 0.4.x — pin below that.
+    "ragas==0.4.3",
+    "langchain-community<0.4",
+    "langchain-openai>=0.3",
+]
 
 [tool.setuptools.packages.find]
 where = ["."]

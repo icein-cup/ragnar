@@ -8,6 +8,7 @@ has its own PDF viewer.
 """
 from __future__ import annotations
 
+import logging
 import threading
 import urllib.parse
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
@@ -16,6 +17,7 @@ from pathlib import Path
 FILE_SERVER_PORT = 8510
 
 _server: ThreadingHTTPServer | None = None
+_server_thread: threading.Thread | None = None
 _lock = threading.Lock()
 
 
@@ -29,22 +31,37 @@ class _QuietHandler(SimpleHTTPRequestHandler):
 def start_file_server(root: Path) -> str:
     """Start (once) a loopback HTTP server for ``root``; return its base URL.
 
-    Idempotent — a module-level guard means later calls with an unchanged root
-    reuse the first server instead of failing on an already-bound port.
+    Idempotent — a module-level guard means later calls reuse the first
+    server. If the serving thread died, restart it.
     """
-    global _server
+    global _server, _server_thread
 
     root = Path(root)
     root.mkdir(parents=True, exist_ok=True)
 
-    if _server is None:
-        with _lock:
-            if _server is None:
-                handler = lambda *args, **kwargs: _QuietHandler(  # noqa: E731
-                    *args, directory=str(root), **kwargs
-                )
-                _server = ThreadingHTTPServer(("0.0.0.0", FILE_SERVER_PORT), handler)
-                threading.Thread(target=_server.serve_forever, daemon=True).start()
+    with _lock:
+        if _server is not None and (_server_thread is None or not _server_thread.is_alive()):
+            try:
+                _server.server_close()
+            except Exception:
+                pass
+            _server = None
+            _server_thread = None
+
+        if _server is None:
+            handler = lambda *args, **kwargs: _QuietHandler(  # noqa: E731
+                *args, directory=str(root), **kwargs
+            )
+            _server = ThreadingHTTPServer(("0.0.0.0", FILE_SERVER_PORT), handler)
+
+            def _serve() -> None:
+                try:
+                    _server.serve_forever()
+                except Exception as exc:
+                    logging.exception("Loopback file server died: %s", exc)
+
+            _server_thread = threading.Thread(target=_serve, daemon=True)
+            _server_thread.start()
 
     return f"http://localhost:{FILE_SERVER_PORT}"
 

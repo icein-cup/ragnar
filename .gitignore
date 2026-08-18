@@ -16,6 +16,9 @@ build/
 data/
 .env
 
+# eval corpus uploads — real document content, never commit
+corpus/
+
 # eval reports can contain full chunk text from whatever corpus was
 # evaluated - never commit real document content
 eval/reports/
