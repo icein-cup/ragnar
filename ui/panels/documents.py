@@ -17,10 +17,12 @@ def render(svc) -> None:
         )
         if uploaded and st.button("Upload", type="primary"):
             for file in uploaded:
-                target = svc["storage"].inbox / file.name
-                target.write_bytes(file.getbuffer())
-                svc["registry"].add(svc["storage"].doc_id(target), file.name,
-                                    target.stat().st_size)
+                # stage() hashes the bytes and writes them under a
+                # content-stamped inbox name, so two different uploads that
+                # share a filename no longer overwrite each other.
+                doc_id, target = svc["storage"].stage(file.name,
+                                                      file.getbuffer())
+                svc["registry"].add(doc_id, file.name, target.stat().st_size)
             # Force the uploader widget to reset to empty on the next render.
             st.session_state.uploader_key += 1
             st.rerun()
@@ -142,7 +144,7 @@ def _render_document_viewer(svc, doc_id: str, filename: str) -> None:
     sheet_target = st.session_state.get(f"scroll_to_sheet_{doc_id}")
 
     # Open original file link (top of viewer). PDFs get a #page=N fragment
-    # so the browser viewer jumps to the cited page; the loopback file
+    # so the browser viewer jumps to the cited page; the local file
     # server makes this work regardless of whether the app runs in Docker.
     if original_path:
         cols = st.columns([3, 1])

@@ -248,11 +248,16 @@ if question := st.chat_input("Ask about your documents"):
     with st.chat_message("assistant"):
         start = time.perf_counter()
 
-        # Build conversation history from all messages before the
-        # current question (which was just appended). Strip the
-        # app-only 'citations' key — the LLM doesn't need it.
+        # Build conversation history from all messages before the current
+        # question (which was just appended). Whitelist role/content rather
+        # than blacklisting 'citations': a stored message also carries
+        # 'related', 'elapsed' and 'trace', and blacklisting one key sent the
+        # other three into the chat payload. Ollama ignores unknown message
+        # fields, but an OpenAI-compatible endpoint rejects them outright.
         previous = st.session_state.messages[:-1]
-        history = [{k: v for k, v in m.items() if k != "citations"} for m in previous]
+        history = [
+            {"role": m["role"], "content": m["content"]} for m in previous
+        ]
         context_summary = svc["answerer"].summarize_history(
             history, model=query["model"]
         )

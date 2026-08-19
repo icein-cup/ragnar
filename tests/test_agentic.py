@@ -485,3 +485,77 @@ def test_citations_are_deduplicated_by_label():
 
     assert len(citations) == 1  # Same page, same file = same label
     assert citations[0].label == "file.pdf, p. 5"
+
+
+def test_draft_is_reused_when_self_correction_offers_no_follow_up():
+    """"needs more" with no usable follow-up query changes nothing about the
+    result set, so the finished draft is still valid for it. Throwing it away
+    made the UI generate a third answer from the same excerpts."""
+    llm = FakeLLM({
+        "self_correct": (
+            "Complete: partial\nContradictions: no\nImprovement: none"
+        ),
+    })
+    agentic = AgenticSearch(
+        StubSearch({"question": [_result("chunk")]}), llm,
+        enable_rewrite=False, enable_multi_query=False,
+        enable_multi_hop=False, enable_self_correction=True,
+    )
+
+    outcome = agentic.find("question")
+
+    assert outcome.self_corrected is True
+    assert outcome.hops_performed == 0
+    assert outcome.draft_answer is not None
+
+
+def test_draft_is_dropped_when_a_follow_up_retrieval_lands():
+    """A follow-up that actually merged new chunks makes the draft stale —
+    it was written before those chunks existed."""
+    llm = FakeLLM({
+        "self_correct": (
+            "Complete: no\nContradictions: no\nImprovement: more on widgets"
+        ),
+    })
+    agentic = AgenticSearch(
+        StubSearch({
+            "question": [_result("chunk")],
+            "more on widgets": [_result("widget chunk", chunk_index=1)],
+        }),
+        llm,
+        enable_rewrite=False, enable_multi_query=False,
+        enable_multi_hop=False, enable_self_correction=True,
+    )
+
+    outcome = agentic.find("question")
+
+    assert outcome.hops_performed == 1
+    assert outcome.draft_answer is None
+
+
+def test_fast_path_uses_the_floor_matching_the_score_scale():
+    """With reranking off, r.score is a raw cosine, not a rerank sigmoid, so
+    it must be tested against vector_floor (0.42) — not score_floor (0.55),
+    which belongs to the other scale entirely."""
+    agentic = AgenticSearch(StubSearch(), FakeLLM())  # floors 0.55 / 0.42
+
+    # Cosines that clear vector_floor but not score_floor: strong for an
+    # un-reranked run, not strong for a reranked one.
+    cosine = [_result(f"chunk {i}", chunk_index=i) for i in range(5)]
+    for r in cosine:
+        r.score = 0.50
+
+    assert agentic._is_fast_path(cosine, use_reranker=False) is True
+    assert agentic._is_fast_path(cosine, use_reranker=True) is False
+
+
+def test_fast_path_declines_when_the_cosine_floor_is_disabled():
+    """vector_floor 0 accepts everything, so it cannot tell strong from weak.
+    Better to run the expensive stages than to invent a threshold."""
+    agentic = AgenticSearch(StubSearch(), FakeLLM())
+    strong = [_result(f"chunk {i}", chunk_index=i) for i in range(5)]
+    for r in strong:
+        r.score = 0.99
+
+    assert agentic._is_fast_path(strong, vector_floor=0.0,
+                                 use_reranker=False) is False

@@ -31,6 +31,9 @@ dev = [
     "ragas==0.4.3",
     "langchain-community<0.4",
     "langchain-openai>=0.3",
+    # eval/gen_golden.py imports it directly; do not rely on langchain-openai
+    # happening to pull it in.
+    "openai>=1.0",
 ]
 
 [tool.setuptools.packages.find]

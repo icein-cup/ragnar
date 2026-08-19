@@ -30,7 +30,7 @@ class IngestWorker:
             return False
 
         self._registry.mark_processing(doc.doc_id)
-        path = self._storage.inbox / doc.filename
+        path = self._storage.inbox_path(doc.filename, doc.doc_id)
 
         try:
             if not path.exists():
@@ -41,11 +41,12 @@ class IngestWorker:
             # entirely. Only write the converted markdown / cache on a fresh
             # parse — on a cache hit both are already correct on disk.
             cached = self._storage.read_parsed(doc.doc_id)
-            result = self._pipeline.ingest(path, doc.doc_id, parsed=cached)
+            result = self._pipeline.ingest(path, doc.doc_id, parsed=cached,
+                                           filename=doc.filename)
             if cached is None:
                 self._storage.write_converted(doc.doc_id, result.markdown)
                 self._storage.write_parsed(doc.doc_id, result.parsed)
-            self._storage.archive(path, doc.doc_id)
+            self._storage.archive(path, doc.doc_id, doc.filename)
             self._registry.mark_done(doc.doc_id, result.chunk_count)
         except Exception as exc:
             # Original deliberately stays in inbox for inspection.

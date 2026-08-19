@@ -157,8 +157,13 @@ def main() -> None:
     report = {
         "timestamp": datetime.now().isoformat(timespec="seconds"),
         "n_cases": int(len(samples)),
+        # Numeric columns only — to_pandas() also carries user_input,
+        # response, reference and retrieved_contexts as object columns, and
+        # .mean() on those raises TypeError under pandas 2, after the judged
+        # run has already been paid for.
         "means": {
-            str(col): float(df[col].mean()) for col in df.columns
+            str(col): float(value)
+            for col, value in df.select_dtypes("number").mean().items()
         },
         "cases": df.to_dict(orient="records"),
     }

@@ -21,6 +21,16 @@ app itself.
 
     docker compose exec app python eval/run_eval.py             # deterministic metrics
     docker compose exec app python eval/run_eval.py --calibrate # sweep the similarity floor
+    docker compose exec app python eval/run_eval.py --agentic   # measure the pipeline the UI runs
+
+`--agentic` routes through `AgenticSearch` (query rewrite, multi-query,
+multi-hop, self-correction) instead of the bare `Search`. The UI always takes
+the agentic path, so without this flag the numbers describe a pipeline no
+user hits. It costs several LLM calls per case.
+
+`--vector-floor` overrides `retrieval.vector_floor` for the run. During
+`--calibrate` that floor is *pinned*, not swept, and printed in the header —
+sweep the other axis by re-running with a different value.
 
 ## Metrics: two halves
 
@@ -128,12 +138,21 @@ not enough to calibrate the similarity floor with real confidence. The
 design calls for 30-50 hand-written cases against the real corpus before
 this calibration should be trusted for production use.
 
-The current `retrieval.score_floor` (0.55, in `config.yaml`) was chosen by
-sweeping candidate floors with `--calibrate` and picking the lowest floor
-that reached the best observed refusal_accuracy without lowering
-citation_accuracy. With only 5 cases this is a crude signal — it separates
-the two out-of-corpus questions from the three in-corpus ones cleanly at
-this floor, but a single mis-scored case would shift the whole picture.
+**The current `retrieval.score_floor` (0.55, in `config.yaml`) has not been
+validly calibrated.** It was chosen by sweeping candidate floors with
+`--calibrate`, but that sweep was measuring nothing: `run_cases` built its
+`Search` with positional arguments that stopped at `score_floor`, leaving
+`vector_floor` at its `0.0` default. The two floors are OR'd, and a reranked
+result's `vector_score` is a cosine that is >= 0 in practice — so every
+result cleared the gate at every floor in the sweep, and refusal only ever
+fired when retrieval returned zero candidates. The printed column could not
+vary.
+
+That is fixed (both floors are passed now, and the pinned `vector_floor`
+is printed in the header), but the number it produced has not been
+re-derived. Re-run `--calibrate` against a real corpus before treating 0.55
+as anything but a placeholder. With only 5 golden cases the signal would be
+crude even once the mechanism works.
 
 A second floor, `retrieval.vector_floor` (0.42), was added later: the
 reranker scores table-row chunks as near-neutral regardless of relevance,

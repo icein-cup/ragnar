@@ -41,7 +41,10 @@ You drag a PDF into the sidebar and ask a question. In between, RAGnar:
 3. **Embeds and stores** — BGE-M3 vectors in Qdrant.
 4. **Retrieves and narrows** — 25 candidates, reranked by a cross-encoder down to 5,
    then measured against a similarity floor.
-5. **Answers, or refuses** — the model sees only the retrieved excerpts, and the
+5. **Works the question, when one pass isn't enough** — the query is rewritten for
+   retrieval, fanned out into variants, and followed up on where excerpts leave a gap.
+   Strong first-pass results skip all of it. Each stage is a checkbox in Settings.
+6. **Answers, or refuses** — the model sees only the retrieved excerpts, and the
    citations are assembled from those chunks rather than from anything the model wrote.
 
 Every model in that chain runs on your own machine.
@@ -116,7 +119,8 @@ Three things follow:
   total?" against a spreadsheet asks for arithmetic across a whole table when retrieval
   only ever sees a handful of rows. Two signals have to agree — aggregation wording
   *and* a majority of table chunks — before it fires, so ordinary questions about
-  tables still get answered.
+  tables still get answered. The wording list covers English and Polish, including
+  Polish superlatives in their inflected forms (`największa`, `najwyższy`).
 
 What you get instead of a wrong number:
 
@@ -136,11 +140,16 @@ Not a policy — a property of how it is built.
 - The vector store is a container on your machine.
 - Documents are written to `./data` and never leave it.
 
-Two containers are defined, `app` and `qdrant`, and neither is given a key to anything
-external — `docker compose config` is the whole story. There is no account, no API key,
-and no per-token bill.
+Two containers are defined, `app` and `qdrant`, and `docker compose config` is the
+whole story. Answering a question uses no account, no API key, and no per-token bill.
 
-The one network access in the whole project is HuggingFace downloading the reranker
+The one exception is opt-in and eval-only: if you fill `RAGAS_JUDGE_API_KEY` in `.env`,
+compose forwards it into the `app` container for `eval/run_ragas.py`. No code path in
+the app itself reads it — only the eval harness does, and it runs against a hand-written
+golden set, never your corpus, unless you point it there yourself. Leave the variable
+empty and no key exists anywhere.
+
+The one network access in the app itself is HuggingFace downloading the reranker
 weights, once. `HF_TOKEN` is optional and only raises the rate limit while that happens.
 
 ---
@@ -151,7 +160,7 @@ Plain files on disk, next to the code:
 
 ```
 data/
-├── inbox/            ← uploads land here first
+├── inbox/            ← uploads land here first, stamped `name.<hash8>.ext`
 ├── originals/        ← the file as you gave it
 ├── converted/        ← Docling output, cached by content hash
 ├── registry.db       ← what has been ingested, and how it went
@@ -164,6 +173,10 @@ Converted documents are cached by content hash, so re-uploading the same file co
 nothing and a chunking change can be replayed without re-parsing — the parsed blocks
 are cached alongside the markdown (`converted/{doc_id}.blocks.json`) and reused. The
 vectors are the one thing that would have to be rebuilt from scratch — see Known gaps.
+
+Identity is the content hash, never the filename. Both `inbox/` and `originals/` stamp
+the short hash into the name, so two unrelated documents that happen to both be called
+`report.pdf` stay two documents. Citations still show the name you uploaded.
 
 ---
 
@@ -202,12 +215,28 @@ The panel exposes what is worth changing per question; `config.yaml` holds the d
 | Vector floor | `0.42` | Second, more lenient check on raw embedding similarity |
 | Chunk size | 500 tokens | Target size per chunk, 50-token overlap |
 | Table rows per group | 20 | Rows per table chunk, header repeated in each |
+| Query rewriting | on | Rewrites the question for retrieval before searching |
+| Multi-query retrieval | on | Searches several phrasings in parallel, fuses the hits |
+| Multi-hop reasoning | on | Follows up when the excerpts leave a gap, up to 3 hops |
+| Self-correction | on | Grades a draft answer and re-retrieves if it falls short |
+
+The four agentic toggles each cost at least one extra LLM call per question, and they
+compound — a question that misses the fast path can spend six or more round-trips
+before a word is streamed. On a 3B local model that is the difference between a
+snappy answer and a slow one. Turn them off to feel the floor of the pipeline.
 
 The floors are the ones to understand before touching. Both are **stopgaps, not a
 calibration**: on a real corpus, out-of-corpus questions scored 0.50–0.503 on the
 reranker and relevant prose scored 0.578 and up, so 0.55 sits in that gap with margin
 either side. That is five data points, not a golden set. A chunk is refused only when
 *both* floors miss — lower either one and refusals turn into confident guesses.
+
+Worse than hand-tuned, in fact. `0.55` was originally read off an `eval/run_eval.py
+--calibrate` sweep that could not have produced a signal: the harness left the vector
+floor at `0.0`, and because the two floors are OR'd, every result cleared the gate at
+every swept value. That bug is fixed, but the number predates the fix and has not been
+re-derived. Treat both floors as placeholders until you re-run the sweep on your own
+corpus — see `eval/README.md`.
 
 ---
 
@@ -252,6 +281,16 @@ Environment (`.env`):
 | `OLLAMA_BASE_URL` | Yes | `http://host.docker.internal:11434` — Ollama on the host |
 | `QDRANT_URL` | Yes | `http://qdrant:6333` — the sibling container |
 | `HF_TOKEN` | No | Raises the HuggingFace rate limit while the reranker downloads |
+| `FILE_SERVER_HOST` | No | Bind address for the archive file server. `0.0.0.0` by default, which is required under Docker — set `127.0.0.1` when running the app natively |
+| `RAGAS_JUDGE_BASE_URL` | No | Eval only. OpenAI-compatible judge endpoint |
+| `RAGAS_JUDGE_API_KEY` | No | Eval only. Leave empty and no key exists anywhere |
+| `RAGAS_JUDGE_MODEL` | No | Eval only. Judge model name |
+
+Citations open the archived original in a browser tab, served over HTTP on port 8510.
+Compose publishes that as `127.0.0.1:8510`, so only the host reaches it — **that
+publish is the only thing keeping the archive off your network.** The server has no
+authentication. Run the app outside Docker and you must set `FILE_SERVER_HOST`
+yourself.
 
 ---
 
@@ -259,16 +298,29 @@ Environment (`.env`):
 
 Tracked rather than glossed over:
 
-- **Excel is designed for but under-tested.** Citations carry a sheet field and tables
-  get their own chunking, but no `.xlsx` fixture exists in the test suite yet.
-- **Both floors are hand-tuned**, not calibrated — see `eval/README.md`. They
-  need a much larger golden set before the numbers deserve trust.
+- **Excel coverage does not run by default.** `tests/fixtures/sample.xlsx` and
+  `tests/test_parser_xlsx.py` exist, but they are marked `integration` and need real
+  Docling — so a normal `pytest` run proves nothing about `.xlsx`.
+- **Neither floor has been validly calibrated.** The sweep that produced `0.55` was
+  broken (see Settings); the harness is fixed but the number has not been re-derived,
+  and the golden set is 5 cases against a fixture. See `eval/README.md`.
+- **The eval harness measures less than the app does.** `run_eval.py` defaults to the
+  bare retrieval path; the UI always runs the agentic one. Pass `--agentic` to compare
+  like for like — it costs several LLM calls per case.
 - **No recovery path if the vector store is lost.** Re-embedding from the converted
   document cache (the parsed blocks, not just the markdown) would need a "rebuild all"
   action wired up in the UI; the cache itself exists but nothing drives it end to end.
 
-The test suite runs against real Ollama, Qdrant and Docling rather than mocks, which is
-why it is slow and why it catches integration breakage that mocks would hide.
+The test suite is two halves. `pytest` runs ~200 unit tests against fakes in a couple
+of seconds. The tests that need real Ollama, Qdrant or Docling are marked `integration`
+and **skipped unless you ask for them**:
+
+```bash
+docker compose exec app python -m pytest              # fast, fakes only
+docker compose exec app python -m pytest --run-integration   # the real stack
+```
+
+A green default run is not evidence the integration path works.
 
 ---
 

@@ -111,9 +111,48 @@ def test_restore_to_inbox_round_trips_an_archived_original(storage):
     ok = storage.restore_to_inbox("report.pdf", doc_id)
 
     assert ok is True
-    restored = storage.inbox / "report.pdf"
+    # Restored under the content stamp, which is where inbox_path looks.
+    restored = storage.inbox_path("report.pdf", doc_id)
     assert restored.exists()
     assert restored.read_bytes() == b"the original content"
+
+
+def test_stage_keeps_same_named_uploads_apart(storage):
+    """Two different documents that happen to share a filename. Staging both
+    under the bare name let the second clobber the first, so the first
+    doc_id was ingested from the wrong bytes."""
+    first_id, first = storage.stage("report.pdf", b"v1")
+    second_id, second = storage.stage("report.pdf", b"v2")
+
+    assert first_id != second_id
+    assert first != second
+    assert first.read_bytes() == b"v1"
+    assert second.read_bytes() == b"v2"
+
+
+def test_stage_doc_id_matches_the_content_hash(storage):
+    doc_id, path = storage.stage("report.pdf", b"content")
+    assert doc_id == storage.doc_id(path)
+
+
+def test_inbox_path_falls_back_to_the_bare_name_for_dropped_files(storage):
+    """Files copied straight into the watched folder never went through
+    stage(), so they carry no stamp."""
+    dropped = storage.inbox / "dropped.pdf"
+    dropped.write_bytes(b"content")
+
+    assert storage.inbox_path("dropped.pdf", storage.doc_id(dropped)) == dropped
+
+
+def test_archive_does_not_stamp_an_already_stamped_path(storage):
+    """archive() gets the staged path, whose name already carries the stamp;
+    stamping it again would file it where archived_path never looks."""
+    doc_id, staged = storage.stage("report.pdf", b"content")
+
+    archived = storage.archive(staged, doc_id, "report.pdf")
+
+    assert archived == storage.archived_path("report.pdf", doc_id)
+    assert archived.exists()
 
 
 def test_restore_to_inbox_returns_false_when_original_missing(storage):

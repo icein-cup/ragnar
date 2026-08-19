@@ -9,9 +9,11 @@ services:
     restart: unless-stopped
     ports:
       - "8501:8501"
-      # Loopback only: serves archived originals so the browser can open
-      # PDFs at a cited page (the #page=N fragment is handled client-side).
-      # Never exposed on the LAN.
+      # Host loopback only: serves archived originals so the browser can
+      # open PDFs at a cited page (the #page=N fragment is handled
+      # client-side). This 127.0.0.1 publish is the ONLY thing keeping the
+      # archive off the LAN — the server itself binds 0.0.0.0 inside the
+      # container, as it must. Do not widen this to a bare "8510:8510".
       - "127.0.0.1:8510:8510"
     volumes:
       # Bind-mount the whole repo for live code reload during development;

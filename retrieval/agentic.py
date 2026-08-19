@@ -173,7 +173,8 @@ class AgenticSearch:
         all_results: list[SearchResult] = list(base_result.results)
 
         # 3. Multi-query retrieval (parallel, only if enabled and base wasn't great)
-        if enable_multi_query and not self._is_fast_path(all_results, score_floor):
+        if enable_multi_query and not self._is_fast_path(
+                all_results, score_floor, vector_floor, use_reranker):
             extra = self._retrieve_multi_query(
                 query, doc_ids, score_floor, vector_floor, use_reranker,
                 context_summary, outcome, gen,
@@ -181,7 +182,8 @@ class AgenticSearch:
             all_results.extend(extra)
 
         # 4. Fast-path check: skip expensive stages if results are already strong
-        if self._is_fast_path(all_results, score_floor):
+        if self._is_fast_path(all_results, score_floor, vector_floor,
+                              use_reranker):
             outcome.fast_path = True
             final_results = self._fuse_results(all_results)
             return self._apply_floors(
@@ -215,6 +217,7 @@ class AgenticSearch:
                 context_summary=context_summary, history=history,
             )
             if correction:
+                retrieved_more = False
                 if correction.get("needs_more"):
                     outcome.self_corrected = True
                     outcome.correction_notes = correction.get("reason")
@@ -231,9 +234,16 @@ class AgenticSearch:
                             outcome = self._apply_floors(
                                 merged, score_floor, vector_floor, use_reranker, outcome,
                             )
-                else:
-                    # Answer was deemed complete — carry the draft so the
-                    # UI can display it without a duplicate LLM call.
+                            retrieved_more = True
+
+                # The draft was generated from outcome.results and stays
+                # valid for exactly as long as that set does. Only a
+                # follow-up retrieval that actually landed makes it stale.
+                # Discarding it whenever the grader merely *said* "needs
+                # more" — while offering no usable follow-up query — threw
+                # away a finished answer and made the UI generate a third
+                # one from the same excerpts.
+                if not retrieved_more:
                     outcome.draft_answer = correction.get("draft")
 
         return outcome
@@ -242,20 +252,43 @@ class AgenticSearch:
     # Internal helpers
     # ------------------------------------------------------------------
 
-    def _is_fast_path(self, results: list[SearchResult], score_floor: float | None = None) -> bool:
+    def _is_fast_path(self, results: list[SearchResult],
+                      score_floor: float | None = None,
+                      vector_floor: float | None = None,
+                      use_reranker: bool = True) -> bool:
         """Check if results are already strong enough to skip expensive stages.
 
         A result set is "strong" when at least FAST_PATH_MIN_RESULTS chunks
-        have a score above the configured score_floor (or a default of 0.55).
-        This means the base search already found relevant content, so multi-hop
-        reasoning and self-correction are unlikely to add value.
+        clear the floor. This means the base search already found relevant
+        content, so multi-hop reasoning and self-correction are unlikely to
+        add value.
+
+        Which floor depends on what `r.score` actually is. With reranking on
+        it is a rerank sigmoid and score_floor applies. With reranking off it
+        is a raw cosine (~0.4-0.6) on an unrelated scale, so vector_floor —
+        the floor calibrated for exactly that scale — is what it gets tested
+        against. Testing a cosine against the rerank floor, as this used to,
+        made the fast path fire essentially at random in the one mode whose
+        whole purpose is speed.
         """
         if not results:
             return False
-        floor = score_floor if score_floor is not None else self._base_search.score_floor
-        # If floor is 0 (reranker disabled), use a reasonable default
-        if floor <= 0:
-            floor = 0.55
+
+        if use_reranker:
+            floor = (self._base_search.score_floor if score_floor is None
+                     else score_floor)
+            # A floor of 0 accepts everything and so cannot separate strong
+            # from weak; fall back to the calibrated default for this test.
+            if floor <= 0:
+                floor = 0.55
+        else:
+            floor = (self._base_search.vector_floor if vector_floor is None
+                     else vector_floor)
+            # No usable cosine threshold — decline to call anything strong
+            # rather than invent a number for a scale we have not calibrated.
+            if floor <= 0:
+                return False
+
         strong = [r for r in results if r.score >= floor]
         return len(strong) >= self._fast_path_min_results
 

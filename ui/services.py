@@ -26,11 +26,11 @@ from generation.llm import OllamaLLM
 from generation.answerer import Answerer
 from ui.static_files import start_file_server
 
-# Eagerly start the loopback file server in the main app process. The server
+# Eagerly start the archive file server in the main app process. The server
 # must be running before any browser tab opens, otherwise the host sees the
 # port forwarded to a process with nothing listening and gets an empty reply.
 _FILE_BASE_URL = start_file_server(Storage(Config().data_dir).originals)
-logging.info("Loopback file server ready at %s", _FILE_BASE_URL)
+logging.info("Archive file server ready at %s", _FILE_BASE_URL)
 
 
 @st.cache_resource

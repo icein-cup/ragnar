@@ -18,6 +18,11 @@ chunking:
 retrieval:
   candidates: 25
   top_k: 5
+  # NOT VALIDLY CALIBRATED. The --calibrate sweep this value came from was
+  # broken: eval/run_eval.py left vector_floor at 0.0, and since the floors
+  # are OR'd, every result cleared the gate at every swept floor. The sweep
+  # is fixed now but this number has not been re-derived — see eval/README.md.
+  #
   # Was 0.6 from Task 25's calibration (only 5 golden-set cases, explicitly
   # flagged there as not production-trustworthy). Real usage against a real
   # uploaded corpus showed a clean gap: out-of-corpus questions scored

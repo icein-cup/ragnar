@@ -79,3 +79,26 @@ def test_aggregation_defers_to_precomputed_summary():
     # aggregation intent + table results, but a summary is present -> do NOT refuse
     results = [_summary(), _result("| a | 1 |", True)]
     assert not should_refuse_aggregation("What is the total revenue?", results)
+
+
+def test_polish_superlative_stems_match_their_inflected_forms():
+    """The stems are prefixes; wrapping them in a trailing \\b made every
+    inflected form miss, which is how Polish actually writes them."""
+    results = [_result("| a | 1 |", True), _result("| b | 2 |", True)]
+
+    for question in (
+        "Jaka jest największa kwota?",
+        "Jaka jest najwyższa pensja?",
+        "Kto ma najmniejszy przychód?",
+        "Jaki jest najwyzszy koszt?",
+        "Ktory dostawca ma najwiekszy udzial?",
+    ):
+        assert should_refuse_aggregation(question, results), question
+
+
+def test_superlative_stems_do_not_fire_on_prose():
+    results = [
+        _result("The largest supplier is Acme.", False),
+        _result("Payment terms are net 30.", False),
+    ]
+    assert not should_refuse_aggregation("Jaka jest największa kwota?", results)
