@@ -51,7 +51,8 @@ def build_services():
     pipeline = Pipeline(
         DoclingParser(), build_chunker(cfg.chunking, embedder=embedder),
         embedder, store)
-    worker = IngestWorker(storage, registry, pipeline)
+    worker = IngestWorker(storage, registry, pipeline,
+                          worker_count=cfg.worker_count)
     worker.start()   # resets stale PROCESSING rows on startup
 
     base_search = Search(

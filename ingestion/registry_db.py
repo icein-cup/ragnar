@@ -123,6 +123,30 @@ class Registry:
             ).fetchone()
         return self._row_to_doc(row) if row else None
 
+    def claim_next(self) -> Document | None:
+        """Atomically claim the oldest queued document for processing.
+
+        Selects the oldest QUEUED row and flips it to PROCESSING in a single
+        locked transaction, so multiple worker threads can never grab the
+        same document (the race that ``next_queued`` + ``mark_processing``
+        would have).
+        """
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT * FROM documents WHERE status = ? "
+                "ORDER BY added_at LIMIT 1",
+                (IngestStatus.QUEUED.value,),
+            ).fetchone()
+            if row is None:
+                return None
+            self._conn.execute(
+                "UPDATE documents SET status = ?, started_at = ?, "
+                "finished_at = NULL WHERE doc_id = ?",
+                (IngestStatus.PROCESSING.value, time.time(), row["doc_id"]),
+            )
+            self._conn.commit()
+        return self._row_to_doc(row)
+
     def mark_processing(self, doc_id: str) -> None:
         # Stamp the start and clear any prior finish time so a re-run (e.g. a
         # retry) is timed from scratch rather than showing a stale duration.

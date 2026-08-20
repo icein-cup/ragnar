@@ -2,22 +2,96 @@
 
 Development-time only. Never runs in the app, never runs in CI automatically.
 
-## Corpus
+## Quickstart
 
-Real evaluation documents live in `corpus/` (gitignored — never committed).
-That folder is staging only: the app reads from `data/inbox`, not
-`corpus/`. To evaluate against a real document, ingest it first — upload
-via the UI or copy it into `data/inbox` — then reference its `doc_id`
-(shown in the documents panel) when generating golden entries.
+### 1. Set up the judge
 
-## Isolation
+Copy `.env.example` to `.env` and fill the three Ragas vars. The key lives
+in the eval environment only; the app never reads it. `docker-compose.yml`
+forwards the vars into the container.
 
-`eval/` imports app modules; the app never imports `eval/`. This boundary
-matters: an external LLM judge's API key lives only in this environment.
-Production documents have no code path to an external service through the
-app itself.
+```
+RAGAS_JUDGE_BASE_URL=https://ollama.com/v1   # OpenAI-compatible base (note /v1)
+RAGAS_JUDGE_API_KEY=<key>                    # eval-only key
+RAGAS_JUDGE_MODEL=glm-5.2:cloud
+```
 
-## Running
+Start the stack if it isn't already running:
+
+    docker compose up -d
+
+### 2. Ingest your documents
+
+Copy evaluation documents into `data/inbox/` (or upload via the UI). The
+worker picks them up, chunks, and indexes them automatically. Real
+evaluation documents live in `corpus/` (gitignored — never committed);
+that folder is staging only — the app reads from `data/inbox`.
+
+Wait until all documents show as ✅ done in the UI documents panel (expand
+"Documents" in the sidebar).
+
+### 3. Look up doc_ids
+
+The UI documents panel shows filenames, not ids. Query the registry:
+
+    docker compose exec app python -c "
+    from core.config import Config
+    from ingestion.registry_db import Registry
+    r = Registry(Config().data_dir / 'registry.db')
+    for d in r.all():
+        print(d.doc_id, d.filename, d.status.value)
+    "
+
+Only `done` documents have converted markdown. Note the `doc_id` of each
+document you want to generate golden entries for.
+
+### 4. Draft golden examples
+
+    docker compose exec app python eval/gen_golden.py --docs <doc_id> --n 10 > eval/golden_draft.yaml
+
+`gen_golden.py` reads the ingested document's converted markdown and emits
+candidate question/answer/reference entries to stdout — never
+`golden_set.yaml`.
+
+### 5. Review the draft (mandatory)
+
+The judge can echo its own mistakes back into ground truth, so this gate is
+not optional. For each entry:
+- Is the question answerable ONLY from the excerpt?
+- Is the answer a short, factual statement from the excerpt?
+- Is the reference genuinely verbatim?
+
+The `reference` field is a source excerpt for your review — it is not fed
+to Ragas.
+
+### 6. Merge into the golden set
+
+Copy accepted entries into `eval/golden_set.yaml` in this format:
+
+```yaml
+- question: "What is the service contract number?"
+  expected_answer: "SC-4471"
+  expected_sources: ["your-doc.pdf"]
+  out_of_corpus: false
+```
+
+### 7. Add out-of-corpus probes
+
+Roughly one quarter of the set should be `out_of_corpus: true` — questions
+the corpus cannot answer (e.g. "What is the capital of France?").
+`gen_golden.py` only produces in-corpus entries, so add these by hand.
+
+### 8. Run the eval
+
+    docker compose exec app python eval/run_ragas.py
+
+Report goes to `eval/reports/ragas-<timestamp>.json`.
+
+---
+
+## Deterministic metrics (no judge, free)
+
+For a quick check without the LLM judge:
 
     docker compose exec app python eval/run_eval.py             # deterministic metrics
     docker compose exec app python eval/run_eval.py --calibrate # sweep the similarity floor
@@ -32,15 +106,6 @@ user hits. It costs several LLM calls per case.
 `--calibrate` that floor is *pinned*, not swept, and printed in the header —
 sweep the other axis by re-running with a different value.
 
-## Metrics: two halves
-
-Ragas verifies the "answered correctly" path; the deterministic metrics
-verify the "refused correctly" path. Both are needed — Ragas has no signal
-for refusal or citation, and the deterministic metrics never check whether
-the answer content is actually right.
-
-### Deterministic (no judge, free)
-
 | Metric | Judge | Measures |
 |---|---|---|
 | refusal_accuracy | No | Refused exactly on out-of-corpus questions |
@@ -50,7 +115,9 @@ These cover the two failure modes that matter most in a business context:
 confidently answering something the corpus doesn't contain, and citing the
 wrong source.
 
-### Ragas judged metrics
+---
+
+## Ragas judged metrics
 
 `eval/run_ragas.py` layers Ragas on top of the deterministic metrics, using
 an external LLM judge (OpenAI-compatible, e.g. Ollama Cloud — model
@@ -79,56 +146,16 @@ Golden-set field map (no schema change needed):
 Out-of-corpus cases are refused by design and have no answer/contexts to
 score — they are skipped here and covered by `refusal_accuracy`.
 
-## Set up the judge
+---
 
-Copy `.env.example` to `.env` and fill the three Ragas vars. The key lives
-in the eval environment only; the app never reads it. `docker-compose.yml`
-forwards the vars into the container.
+## Isolation
 
-```
-RAGAS_JUDGE_BASE_URL=https://ollama.com/v1   # OpenAI-compatible base (note /v1)
-RAGAS_JUDGE_API_KEY=<key>                    # eval-only key
-RAGAS_JUDGE_MODEL=glm-5.2:cloud
-```
+`eval/` imports app modules; the app never imports `eval/`. This boundary
+matters: an external LLM judge's API key lives only in this environment.
+Production documents have no code path to an external service through the
+app itself.
 
-## Ragas workflow
-
-1. **Ingest** — copy docs into `data/inbox/` (or upload via the UI), let the
-   worker chunk + index them, note the `doc_id`.
-
-2. **Draft golden examples with the LLM**:
-
-       docker compose exec app python eval/gen_golden.py --docs <doc_id> --n 10 > eval/golden_draft.yaml
-
-   `gen_golden.py` reads the ingested document's converted markdown and
-   emits candidate question/answer/reference entries to stdout only —
-   never `golden_set.yaml`.
-
-3. **Review the draft (mandatory)**. The judge can and will echo its own
-   mistakes back into ground truth, so this gate is not optional. For each
-   entry check: question answerable only from the excerpt? answer a short
-   factual statement from the excerpt? reference genuinely verbatim? The
-   `reference` field is a source excerpt for your review — it is not fed to
-   Ragas.
-
-4. **Merge** accepted entries into `eval/golden_set.yaml` house format:
-
-   ```yaml
-   - question: "What is the service contract number?"
-     expected_answer: "SC-4471"
-     expected_sources: ["your-doc.pdf"]
-     out_of_corpus: false
-   ```
-
-5. **Add out-of-corpus probes by hand** — roughly one quarter of the set
-   should be `out_of_corpus: true` (e.g. "What is the capital of France?").
-   `gen_golden.py` only produces in-corpus entries.
-
-6. **Run the judged eval**:
-
-       docker compose exec app python eval/run_ragas.py
-
-   Report goes to `eval/reports/ragas-<timestamp>.json`.
+---
 
 ## Current state
 
@@ -164,6 +191,8 @@ needs its own calibration pass once the golden set is large enough to
 cover tabular content.
 Treat it as a starting point, not a validated production threshold.
 
+---
+
 ## Comparing configurations
 
     # edit config.yaml: chunking.strategy: semantic (or back to structural)
@@ -171,6 +200,8 @@ Treat it as a starting point, not a validated production threshold.
     # re-ingest the corpus via the UI or a script
     docker compose exec app python eval/run_eval.py
     # diff against the previous report in eval/reports/
+
+---
 
 ## Troubleshooting
 

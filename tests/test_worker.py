@@ -1,3 +1,6 @@
+import threading
+import time
+
 import pytest
 from core.models import IngestStatus
 from ingestion.parser import Block
@@ -38,6 +41,60 @@ def test_worker_processes_queued_document_to_done(env):
 
     assert registry.get(doc_id).status == IngestStatus.DONE
     assert registry.get(doc_id).chunk_count > 0
+
+
+def test_claim_next_is_atomic_under_concurrency(env):
+    """Two threads calling claim_next concurrently must not grab the same doc."""
+    storage, registry, pipeline, _ = env
+    for name in ("a.pdf", "b.pdf"):
+        path = _drop(storage, name, content=name.encode())
+        registry.add(storage.doc_id(path), name)
+
+    claimed = []
+    claim_lock = threading.Lock()
+
+    def _claim_and_record():
+        doc = registry.claim_next()
+        if doc:
+            with claim_lock:
+                claimed.append(doc.doc_id)
+
+    threads = [threading.Thread(target=_claim_and_record) for _ in range(2)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    # Each doc claimed exactly once — no duplicates
+    assert len(claimed) == 2
+    assert len(set(claimed)) == 2
+    for doc_id in claimed:
+        assert registry.get(doc_id).status == IngestStatus.PROCESSING
+
+
+def test_parallel_workers_process_all_docs(env):
+    """Multiple worker threads drain the queue completely."""
+    storage, registry, pipeline, _ = env
+    for name in ("a.pdf", "b.pdf", "c.pdf", "d.pdf"):
+        path = _drop(storage, name, content=name.encode())
+        registry.add(storage.doc_id(path), name)
+
+    worker = IngestWorker(storage, registry, pipeline, worker_count=2)
+    worker.start()
+
+    # Wait for all docs to reach a terminal state
+    deadline = time.time() + 5
+    while time.time() < deadline:
+        statuses = [d.status for d in registry.all()]
+        if all(s in (IngestStatus.DONE, IngestStatus.FAILED) for s in statuses):
+            break
+        time.sleep(0.05)
+
+    worker.stop()
+    assert all(
+        d.status == IngestStatus.DONE for d in registry.all()
+    ), f"Expected all DONE, got {[d.status for d in registry.all()]}"
+    assert all(d.chunk_count > 0 for d in registry.all())
 
 
 def test_worker_archives_original_on_success(env):

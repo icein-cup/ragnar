@@ -23,8 +23,9 @@ from history.chat_store import chat_title, dataclass_to_dict
 from ui.services import build_services
 from ui.static_files import file_url
 from ui.panels import settings, documents, chats
+from ui.viking import viking_running_html
 
-st.set_page_config(page_title="RAGnar", page_icon="📚")
+st.set_page_config(page_title="RAGnar", page_icon="🪓")
 
 svc = build_services()
 
@@ -61,6 +62,24 @@ div[data-testid="stExpander"] summary p {
 .agentic-trace .trace-label {
     color: #cdd6f4;
     font-weight: 500;
+}
+/* Viking-themed spinner — replaces the default "thinking" animation
+   in chat messages. Targets Streamlit's chat-message running spinner
+   and the st.spinner element. */
+.stSpinner > div {
+    border-top-color: #8B4513 !important;
+    border-right-color: #C0C0C0 !important;
+    border-bottom-color: #3B6B8A !important;
+    border-left-color: #5C3317 !important;
+}
+.stSpinner > div > span {
+    color: #8B4513 !important;
+    font-weight: 600 !important;
+}
+/* Chat message avatar spinner — viking axe emoji already set via avatar
+   param, but style the running indicator ring with viking colors */
+[data-testid="stChatMessageAvatarIcon"] {
+    /* nothing to override here — avatar emoji is set via Python */
 }
 </style>
 """
@@ -228,8 +247,11 @@ if "messages" not in st.session_state:
 # None until the current conversation has been saved for the first time.
 st.session_state.setdefault("current_chat_id", None)
 
+_VIKING_AVATAR = "🪓"
+
 for _msg_idx, message in enumerate(st.session_state.messages):
-    with st.chat_message(message["role"]):
+    avatar = _VIKING_AVATAR if message["role"] == "assistant" else None
+    with st.chat_message(message["role"], avatar=avatar):
         st.markdown(message["content"])
         _render_sources_expander(
             message.get("citations") or [],
@@ -245,7 +267,7 @@ if question := st.chat_input("Ask about your documents"):
     with st.chat_message("user"):
         st.markdown(question)
 
-    with st.chat_message("assistant"):
+    with st.chat_message("assistant", avatar=_VIKING_AVATAR):
         start = time.perf_counter()
 
         # Build conversation history from all messages before the current
@@ -262,35 +284,46 @@ if question := st.chat_input("Ask about your documents"):
             history, model=query["model"]
         )
 
-        # Use agentic search if available. Flags are passed per-call, not
-        # mutated on the shared (st.cache_resource) instance — see find()'s
-        # docstring in retrieval/agentic.py: concurrent sessions would
-        # otherwise clobber each other's settings mid-request.
-        if svc.get("agentic_search") is not None:
-            outcome = svc["agentic_search"].find(
-                question,
-                doc_ids=doc_ids_filter,
-                score_floor=query["floor"],
-                vector_floor=query["vector_floor"],
-                use_reranker=query["use_reranker"],
-                context_summary=context_summary,
-                history=history,
-                model=query["model"],
-                temperature=query["temperature"],
-                enable_rewrite=query["enable_rewrite"],
-                enable_multi_query=query["enable_multi_query"],
-                enable_multi_hop=query["enable_multi_hop"],
-                enable_self_correction=query["enable_self_correction"],
-            )
-        else:
-            outcome = svc["search"].find(
-                question,
-                doc_ids=doc_ids_filter,
-                score_floor=query["floor"],
-                vector_floor=query["vector_floor"],
-                use_reranker=query["use_reranker"],
-                context_summary=context_summary,
-            )
+        # Show a running viking while searching. The viking SVG renders in
+        # an st.empty() container, and st.spinner's context entry triggers a
+        # frontend flush — both elements reach the browser before the blocking
+        # search call starts. Without st.spinner as the flush trigger,
+        # st.empty().markdown() alone never renders during a blocking call.
+        thinking = st.empty()
+        thinking.markdown(viking_running_html(), unsafe_allow_html=True)
+        with st.spinner("🪓 RAGnar is running through your documents…"):
+            # Use agentic search if available. Flags are passed per-call, not
+            # mutated on the shared (st.cache_resource) instance — see find()'s
+            # docstring in retrieval/agentic.py: concurrent sessions would
+            # otherwise clobber each other's settings mid-request.
+            if svc.get("agentic_search") is not None:
+                outcome = svc["agentic_search"].find(
+                    question,
+                    doc_ids=doc_ids_filter,
+                    score_floor=query["floor"],
+                    vector_floor=query["vector_floor"],
+                    use_reranker=query["use_reranker"],
+                    context_summary=context_summary,
+                    history=history,
+                    model=query["model"],
+                    temperature=query["temperature"],
+                    enable_rewrite=query["enable_rewrite"],
+                    enable_multi_query=query["enable_multi_query"],
+                    enable_multi_hop=query["enable_multi_hop"],
+                    enable_self_correction=query["enable_self_correction"],
+                )
+            else:
+                outcome = svc["search"].find(
+                    question,
+                    doc_ids=doc_ids_filter,
+                    score_floor=query["floor"],
+                    vector_floor=query["vector_floor"],
+                    use_reranker=query["use_reranker"],
+                    context_summary=context_summary,
+                )
+
+        # Search done — clear the running viking before showing the answer.
+        thinking.empty()
 
         mode = classify(question, outcome.refused, outcome.results)
 

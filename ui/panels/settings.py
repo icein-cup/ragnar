@@ -49,6 +49,8 @@ def render(svc) -> dict:
             "Model", options=available_models,
             index=available_models.index(default_model),
         )
+        if model == cfg.llm_model:
+            st.caption("⭐ Default recommended model")
         loaded = list_loaded_models(cfg.ollama_url)
         if model in loaded:
             st.caption("🟢 Model loaded in memory")

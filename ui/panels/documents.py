@@ -70,14 +70,20 @@ def _status_strip(svc) -> None:
 
 def _render_status_strip(svc) -> None:
     processing, queued, eta = svc["registry"].ingest_eta()
+    docs = svc["registry"].all()
 
     if processing or queued:
-        st.info(
-            f"Indexing — {processing} in progress, "
-            f"{queued} queued{format_eta(eta)}"
+        total = len(docs)
+        completed = total - processing - queued
+        progress = completed / total if total else 0.0
+        st.progress(
+            progress,
+            text=(
+                f"Indexing — {completed} of {total} indexed "
+                f"({processing} in progress, {queued} queued)"
+                f"{format_eta(eta)}"
+            ),
         )
-
-    docs = svc["registry"].all()
 
     def _select_all_changed():
         value = st.session_state.get("select_all_docs", True)

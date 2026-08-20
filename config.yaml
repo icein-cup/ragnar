@@ -51,6 +51,17 @@ storage:
   data_dir: /app/data
   collection: documents
 
+ingestion:
+  # Number of parallel worker threads. Each gets its own Docling converter
+  # (~1-2 GB model memory). "auto" detects from cgroup memory limit + CPU
+  # count; set to an integer to override. # ponytail: N workers = N× converter memory.
+  workers: auto
+  # RAM budget per worker (GB). Auto divides available memory by this to get
+  # the memory-bound worker count. Docling converter ~1-2 GB.
+  worker_memory_gb: 2
+  # Hard cap on auto-detected worker count.
+  max_workers: 8
+
 agentic:
   enable_rewrite: true
   enable_multi_query: true

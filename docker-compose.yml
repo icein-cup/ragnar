@@ -33,8 +33,18 @@ services:
       # Desktop's VM has been given at least that many CPUs — check with
       # `docker compose exec app nproc` and match this to what's actually
       # available; requesting more threads than the VM has just adds
-      # scheduling overhead.
+      # scheduling overhead. With ingestion.workers=auto (config.yaml), the
+      # worker count is auto-detected from cgroup memory + CPU count, so each
+      # worker gets DOCLING_NUM_THREADS / auto_workers threads. Scale this
+      # up if you add more CPUs.
       DOCLING_NUM_THREADS: 8
+    deploy:
+      resources:
+        limits:
+          # Sets the cgroup v2 memory limit that auto_worker_count reads via
+          # /sys/fs/cgroup/memory.max. Without this, the container sees host
+          # RAM and may over-provision workers → OOM. Adjust to your machine.
+          memory: 16g
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:

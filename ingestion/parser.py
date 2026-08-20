@@ -1,5 +1,6 @@
 from dataclasses import dataclass, field
 from pathlib import Path
+import threading
 
 from docling.document_converter import DocumentConverter, PdfFormatOption
 from docling.datamodel.pipeline_options import PdfPipelineOptions, TableFormerMode
@@ -140,12 +141,37 @@ class DoclingParser:
     Blocks are what the chunker consumes; the markdown is for human display
     only. Flattening to markdown loses page numbers, so the two are kept
     separate deliberately.
+
+    DocumentConverter is not thread-safe, so converters are stored in a
+    threading.local — each worker thread gets its own lazily-created
+    instance. The optional explicit ``converter`` / ``ocr_converter``
+    arguments (used by tests) are shared as-is; tests run single-threaded.
+    # ponytail: N workers = N× converter model memory (~1-2 GB each).
     """
 
     def __init__(self, converter: DocumentConverter | None = None,
                  ocr_converter: DocumentConverter | None = None):
-        self._converter = converter or _default_converter()
-        self._ocr_converter = ocr_converter
+        self._explicit_converter = converter
+        self._explicit_ocr_converter = ocr_converter
+        self._tls = threading.local()
+
+    @property
+    def _converter(self) -> DocumentConverter:
+        if self._explicit_converter is not None:
+            return self._explicit_converter
+        if not hasattr(self._tls, "converter"):
+            self._tls.converter = _default_converter()
+        return self._tls.converter
+
+    @property
+    def _ocr_converter(self) -> DocumentConverter | None:
+        if not hasattr(self._tls, "ocr_converter"):
+            self._tls.ocr_converter = self._explicit_ocr_converter
+        return self._tls.ocr_converter
+
+    @_ocr_converter.setter
+    def _ocr_converter(self, value: DocumentConverter | None) -> None:
+        self._tls.ocr_converter = value
 
     def parse(self, path: Path) -> ParsedDocument:
         parsed = self._parse_with(self._converter, path)
