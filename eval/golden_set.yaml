@@ -6,22 +6,257 @@
 # whether bad questions get refused - and the refusal path is the whole
 # trust story.
 
-- question: "What is the service contract number?"
-  expected_answer: "SC-4471"
-  expected_sources: ["sample.pdf"]
+- question: "Who are the editors of the Macintosh Terminal Pocket Guide?"
+  expected_answer: "Mike Loukides and Andy Oram"
+  expected_sources: ["macintosh terminal pocket guide take command of your mac.pdf"]
   out_of_corpus: false
 
-- question: "Who escalates critical faults?"
-  expected_answer: "The duty engineer."
-  expected_sources: ["sample.pdf"]
+- question: "What is the Terminal?"
+  expected_answer: "An application that runs commands."
+  expected_sources: ["macintosh terminal pocket guide take command of your mac.pdf"]
   out_of_corpus: false
 
-- question: "Jaki jest numer kontraktu serwisowego?"
-  expected_answer: "SC-4471"
-  expected_sources: ["sample.pdf"]
+- question: "What is the name of the special program running inside each Terminal window?"
+  expected_answer: "A shell"
+  expected_sources: ["macintosh terminal pocket guide take command of your mac.pdf"]
+  out_of_corpus: false
+
+- question: "What is the third thing the shell does after interpreting special symbols?"
+  expected_answer: "It runs the command, automatically locating any necessary programs."
+  expected_sources: ["macintosh terminal pocket guide take command of your mac.pdf"]
+  out_of_corpus: false
+
+- question: "What does the -l option tell the wc command to do?"
+  expected_answer: "Count lines and not words."
+  expected_sources: ["macintosh terminal pocket guide take command of your mac.pdf"]
+  out_of_corpus: false
+
+- question: "What does the -l option mean when used with the ls command?"
+  expected_answer: "Longer output"
+  expected_sources: ["macintosh terminal pocket guide take command of your mac.pdf"]
+  out_of_corpus: false
+
+- question: "How many commands does OS X come with?"
+  expected_answer: "Over 1,000 commands"
+  expected_sources: ["macintosh terminal pocket guide take command of your mac.pdf"]
+  out_of_corpus: false
+
+- question: "What was the current version of OS X at the time the book was published?"
+  expected_answer: "Lion (10.7)"
+  expected_sources: ["macintosh terminal pocket guide take command of your mac.pdf"]
+  out_of_corpus: false
+
+- question: "What is the ISBN of the Macintosh Terminal Pocket Guide?"
+  expected_answer: "978-1-449-32834-4"
+  expected_sources: ["macintosh terminal pocket guide take command of your mac.pdf"]
+  out_of_corpus: false
+
+- question: "Where can you locate the Terminal icon on a Mac?"
+  expected_answer: "In the Mac's Utilities folder."
+  expected_sources: ["macintosh terminal pocket guide take command of your mac.pdf"]
+  out_of_corpus: false
+
+- question: "Who is the author of 'The 21 Irrefutable Laws of Leadership'?"
+  expected_answer: "John C. Maxwell"
+  expected_sources: ["21 laws of leadership.pdf"]
+  out_of_corpus: false
+
+- question: "What does the Law of the Lid state about leadership ability?"
+  expected_answer: "Leadership Ability Determines a Person's Level of Effectiveness"
+  expected_sources: ["21 laws of leadership.pdf"]
+  out_of_corpus: false
+
+- question: "Who is associated with the Law of Influence in the book's chapter summary?"
+  expected_answer: "Princess Diana"
+  expected_sources: ["21 laws of leadership.pdf"]
+  out_of_corpus: false
+
+- question: "Who wrote the foreword to this book?"
+  expected_answer: "Zig Ziglar"
+  expected_sources: ["21 laws of leadership.pdf"]
+  out_of_corpus: false
+
+- question: "What is the central principle of the Law of Solid Ground?"
+  expected_answer: "Trust Is the Foundation of Leadership"
+  expected_sources: ["21 laws of leadership.pdf"]
+  out_of_corpus: false
+
+- question: "What percentage of all leaders are described as the result of the Law of Reproduction?"
+  expected_answer: "More than 80 percent"
+  expected_sources: ["21 laws of leadership.pdf"]
+  out_of_corpus: false
+
+- question: "What caused Henry Ford to stumble so badly that his son feared Ford Motor Company would go out of business, according to the Law of Empowerment?"
+  expected_answer: "He didn't embrace the Law of Empowerment: he was so in love with the Model T that he never wanted to change or improve it, and he undermined his leaders."
+  expected_sources: ["21 laws of leadership.pdf"]
+  out_of_corpus: false
+
+- question: "Who is thanked as the managing editor at Nelson, and for what qualities?"
+  expected_answer: "Brian Hampton, for his patience and assistance"
+  expected_sources: ["21 laws of leadership.pdf"]
+  out_of_corpus: false
+
+- question: "According to the author, how long did it take him to learn the laws of leadership?"
+  expected_answer: "His entire lifetime"
+  expected_sources: ["21 laws of leadership.pdf"]
+  out_of_corpus: false
+
+- question: "According to the foreword, what are the two categories of leaders who will benefit from this book?"
+  expected_answer: "New leaders will have their leadership career jump-started, and experienced leaders will become even better leaders."
+  expected_sources: ["21 laws of leadership.pdf"]
+  out_of_corpus: false
+
+- question: "When was 'How to Win Friends and Influence People' first published?"
+  expected_answer: "1937."
+  expected_sources: ["How to win friends and influence people.pdf"]
+  out_of_corpus: false
+
+- question: "According to Carnegie, what percentage of financial success is due to professional knowledge?"
+  expected_answer: "15 percent."
+  expected_sources: ["How to win friends and influence people.pdf"]
+  out_of_corpus: false
+
+- question: "How many copies did the book eventually sell?"
+  expected_answer: "15 million copies."
+  expected_sources: ["How to win friends and influence people.pdf"]
+  out_of_corpus: false
+
+- question: "In how many languages has this book been read by more than fifteen million readers?"
+  expected_answer: "Thirty-six languages."
+  expected_sources: ["How to win friends and influence people.pdf"]
+  out_of_corpus: false
+
+- question: "What was the prime interest of adults according to the survey conducted by the University of Chicago, the American Association for Adult Education, and the United Y.M.C.A. Schools?"
+  expected_answer: "Health."
+  expected_sources: ["How to win friends and influence people.pdf"]
+  out_of_corpus: false
+
+- question: "What was the second interest of adults revealed by the survey?"
+  expected_answer: "Developing skill in human relationships."
+  expected_sources: ["How to win friends and influence people.pdf"]
+  out_of_corpus: false
+
+- question: "Where did 2,500 men and women gather on a cold January night in 1935 to attend a course by the Dale Carnegie Institute?"
+  expected_answer: "The grand ballroom of the Hotel Pennsylvania in New York."
+  expected_sources: ["How to win friends and influence people.pdf"]
+  out_of_corpus: false
+
+- question: "What did the advertisement in the New York Sun promise about the meeting?"
+  expected_answer: "It would be highly entertaining."
+  expected_sources: ["How to win friends and influence people.pdf"]
+  out_of_corpus: false
+
+- question: "What did adults want to study instead of public speaking or high sounding talk about psychology?"
+  expected_answer: "Suggestions they can use immediately in business, in social contacts and in the home."
+  expected_sources: ["How to win friends and influence people.pdf"]
+  out_of_corpus: false
+
+- question: "How many business and professional people had been trained by Dale Carnegie in New York City during the twenty-four years preceding the 1935 event?"
+  expected_answer: "More than fifteen thousand."
+  expected_sources: ["How to win friends and influence people.pdf"]
+  out_of_corpus: false
+
+- question: "What government agencies does Joe Navarro continue to conduct seminars on nonverbal communication for?"
+  expected_answer: "The FBI and the CIA."
+  expected_sources: ["what every body is saying.pdf"]
+  out_of_corpus: false
+
+- question: "Which weapon had actually been used in the commission of the crime described in the foreword?"
+  expected_answer: "An ice pick."
+  expected_sources: ["what every body is saying.pdf"]
+  out_of_corpus: false
+
+- question: "How did the suspect physically react when the ice pick was mentioned?"
+  expected_answer: "His eyelids came down hard and stayed down until the next weapon was named."
+  expected_sources: ["what every body is saying.pdf"]
+  out_of_corpus: false
+
+- question: "How long was Joe Navarro's career with the FBI?"
+  expected_answer: "Twenty-five years."
+  expected_sources: ["what every body is saying.pdf"]
+  out_of_corpus: false
+
+- question: "What does Joe Navarro warn is a particularly difficult and challenging task?"
+  expected_answer: "Using body language to detect deception."
+  expected_sources: ["what every body is saying.pdf"]
+  out_of_corpus: false
+
+- question: "To whom does Joe Navarro dedicate the book?"
+  expected_answer: "His grandmother, Adelina."
+  expected_sources: ["what every body is saying.pdf"]
+  out_of_corpus: false
+
+- question: "Who taught the author about police work and observing criminals while he was at Brigham Young University?"
+  expected_answer: "J. Wesley Sherwood, Richard Townsend, and Dean Clive Winn II."
+  expected_sources: ["what every body is saying.pdf"]
+  out_of_corpus: false
+
+- question: "What did the author learn from his mother about nonverbals?"
+  expected_answer: "That nonverbals are invaluable in dealing with others and a subtle behavior can avert an awkward situation or make someone completely comfortable."
+  expected_sources: ["what every body is saying.pdf"]
+  out_of_corpus: false
+
+- question: "Who heads the Center for Nonverbal Studies in Spokane, Washington?"
+  expected_answer: "David Givens."
+  expected_sources: ["what every body is saying.pdf"]
+  out_of_corpus: false
+
+- question: "What is the title of Chapter Three?"
+  expected_answer: "Getting a Leg Up on Body Language: Nonverbals of the Feet and Legs."
+  expected_sources: ["what every body is saying.pdf"]
   out_of_corpus: false
 
 # --- out of corpus: must be refused ---
+
+- question: "What is the boiling point of water in Celsius?"
+  expected_answer: ""
+  expected_sources: []
+  out_of_corpus: true
+
+- question: "Who wrote the novel '1984'?"
+  expected_answer: ""
+  expected_sources: []
+  out_of_corpus: true
+
+- question: "What is the chemical formula for table salt?"
+  expected_answer: ""
+  expected_sources: []
+  out_of_corpus: true
+
+- question: "How many planets are in the solar system?"
+  expected_answer: ""
+  expected_sources: []
+  out_of_corpus: true
+
+- question: "What year did World War II end?"
+  expected_answer: ""
+  expected_sources: []
+  out_of_corpus: true
+
+- question: "What is the speed of light in a vacuum?"
+  expected_answer: ""
+  expected_sources: []
+  out_of_corpus: true
+
+- question: "Who painted the Mona Lisa?"
+  expected_answer: ""
+  expected_sources: []
+  out_of_corpus: true
+
+- question: "What is the capital of Japan?"
+  expected_answer: ""
+  expected_sources: []
+  out_of_corpus: true
+
+- question: "What does the acronym HTTP stand for?"
+  expected_answer: ""
+  expected_sources: []
+  out_of_corpus: true
+
+- question: "How do you tie a Windsor knot?"
+  expected_answer: ""
+  expected_sources: []
+  out_of_corpus: true
 
 - question: "What is the capital of France?"
   expected_answer: ""
@@ -32,3 +267,818 @@
   expected_answer: ""
   expected_sources: []
   out_of_corpus: true
+
+# --- looks-in-corpus-but-isn't: must be refused ---
+
+- question: "What is the publication date of '48 Laws of Power'?"
+  expected_answer: ""
+  expected_sources: []
+  out_of_corpus: true
+
+- question: "How many pages is 'The Tipping Point'?"
+  expected_answer: ""
+  expected_sources: []
+  out_of_corpus: true
+
+- question: "Who translated 'How to Win Friends and Influence People' into Polish?"
+  expected_answer: ""
+  expected_sources: []
+  out_of_corpus: true
+
+- question: "What is the author's email address in 'Requirements Engineering Fundamentals'?"
+  expected_answer: ""
+  expected_sources: []
+  out_of_corpus: true
+
+- question: "What is the page count of 'The Professional Product Owner'?"
+  expected_answer: ""
+  expected_sources: []
+  out_of_corpus: true
+
+- question: "When did Klaus Pohl receive his habilitation?"
+  expected_answer: ""
+  expected_sources: []
+  out_of_corpus: true
+
+- question: "How many textbooks has Klaus Pohl authored?"
+  expected_answer: ""
+  expected_sources: []
+  out_of_corpus: true
+
+- question: "When did Martin Glinz become a full professor at the University of Zurich?"
+  expected_answer: ""
+  expected_sources: []
+  out_of_corpus: true
+
+- question: "How many serious crimes were recorded in New York City in January 1992?"
+  expected_answer: ""
+  expected_sources: []
+  out_of_corpus: true
+
+# --- Polish out-of-corpus: must be refused ---
+
+- question: "Jaki jest NIP firmy na potwierdzeniu z Zielonek?"
+  expected_answer: ""
+  expected_sources: []
+  out_of_corpus: true
+
+- question: "Jaka jest data ważności wniosku refundacyjnego Lux Med?"
+  expected_answer: ""
+  expected_sources: []
+  out_of_corpus: true
+
+- question: "Ile wynosi piąta rata podatku od nieruchomości?"
+  expected_answer: ""
+  expected_sources: []
+  out_of_corpus: true
+
+- question: "Jaki jest numer VIN pojazdu ubezpieczonego w polisie Compensa?"
+  expected_answer: ""
+  expected_sources: []
+  out_of_corpus: true
+
+- question: "Jaka jest wartość rynkowa ubezpieczonego mieszkania?"
+  expected_answer: ""
+  expected_sources: []
+  out_of_corpus: true
+
+- question: "Jaki jest numer konta bankowego do zwrotu kosztów w Lux Med?"
+  expected_answer: ""
+  expected_sources: []
+  out_of_corpus: true
+
+- question: "Jaki jest numer NIP ubezpieczającego na polisie Compensa?"
+  expected_answer: ""
+  expected_sources: []
+  out_of_corpus: true
+
+- question: "Ile wynosi czwarta rata składki w polisie Compensa?"
+  expected_answer: ""
+  expected_sources: []
+  out_of_corpus: true
+
+- question: "Jaki jest numer rejestracyjny pojazdu w polisie Compensa?"
+  expected_answer: ""
+  expected_sources: []
+  out_of_corpus: true
+
+# --- Lux Med refundacja (in-corpus) ---
+
+- question: "Jaki jest adres, na który należy wysłać wypełniony Wniosek wraz z dokumentami?"
+  expected_answer: "LUX MED Sp. z o.o. Al. Jerozolimskie 94 00-807 Warszawa"
+  expected_sources: ["Lux Med wniosek refundacja POL.pdf"]
+  out_of_corpus: false
+
+- question: "Do jakiego momentu wstecz od daty wykonania usługi dokonywany jest zwrot kosztów?"
+  expected_answer: "Do 3 miesięcy wstecz od daty wykonania usługi."
+  expected_sources: ["Lux Med wniosek refundacja POL.pdf"]
+  out_of_corpus: false
+
+- question: "Na podstawie jakich dokumentów dokonywany jest zwrot kosztów?"
+  expected_answer: "Na podstawie oryginałów faktur VAT lub rachunków wystawionych na osobę fizyczną wraz ze specyfikacją wykonanych świadczeń."
+  expected_sources: ["Lux Med wniosek refundacja POL.pdf"]
+  out_of_corpus: false
+
+- question: "Czy dokonywane są zwroty na podstawie paragonów fiskalnych?"
+  expected_answer: "Nie, nie dokonuje się zwrotów na podstawie paragonów fiskalnych."
+  expected_sources: ["Lux Med wniosek refundacja POL.pdf"]
+  out_of_corpus: false
+
+- question: "Jakie dane kontaktowe należy podać w przypadku refundacji usług wykonywanych dla dzieci do lat 18?"
+  expected_answer: "Należy podać dane rodzica lub opiekuna, w tym nazwisko, imię, telefon, telefon komórkowy oraz e-mail."
+  expected_sources: ["Lux Med wniosek refundacja POL.pdf"]
+  out_of_corpus: false
+
+- question: "Jakie dopiski należy umieścić na przesyłce z Wnioskem?"
+  expected_answer: "Należy umieścić dopisek „Refundacja\"."
+  expected_sources: ["Lux Med wniosek refundacja POL.pdf"]
+  out_of_corpus: false
+
+- question: "W jakim banku znajduje się rachunek osoby ubiegającej się o refundację?"
+  expected_answer: "W banku ING."
+  expected_sources: ["Lux Med wniosek refundacja POL.pdf"]
+  out_of_corpus: false
+
+- question: "Jakie dokumenty należy dołączyć do wniosku w przypadku usług stomatologicznych oraz rehabilitacyjnych?"
+  expected_answer: "Wymagane jest dołączenie specyfikacji wykonanych usług z cenami jednostkowymi, ilością wykonanej usługi oraz jej nazewnictwem."
+  expected_sources: ["Lux Med wniosek refundacja POL.pdf"]
+  out_of_corpus: false
+
+- question: "Jakie pola we wniosku są oznaczone jako obowiązkowe?"
+  expected_answer: "Pola oznaczone gwiazdką (*) są obowiązkowe; w przypadku adresu e-mail lub numeru telefonu wystarczy podanie jednego z nich."
+  expected_sources: ["Lux Med wniosek refundacja POL.pdf"]
+  out_of_corpus: false
+
+# --- Goldman IKE (in-corpus) ---
+
+- question: "Jaki jest tytuł dokumentu?"
+  expected_answer: "POTWIERDZENIE ZAWARCIA UMOWY O PROWADZENIE INDYWIDUALNEGO KONTA EMERYTALNEGO IKE ING"
+  expected_sources: ["Goldman.b1315a7d.pdf"]
+  out_of_corpus: false
+
+- question: "Na jaki adres należy przesyłać dokumenty związane z wypłatą transferową z IKE lub PPE?"
+  expected_answer: "ProService Finteco Sp. z o.o., ul. Konstruktorska 12A, 02-673 Warszawa"
+  expected_sources: ["Goldman.b1315a7d.pdf"]
+  out_of_corpus: false
+
+- question: "Pod jakim numerem telefonu można skontaktować się w przypadku dodatkowych pytań?"
+  expected_answer: "801 690 555"
+  expected_sources: ["Goldman.b1315a7d.pdf"]
+  out_of_corpus: false
+
+- question: "W jakie dni tygodnia dostępna jest infolinia?"
+  expected_answer: "od poniedziałku do piątku"
+  expected_sources: ["Goldman.b1315a7d.pdf"]
+  out_of_corpus: false
+
+- question: "Kto zarządza i reprezentuje Subfunduszami wydzielonymi w ramach Goldman Sachs SFIO oraz z Goldman Sachs Perspektywa SFIO?"
+  expected_answer: "Goldman Sachs Towarzystwo Funduszy Inwestycyjnych S.A."
+  expected_sources: ["Goldman.b1315a7d.pdf"]
+  out_of_corpus: false
+
+# --- Podatek Zielonki (in-corpus) ---
+
+- question: "Jaka jest metoda płatności?"
+  expected_answer: "BLIK"
+  expected_sources: ["Podatek potwierdzenie zielonki 2026.pdf"]
+  out_of_corpus: false
+
+- question: "Jaki jest status transakcji?"
+  expected_answer: "Udana"
+  expected_sources: ["Podatek potwierdzenie zielonki 2026.pdf"]
+  out_of_corpus: false
+
+- question: "Ile wynosi czwarta rata podatku od nieruchomości?"
+  expected_answer: "47,00 zł"
+  expected_sources: ["Podatek potwierdzenie zielonki 2026.pdf"]
+  out_of_corpus: false
+
+- question: "Kto jest odbiorcą płatności?"
+  expected_answer: "Gmina Zielonki Krakowskie Przedmieście 116 / - 32-087 Zielonki"
+  expected_sources: ["Podatek potwierdzenie zielonki 2026.pdf"]
+  out_of_corpus: false
+
+- question: "Jaki jest tytuł pierwszego zobowiązania?"
+  expected_answer: "Podatek od nieruchomości. Rata 1/2026"
+  expected_sources: ["Podatek potwierdzenie zielonki 2026.pdf"]
+  out_of_corpus: false
+
+# --- The Professional Product Owner (in-corpus) ---
+
+- question: "Who are the authors of 'The Professional Product Owner'?"
+  expected_answer: "Don McGreal and Ralph Jocham."
+  expected_sources: ["The Professional Product Owner.f86fb025.pdf"]
+  out_of_corpus: false
+
+- question: "Which format is described as an open, industry-standard format for e-books?"
+  expected_answer: "EPUB."
+  expected_sources: ["The Professional Product Owner.f86fb025.pdf"]
+  out_of_corpus: false
+
+- question: "What is the recommended viewing mode to optimize the presentation of programming code or configuration examples in this e-book?"
+  expected_answer: "Single-column, landscape mode with the font size adjusted to the smallest setting."
+  expected_sources: ["The Professional Product Owner.f86fb025.pdf"]
+  out_of_corpus: false
+
+- question: "What email address should be used for government sales inquiries?"
+  expected_answer: "governmentsales@pearsoned.com"
+  expected_sources: ["The Professional Product Owner.f86fb025.pdf"]
+  out_of_corpus: false
+
+- question: "What is the ISBN-13 for this book?"
+  expected_answer: "978-0-13-468647-9"
+  expected_sources: ["The Professional Product Owner.f86fb025.pdf"]
+  out_of_corpus: false
+
+- question: "What is the Library of Congress Control Number for this publication?"
+  expected_answer: "2018934196"
+  expected_sources: ["The Professional Product Owner.f86fb025.pdf"]
+  out_of_corpus: false
+
+- question: "Who holds the copyright for this book?"
+  expected_answer: "Scrum.org"
+  expected_sources: ["The Professional Product Owner.f86fb025.pdf"]
+  out_of_corpus: false
+
+- question: "To whom does Ralph Jocham dedicate the book?"
+  expected_answer: "His family, including Natacha, Noémie, and Anaïs."
+  expected_sources: ["The Professional Product Owner.f86fb025.pdf"]
+  out_of_corpus: false
+
+- question: "Which link should be clicked to view the print-fidelity code image?"
+  expected_answer: "'Click here to view code image' link."
+  expected_sources: ["The Professional Product Owner.f86fb025.pdf"]
+  out_of_corpus: false
+
+- question: "Which company owns the registered trademarks for Microsoft and Windows?"
+  expected_answer: "Microsoft Corporation."
+  expected_sources: ["The Professional Product Owner.f86fb025.pdf"]
+  out_of_corpus: false
+
+# --- Projek Dyplomowy (in-corpus) ---
+
+- question: "What is the name of the contest studied in this project?"
+  expected_answer: "Eurovision Song Contest"
+  expected_sources: ["Projek Dyplomowy Alexandros Papachristoforou.pdf"]
+  out_of_corpus: false
+
+- question: "What tool is used to visualise discovered voting blocs?"
+  expected_answer: "networkx"
+  expected_sources: ["Projek Dyplomowy Alexandros Papachristoforou.pdf"]
+  out_of_corpus: false
+
+- question: "Which organization holds the Eurovision Song Contest annually?"
+  expected_answer: "European Broadcasting Union"
+  expected_sources: ["Projek Dyplomowy Alexandros Papachristoforou.pdf"]
+  out_of_corpus: false
+
+- question: "Which country is mentioned as the most recent expansion for Eurovision Song Contest participants?"
+  expected_answer: "Australia"
+  expected_sources: ["Projek Dyplomowy Alexandros Papachristoforou.pdf"]
+  out_of_corpus: false
+
+- question: "What is the result of merging Wiki2 with Wiki1?"
+  expected_answer: "\"Languages\" database"
+  expected_sources: ["Projek Dyplomowy Alexandros Papachristoforou.pdf"]
+  out_of_corpus: false
+
+- question: "What is the \"Votes\" database purposed for?"
+  expected_answer: "Revealing any voting blocs"
+  expected_sources: ["Projek Dyplomowy Alexandros Papachristoforou.pdf"]
+  out_of_corpus: false
+
+- question: "What tool will the author use to pull together the data?"
+  expected_answer: "beautifulsoup"
+  expected_sources: ["Projek Dyplomowy Alexandros Papachristoforou.pdf"]
+  out_of_corpus: false
+
+- question: "What was absent in the Eurovision Song Contest in the past, according to Wiki1?"
+  expected_answer: "Qualifying rounds"
+  expected_sources: ["Projek Dyplomowy Alexandros Papachristoforou.pdf"]
+  out_of_corpus: false
+
+- question: "Why does the necessary data need to be derived from multiple sources?"
+  expected_answer: "None of the databases available online contain all the relevant information for a proper discovery process."
+  expected_sources: ["Projek Dyplomowy Alexandros Papachristoforou.pdf"]
+  out_of_corpus: false
+
+- question: "What information considered in the datasets may further reveal any voting blocs?"
+  expected_answer: "Voting to and from participating countries"
+  expected_sources: ["Projek Dyplomowy Alexandros Papachristoforou.pdf"]
+  out_of_corpus: false
+
+# --- Ugorek (in-corpus) ---
+
+- question: "W jakim okresie czasu obowiązuje ubezpieczenie?"
+  expected_answer: "12-11-2023 godz. 00:00 - 11-11-2026 godz 23:59"
+  expected_sources: ["Ugorek.pdf"]
+  out_of_corpus: false
+
+- question: "Jaki jest rok budowy budynku mieszkalnego w miejscu ubezpieczenia?"
+  expected_answer: "1965"
+  expected_sources: ["Ugorek.pdf"]
+  out_of_corpus: false
+
+
+- question: "Jaka jest wysokość składki ogółem?"
+  expected_answer: "1 509 zł"
+  expected_sources: ["Ugorek.pdf"]
+  out_of_corpus: false
+
+- question: "W jakiej formie należy opłacać składkę?"
+  expected_answer: "przelew"
+  expected_sources: ["Ugorek.pdf"]
+  out_of_corpus: false
+
+- question: "Do kiedy należy opłacić drugą ratę składki?"
+  expected_answer: "11-11-2024"
+  expected_sources: ["Ugorek.pdf"]
+  out_of_corpus: false
+
+- question: "Ile wynosi powierzchnia użytkowa ubezpieczonego mieszkania?"
+  expected_answer: "45 m 2"
+  expected_sources: ["Ugorek.pdf"]
+  out_of_corpus: false
+
+- question: "Gdzie i kiedy wystawiono polisę?"
+  expected_answer: "03-11-2023, 16:02, TARNÓW"
+  expected_sources: ["Ugorek.pdf"]
+  out_of_corpus: false
+
+# --- Rome flight ticket (in-corpus) ---
+
+- question: "What is the arrival time and date for the flight from Krakow to Rome?"
+  expected_answer: "12:00 Thu, 01 Oct"
+  expected_sources: ["Rome flight ticket.pdf"]
+  out_of_corpus: false
+
+- question: "What airline operates flight LO 2141?"
+  expected_answer: "LOT Polish Airlines"
+  expected_sources: ["Rome flight ticket.pdf"]
+  out_of_corpus: false
+
+- question: "What is the maximum weight allowed for a personal item?"
+  expected_answer: "2 KG"
+  expected_sources: ["Rome flight ticket.pdf"]
+  out_of_corpus: false
+
+- question: "How long before departure is independent online registration on the carrier's website usually available?"
+  expected_answer: "24 hours before departure"
+  expected_sources: ["Rome flight ticket.pdf"]
+  out_of_corpus: false
+
+- question: "What is the total amount to be paid for the flight and the service?"
+  expected_answer: "PLN 548.05"
+  expected_sources: ["Rome flight ticket.pdf"]
+  out_of_corpus: false
+
+- question: "What is the suggested arrival time at the airport for an international flight?"
+  expected_answer: "at least 3 hours before your international flight"
+  expected_sources: ["Rome flight ticket.pdf"]
+  out_of_corpus: false
+
+# --- Rome flight ticket out-of-corpus: must be refused ---
+
+- question: "What is the seat number for the Krakow to Rome flight?"
+  expected_answer: ""
+  expected_sources: []
+  out_of_corpus: true
+
+- question: "What is the gate number for flight LO 2141?"
+  expected_answer: ""
+  expected_sources: []
+  out_of_corpus: true
+
+- question: "What is the checked baggage allowance for the Krakow to Rome flight?"
+  expected_answer: ""
+  expected_sources: []
+  out_of_corpus: true
+
+- question: "What is the boarding time for the Rome to Krakow flight?"
+  expected_answer: ""
+  expected_sources: []
+  out_of_corpus: true
+
+# --- looks-in-corpus-but-isn't (new docs): must be refused ---
+
+- question: "Jaki jest poziom trudności kampanii w poradniku Baldur's Gate?"
+  expected_answer: ""
+  expected_sources: []
+  out_of_corpus: true
+
+- question: "What is the page count of 'Requirements Engineering Fundamentals'?"
+  expected_answer: ""
+  expected_sources: []
+  out_of_corpus: true
+
+- question: "What is the publication date of 'The Tipping Point'?"
+  expected_answer: ""
+  expected_sources: []
+  out_of_corpus: true
+
+- question: "What is the page count of 'Agile Product Management with Scrum'?"
+  expected_answer: ""
+  expected_sources: []
+  out_of_corpus: true
+
+- question: "What is the page count of 'Python Data Analysis'?"
+  expected_answer: ""
+  expected_sources: []
+  out_of_corpus: true
+
+- question: "What is the page count of '48 Laws of Power'?"
+  expected_answer: ""
+  expected_sources: []
+  out_of_corpus: true
+
+- question: "What is the page count of 'How to Win Friends and Influence People'?"
+  expected_answer: ""
+  expected_sources: []
+  out_of_corpus: true
+
+- question: "What is the page count of 'What Every Body Is Saying'?"
+  expected_answer: ""
+  expected_sources: []
+  out_of_corpus: true
+
+- question: "What is the page count of 'The 21 Irrefutable Laws of Leadership'?"
+  expected_answer: ""
+  expected_sources: []
+  out_of_corpus: true
+
+- question: "What is the page count of 'What Customers Want'?"
+  expected_answer: ""
+  expected_sources: []
+  out_of_corpus: true
+
+- question: "What is the publication date of 'Requirements Engineering Fundamentals'?"
+  expected_answer: ""
+  expected_sources: []
+  out_of_corpus: true
+
+- question: "What is the publication date of 'Agile Product Management with Scrum'?"
+  expected_answer: ""
+  expected_sources: []
+  out_of_corpus: true
+
+- question: "What is the publication date of 'Python Data Analysis'?"
+  expected_answer: ""
+  expected_sources: []
+  out_of_corpus: true
+
+- question: "What is the publication date of 'What Customers Want'?"
+  expected_answer: ""
+  expected_sources: []
+  out_of_corpus: true
+
+- question: "What is the publication date of 'How to Win Friends and Influence People'?"
+  expected_answer: ""
+  expected_sources: []
+  out_of_corpus: true
+
+- question: "What is the publication date of 'What Every Body Is Saying'?"
+  expected_answer: ""
+  expected_sources: []
+  out_of_corpus: true
+
+- question: "What is the publication date of 'The 21 Irrefutable Laws of Leadership'?"
+  expected_answer: ""
+  expected_sources: []
+  out_of_corpus: true
+
+# --- Baldur's Gate (in-corpus) ---
+
+- question: "Kto przetłumaczył oryginalny tekst poradnika?"
+  expected_answer: "Janek Sielicki / Janek Sielicki Publishing."
+  expected_sources: ["6.Baldur's Gate - Zstąpienie do Avernusa - Pomocnik.pdf"]
+  out_of_corpus: false
+
+- question: "Kto jest autorem tekstu oryginalnego?"
+  expected_answer: "Justin Alexander The Alexandrian."
+  expected_sources: ["6.Baldur's Gate - Zstąpienie do Avernusa - Pomocnik.pdf"]
+  out_of_corpus: false
+
+- question: "Do jakiej frakcji zostają powołane postacie graczy z powodu obecnego kryzysu?"
+  expected_answer: "Do Płomiennych Pięści."
+  expected_sources: ["6.Baldur's Gate - Zstąpienie do Avernusa - Pomocnik.pdf"]
+  out_of_corpus: false
+
+- question: "Do kogo drużyna ma się zgłosić przy Bramie Bazyliszka?"
+  expected_answer: "Do kapitana Zodge'a."
+  expected_sources: ["6.Baldur's Gate - Zstąpienie do Avernusa - Pomocnik.pdf"]
+  out_of_corpus: false
+
+- question: "Jakie bóstwa wyznają kultyści wyznający Martwą Trójkę?"
+  expected_answer: "Bane'a, Bhaala i Myrkula."
+  expected_sources: ["6.Baldur's Gate - Zstąpienie do Avernusa - Pomocnik.pdf"]
+  out_of_corpus: false
+
+- question: "Jaki zakon utworzyli zbiegli do Elturelu rycerze?"
+  expected_answer: "Piekielnych Jeźdźców."
+  expected_sources: ["6.Baldur's Gate - Zstąpienie do Avernusa - Pomocnik.pdf"]
+  out_of_corpus: false
+
+- question: "Kim tak naprawdę był Najwyższy Kapłan w Elturelu?"
+  expected_answer: "Potężnym wampirem."
+  expected_sources: ["6.Baldur's Gate - Zstąpienie do Avernusa - Pomocnik.pdf"]
+  out_of_corpus: false
+
+- question: "Jaka postać stworzyła Towarzysza?"
+  expected_answer: "Zariel."
+  expected_sources: ["6.Baldur's Gate - Zstąpienie do Avernusa - Pomocnik.pdf"]
+  out_of_corpus: false
+
+- question: "Co Zodge zrobi, jeśli BG uciekną po odmowie wykonania rozkazu?"
+  expected_answer: "Zodge wyśle kolejne dwa oddziały z rozkazem zabicia drużyny."
+  expected_sources: ["6.Baldur's Gate - Zstąpienie do Avernusa - Pomocnik.pdf"]
+  out_of_corpus: false
+
+- question: "Gdzie uchodźcy z Elturelu szukają pomocy?"
+  expected_answer: "We Wrotach Baldura."
+  expected_sources: ["6.Baldur's Gate - Zstąpienie do Avernusa - Pomocnik.pdf"]
+  out_of_corpus: false
+
+# --- Requirements Engineering Fundamentals (in-corpus) ---
+
+- question: "Where does Klaus Pohl hold a full professorship?"
+  expected_answer: "At the Institute for Computer Science and Business Information Systems (ICB) at University of Duisburg-Essen, Germany."
+  expected_sources: ["Requirements Engineering Fundamentals.pdf"]
+  out_of_corpus: false
+
+- question: "What is the ISBN of the 2nd edition of Requirements Engineering Fundamentals?"
+  expected_answer: "978-1-937538-77-4"
+  expected_sources: ["Requirements Engineering Fundamentals.pdf"]
+  out_of_corpus: false
+
+- question: "Who translated the book from German into English?"
+  expected_answer: "Thorsten Weyer, Bastian Tenbergen, and Marta Tayeh."
+  expected_sources: ["Requirements Engineering Fundamentals.pdf"]
+  out_of_corpus: false
+
+- question: "What curriculum version is the 2nd edition of the book aligned with?"
+  expected_answer: "Curriculum version 2.2 of the International Requirements Engineering Board e.V. (IREB)."
+  expected_sources: ["Requirements Engineering Fundamentals.pdf"]
+  out_of_corpus: false
+
+- question: "Who is the co-founder of the IREB e.V.?"
+  expected_answer: "Klaus Pohl is a co-founder; Chris Rupp founded the IREB e.V. to standardize qualification for requirements engineers / business analysts."
+  expected_sources: ["Requirements Engineering Fundamentals.pdf"]
+  out_of_corpus: false
+
+- question: "Where did Klaus Pohl receive his Ph.D. and habilitation?"
+  expected_answer: "From RWTH Aachen, Germany."
+  expected_sources: ["Requirements Engineering Fundamentals.pdf"]
+  out_of_corpus: false
+
+- question: "How many peer-reviewed publications has Klaus Pohl (co-)authored?"
+  expected_answer: "More than 250."
+  expected_sources: ["Requirements Engineering Fundamentals.pdf"]
+  out_of_corpus: false
+
+- question: "Who is the chief consultant, coach and trainer described as SOPHIST-in-chief?"
+  expected_answer: "Chris Rupp."
+  expected_sources: ["Requirements Engineering Fundamentals.pdf"]
+  out_of_corpus: false
+
+- question: "What is the name of the Irish Software Engineering Research Centre where Klaus Pohl was scientific funding director?"
+  expected_answer: "Lero."
+  expected_sources: ["Requirements Engineering Fundamentals.pdf"]
+  out_of_corpus: false
+
+- question: "Who is the publisher of the book and where is it located?"
+  expected_answer: "Rocky Nook Inc., located at 802 East Cota St., 3rd Floor, Santa Barbara, CA 93103."
+  expected_sources: ["Requirements Engineering Fundamentals.pdf"]
+  out_of_corpus: false
+
+- question: "Which two best-selling German books form the basis of this collaborative work?"
+  expected_answer: "Klaus Pohl's 'Requirements Engineering - Grundlagen, Prinzipien, Techniken' and Chris Rupp's 'Requirements-Engineering und -Management - Aus der Praxis von klassisch bis agil'."
+  expected_sources: ["Requirements Engineering Fundamentals.pdf"]
+  out_of_corpus: false
+
+- question: "What role does Martin Glinz hold at the University of Zurich?"
+  expected_answer: "Full professor of computer science, leading the research unit Requirements Engineering."
+  expected_sources: ["Requirements Engineering Fundamentals.pdf"]
+  out_of_corpus: false
+
+- question: "What is Rainer Grau's position at Digitec/Galaxus?"
+  expected_answer: "Head of Business Development."
+  expected_sources: ["Requirements Engineering Fundamentals.pdf"]
+  out_of_corpus: false
+
+- question: "In which year and where did Karol Frühauf found INFOGEM AG, and with whom?"
+  expected_answer: "In 1987, with Helmut Sandmayr."
+  expected_sources: ["Requirements Engineering Fundamentals.pdf"]
+  out_of_corpus: false
+
+- question: "How many years of professional experience does Chris Rupp look back over?"
+  expected_answer: "25 years."
+  expected_sources: ["Requirements Engineering Fundamentals.pdf"]
+  out_of_corpus: false
+
+# --- The Tipping Point (in-corpus) ---
+
+- question: "Who is the author of the book?"
+  expected_answer: "Malcolm Gladwell"
+  expected_sources: ["the-tipping-point.pdf"]
+  out_of_corpus: false
+
+- question: "To whom is the book dedicated?"
+  expected_answer: "Joyce and Graham Gladwell"
+  expected_sources: ["the-tipping-point.pdf"]
+  out_of_corpus: false
+
+- question: "When did the Tipping Point come for Hush Puppies?"
+  expected_answer: "Somewhere between late 1994 and early 1995"
+  expected_sources: ["the-tipping-point.pdf"]
+  out_of_corpus: false
+
+- question: "Which fashion designer was reportedly wearing the Hush Puppies shoes himself?"
+  expected_answer: "Isaac Mizrahi"
+  expected_sources: ["the-tipping-point.pdf"]
+  out_of_corpus: false
+
+- question: "How many pairs of the classic Hush Puppies did the company sell in 1995?"
+  expected_answer: "450,000 pairs"
+  expected_sources: ["the-tipping-point.pdf"]
+  out_of_corpus: false
+
+- question: "What prize did Hush Puppies win at the Council of Fashion Designers awards dinner in 1996?"
+  expected_answer: "Best accessory"
+  expected_sources: ["the-tipping-point.pdf"]
+  out_of_corpus: false
+
+- question: "How many serious crimes were recorded in New York City in 1992?"
+  expected_answer: "626,182 serious crimes"
+  expected_sources: ["the-tipping-point.pdf"]
+  out_of_corpus: false
+
+- question: "Who commands the police precinct in Brownsville?"
+  expected_answer: "Inspector Edward Messadri"
+  expected_sources: ["the-tipping-point.pdf"]
+  out_of_corpus: false
+
+- question: "By what percentage did murders drop in New York City within five years?"
+  expected_answer: "64.3 percent"
+  expected_sources: ["the-tipping-point.pdf"]
+  out_of_corpus: false
+
+- question: "Who was the actor that walked into Joel Fitzgerald's Hollywood store while it was being turned into a Hush Puppies boutique?"
+  expected_answer: "Pee-wee Herman"
+  expected_sources: ["the-tipping-point.pdf"]
+  out_of_corpus: false
+
+# --- Customer Relations (in-corpus) ---
+
+- question: "Who holds the copyright for the book?"
+  expected_answer: "The McGraw-Hill Companies, Inc."
+  expected_sources: ["CUSTOMER RELATIONS What customers want.pdf"]
+  out_of_corpus: false
+
+- question: "To whom is the book dedicated?"
+  expected_answer: "Lorena and Anthony W. Ulwick Sr."
+  expected_sources: ["CUSTOMER RELATIONS What customers want.pdf"]
+  out_of_corpus: false
+
+- question: "Who should be contacted for information on special quantity discounts for McGraw-Hill eBooks?"
+  expected_answer: "George Hoare"
+  expected_sources: ["CUSTOMER RELATIONS What customers want.pdf"]
+  out_of_corpus: false
+
+- question: "Under what condition may a user's right to use the work be terminated?"
+  expected_answer: "If they fail to comply with the terms of use."
+  expected_sources: ["CUSTOMER RELATIONS What customers want.pdf"]
+  out_of_corpus: false
+
+- question: "What is the print version ISBN of the book?"
+  expected_answer: "0-07-140867-3"
+  expected_sources: ["CUSTOMER RELATIONS What customers want.pdf"]
+  out_of_corpus: false
+
+- question: "What right regarding the work is permitted under the Copyright Act of 1976?"
+  expected_answer: "The right to store and retrieve one copy of the work."
+  expected_sources: ["CUSTOMER RELATIONS What customers want.pdf"]
+  out_of_corpus: false
+
+- question: "What types of use are McGraw-Hill eBooks available at special quantity discounts for?"
+  expected_answer: "Premiums and sales promotions, or corporate training programs."
+  expected_sources: ["CUSTOMER RELATIONS What customers want.pdf"]
+  out_of_corpus: false
+
+- question: "What subtitle is given for the book \"WHAT CUSTOMERS WANT\"?"
+  expected_answer: "Using Outcome-Driven Innovation to Create Breakthrough Products and Services"
+  expected_sources: ["CUSTOMER RELATIONS What customers want.pdf"]
+  out_of_corpus: false
+
+- question: "What is the title of Chapter 2?"
+  expected_answer: "Capturing Customer Inputs"
+  expected_sources: ["CUSTOMER RELATIONS What customers want.pdf"]
+  out_of_corpus: false
+
+- question: "What is the title of Chapter 6?"
+  expected_answer: "Positioning Current Products"
+  expected_sources: ["CUSTOMER RELATIONS What customers want.pdf"]
+  out_of_corpus: false
+
+# --- Agile Product Management with Scrum (in-corpus) ---
+
+- question: "Who owns the copyright for the book?"
+  expected_answer: "Roman Pichler"
+  expected_sources: ["SE-Scrum-Agile-Product-Management-with-Scrum-Roman-Pichler-BIN532.pdf"]
+  out_of_corpus: false
+
+- question: "What is the ISBN-13 of the book?"
+  expected_answer: "978-0-321-60578-8"
+  expected_sources: ["SE-Scrum-Agile-Product-Management-with-Scrum-Roman-Pichler-BIN532.pdf"]
+  out_of_corpus: false
+
+- question: "Where was the book's text printed?"
+  expected_answer: "Courier in Stoughton, Massachusetts"
+  expected_sources: ["SE-Scrum-Agile-Product-Management-with-Scrum-Roman-Pichler-BIN532.pdf"]
+  out_of_corpus: false
+
+- question: "Who wrote the foreword included in the book?"
+  expected_answer: "Jeff Sutherland"
+  expected_sources: ["SE-Scrum-Agile-Product-Management-with-Scrum-Roman-Pichler-BIN532.pdf"]
+  out_of_corpus: false
+
+- question: "What is the title of the first chapter?"
+  expected_answer: "Understanding the Product Owner Role"
+  expected_sources: ["SE-Scrum-Agile-Product-Management-with-Scrum-Roman-Pichler-BIN532.pdf"]
+  out_of_corpus: false
+
+- question: "What email address is provided for International Sales?"
+  expected_answer: "international@pearsoned.com"
+  expected_sources: ["SE-Scrum-Agile-Product-Management-with-Scrum-Roman-Pichler-BIN532.pdf"]
+  out_of_corpus: false
+
+- question: "When was the first printing of the book?"
+  expected_answer: "March 2010"
+  expected_sources: ["SE-Scrum-Agile-Product-Management-with-Scrum-Roman-Pichler-BIN532.pdf"]
+  out_of_corpus: false
+
+- question: "What are the four DEEP qualities of the Product Backlog?"
+  expected_answer: "Detailed Appropriately, Estimated, Emergent, and Prioritized"
+  expected_sources: ["SE-Scrum-Agile-Product-Management-with-Scrum-Roman-Pichler-BIN532.pdf"]
+  out_of_corpus: false
+
+- question: "To whom is the book dedicated?"
+  expected_answer: "Melissa"
+  expected_sources: ["SE-Scrum-Agile-Product-Management-with-Scrum-Roman-Pichler-BIN532.pdf"]
+  out_of_corpus: false
+
+- question: "Which section in Chapter 1 discusses \"The Underpowered Product Owner\"?"
+  expected_answer: "Common Mistakes"
+  expected_sources: ["SE-Scrum-Agile-Product-Management-with-Scrum-Roman-Pichler-BIN532.pdf"]
+  out_of_corpus: false
+
+# --- Python Data Analysis (in-corpus) ---
+
+- question: "Who are the authors of Python Data Analysis Third Edition?"
+  expected_answer: "Avinash Navlani, Armando Fandango, and Ivan Idris"
+  expected_sources: ["python data analysis.pdf"]
+  out_of_corpus: false
+
+- question: "When was the third edition of the book published?"
+  expected_answer: "February 2021"
+  expected_sources: ["python data analysis.pdf"]
+  out_of_corpus: false
+
+- question: "What is the ISBN of the book?"
+  expected_answer: "978-1-78995-524-8"
+  expected_sources: ["python data analysis.pdf"]
+  out_of_corpus: false
+
+- question: "How many years of experience does Avinash Navlani have in data science and AI?"
+  expected_answer: "Over 8 years"
+  expected_sources: ["python data analysis.pdf"]
+  out_of_corpus: false
+
+- question: "What did Alistair McMaster graduate from the University of Cambridge with?"
+  expected_answer: "A B.A. (Hons) in Natural Sciences specializing in Astrophysics"
+  expected_sources: ["python data analysis.pdf"]
+  out_of_corpus: false
+
+- question: "Who is the Senior Editor of the book?"
+  expected_answer: "Roshan Kumar"
+  expected_sources: ["python data analysis.pdf"]
+  out_of_corpus: false
+
+- question: "What is the production reference for the book?"
+  expected_answer: "1070121"
+  expected_sources: ["python data analysis.pdf"]
+  out_of_corpus: false
+
+- question: "What are Ivan Idris's main professional interests?"
+  expected_answer: "Business intelligence, big data, and cloud computing"
+  expected_sources: ["python data analysis.pdf"]
+  out_of_corpus: false
+
+- question: "What expertise does Armando Fandango leverage to create AI-empowered products?"
+  expected_answer: "Deep learning, machine learning, distributed computing, and computational methods"
+  expected_sources: ["python data analysis.pdf"]
+  out_of_corpus: false
+
+- question: "Which books by Packt Publishing did the former Java developer and QA analyst author?"
+  expected_answer: "NumPy 1.5 Beginner's Guide and NumPy Cookbook"
+  expected_sources: ["python data analysis.pdf"]
+  out_of_corpus: false

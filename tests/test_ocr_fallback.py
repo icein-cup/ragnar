@@ -55,3 +55,34 @@ def test_sparse_text_triggers_ocr_and_flags_low_confidence():
     assert ocr.calls == 1
     assert parsed.low_confidence is True
     assert "recovered" in parsed.markdown
+
+
+def test_placeholder_only_markdown_triggers_ocr():
+    # Docling emits `<!-- image -->` for image-only regions; the placeholders
+    # must not count as extracted text for the density check.
+    plain = StubConverter([StubResult(StubDoc("<!-- image -->\n<!-- image -->"))])
+    ocr = StubConverter([StubResult(StubDoc("recovered text " * 50))])
+    parser = DoclingParser(converter=plain, ocr_converter=ocr)
+
+    parsed = parser.parse(Path("scan.pdf"))
+
+    assert ocr.calls == 1
+    assert parsed.low_confidence is True
+
+
+class EmptyBlocksDoc(StubDoc):
+    """Markdown is dense with placeholders, but no text blocks are extracted."""
+
+    def iterate_items(self):
+        return []
+
+
+def test_empty_blocks_trigger_ocr_even_with_dense_placeholder_markdown():
+    plain = StubConverter([StubResult(EmptyBlocksDoc("<!-- image -->\n" * 100))])
+    ocr = StubConverter([StubResult(StubDoc("recovered text " * 50))])
+    parser = DoclingParser(converter=plain, ocr_converter=ocr)
+
+    parsed = parser.parse(Path("scan.pdf"))
+
+    assert ocr.calls == 1
+    assert parsed.low_confidence is True

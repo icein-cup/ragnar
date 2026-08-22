@@ -1,5 +1,6 @@
 from dataclasses import dataclass, field
 from pathlib import Path
+import re
 import threading
 
 from docling.document_converter import DocumentConverter, PdfFormatOption
@@ -132,7 +133,12 @@ class ParsedDocument:
     def chars_per_page(self) -> float:
         if self.page_count == 0:
             return 0.0
-        return len(self.markdown) / self.page_count
+        # Docling emits `<!-- image -->` placeholders into the markdown for
+        # image-only regions; counting them as text inflates the density and
+        # masks a near-empty extraction, so strip HTML comments before
+        # measuring. Markdown comments carry no indexed content.
+        text = re.sub(r"<!--.*?-->", "", self.markdown, flags=re.DOTALL)
+        return len(text) / self.page_count
 
 
 class DoclingParser:
@@ -176,7 +182,7 @@ class DoclingParser:
     def parse(self, path: Path) -> ParsedDocument:
         parsed = self._parse_with(self._converter, path)
 
-        if parsed.chars_per_page < OCR_TRIGGER_CHARS_PER_PAGE:
+        if parsed.chars_per_page < OCR_TRIGGER_CHARS_PER_PAGE or not parsed.blocks:
             if self._ocr_converter is None:
                 self._ocr_converter = _ocr_converter()
             parsed = self._parse_with(self._ocr_converter, path)

@@ -51,11 +51,31 @@ def build_client() -> OpenAI:
     return OpenAI(base_url=base_url, api_key=api_key)
 
 
+def _extract_json(text: str) -> str:
+    """Strip markdown code fences and leading/trailing non-JSON text."""
+    import re
+    # Try ```json ... ``` first
+    m = re.search(r"```(?:json)?\s*\n?(.*?)\n?```", text, re.DOTALL)
+    if m:
+        return m.group(1).strip()
+    # Try bare ``` ... ```
+    m = re.search(r"```\s*\n?(.*?)\n?```", text, re.DOTALL)
+    if m:
+        return m.group(1).strip()
+    # Fallback: find first [ to last ]
+    start = text.find("[")
+    end = text.rfind("]")
+    if start != -1 and end != -1 and end > start:
+        return text[start:end + 1]
+    return text
+
+
 def read_excerpt(storage, doc_id: str, max_chars: int) -> str | None:
     markdown = storage.read_markdown(doc_id)
     if not markdown:
         return None
     return markdown[:max_chars]
+
 
 
 def main() -> None:
@@ -92,10 +112,12 @@ def main() -> None:
             ],
         )
         text = response.choices[0].message.content
+        cleaned = _extract_json(text)
         try:
-            batch = json.loads(text)
+            batch = json.loads(cleaned)
         except json.JSONDecodeError:
             print(f"# skipped {doc_id}: judge returned non-JSON", file=sys.stderr)
+            print(f"# raw response:\n{text}", file=sys.stderr)
             continue
 
         for item in batch:

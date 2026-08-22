@@ -34,13 +34,7 @@ Wait until all documents show as ✅ done in the UI documents panel (expand
 
 The UI documents panel shows filenames, not ids. Query the registry:
 
-    docker compose exec app python -c "
-    from core.config import Config
-    from ingestion.registry_db import Registry
-    r = Registry(Config().data_dir / 'registry.db')
-    for d in r.all():
-        print(d.doc_id, d.filename, d.status.value)
-    "
+    docker compose exec app python -c "from core.config import Config; from ingestion.registry_db import Registry; r = Registry(Config().data_dir / 'registry.db'); [print(d.doc_id, d.filename, d.status.value) for d in r.all()]"
 
 Only `done` documents have converted markdown. Note the `doc_id` of each
 document you want to generate golden entries for.
