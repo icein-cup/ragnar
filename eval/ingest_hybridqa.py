@@ -77,8 +77,10 @@ def main() -> None:
     # table_id -> {table, passages}; dedupe tables shared across entries.
     tables: dict[str, dict] = {}
     for entry in entries:
-        table_id = entry["table_id"]
-        if table_id in tables:
+        # Out-of-corpus probes carry no table_id: they exist to be refused,
+        # so ingesting anything for them would defeat the point.
+        table_id = entry.get("table_id")
+        if not table_id or table_id in tables:
             continue
         with httpx.Client(follow_redirects=True) as client:
             table = client.get(TABLE_URL.format(table_id=table_id),

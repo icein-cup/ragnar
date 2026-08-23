@@ -2,7 +2,12 @@
 # Source: wenhuchen/HybridQA dev.traced.json + wenhuchen/WikiTables-WithLinks tables_tok.
 # multihop: true = the answer requires the anchor table AND every listed passage.
 # expected_sources = citation labels (document titles) the answerer must surface.
+# Traces are filtered (single passage, answer nowhere else in the table), but the
+# questions are not: HybridQA phrases them against a table already on screen, so
+# some identify nothing on their own ('A 2009 title came out in what month ?').
 # Review each entry, then merge accepted ones into eval/golden_set.yaml.
+# The out_of_corpus probes at the end are hand-written and survive no re-run of
+# load_hybridqa.py — keep them when regenerating, or refusal_accuracy is blind.
 
 - question: What river flows near the city with the $ 6.5 billion GDP in 2017 ?
   expected_answer: the Chenab River
@@ -12,15 +17,6 @@
   out_of_corpus: false
   multihop: true
   table_id: List_of_Pakistani_provinces_by_gross_domestic_product_2
-- question: For the owner who made the cover of TIME magazine on May 7 , 1934 , what
-    was the horse name ?
-  expected_answer: Busher
-  expected_sources:
-  - American Champion Two-Year-Old Filly
-  - James W. Smith
-  out_of_corpus: false
-  multihop: true
-  table_id: American_Champion_Two-Year-Old_Filly_2
 - question: What is the Ordinance No . of 2002 that a University was granted its charter
     located in the city that is located on the Pothohar Plateau in the northeastern
     part of the country ?
@@ -120,15 +116,6 @@
   out_of_corpus: false
   multihop: true
   table_id: List_of_supermarket_chains_in_Denmark_0
-- question: What is the birth date of the older player between number 9 and number
-    10 ?
-  expected_answer: 3 July 1973
-  expected_sources:
-  - 2009 Warrington Wolves season
-  - Paul Rauhihi
-  out_of_corpus: false
-  multihop: true
-  table_id: 2009_Warrington_Wolves_season_0
 - question: Which empire called the city containing Soekarno - Hatta International
     Airport Batavia ?
   expected_answer: Dutch East Indies
@@ -184,15 +171,6 @@
   out_of_corpus: false
   multihop: true
   table_id: Municipalities_of_Switzerland_0
-- question: Which non-European country has its embassy in the district where the Pushkin
-    Museum is located ?
-  expected_answer: Austria
-  expected_sources:
-  - List of diplomatic missions in Russia
-  - Embassy of Austria in Moscow
-  out_of_corpus: false
-  multihop: true
-  table_id: List_of_diplomatic_missions_in_Russia_0
 - question: What was the last film in the Before romantic trilogy of the director
     of the 2011 film Bernie ?
   expected_answer: Before Midnight
@@ -263,15 +241,6 @@
   out_of_corpus: false
   multihop: true
   table_id: 2013_Big_East_Conference_men's_soccer_season_0
-- question: Which organization acquired this historic building in 1993 located in
-    this borough founded in 1849 ?
-  expected_answer: Historical Society
-  expected_sources:
-  - Washington County History & Landmarks Foundation
-  - Jennings-Gallagher House
-  out_of_corpus: false
-  multihop: true
-  table_id: Washington_County_History_&_Landmarks_Foundation_3
 - question: Which 2006 award was received by the scholar who obtained post graduate
     degree from an Australian University ?
   expected_answer: Gintong Aklat Award ( Golden Book Award , Philippines )
@@ -281,14 +250,6 @@
   out_of_corpus: false
   multihop: true
   table_id: List_of_University_of_Santo_Tomas_people_21
-- question: A 2009 title came out in what month ?
-  expected_answer: November
-  expected_sources:
-  - Achu Rajamani
-  - Kurradu
-  out_of_corpus: false
-  multihop: true
-  table_id: Achu_Rajamani_0
 - question: What part of the body did the person from France injure in 2008 ?
   expected_answer: ankle
   expected_sources:
@@ -334,15 +295,6 @@
   out_of_corpus: false
   multihop: true
   table_id: Physical_history_of_the_United_States_Declaration_of_Independence_0
-- question: What date did the station open that is home to one of the three Central
-    line depots ?
-  expected_answer: 31 May 1948
-  expected_sources:
-  - London Borough of Redbridge
-  - Newbury Park tube station
-  out_of_corpus: false
-  multihop: true
-  table_id: London_Borough_of_Redbridge_3
 - question: What is the name of the auditorium where the gold medalist Asrelawandi
     competed in ?
   expected_answer: Qurum City Auditorium
@@ -509,14 +461,6 @@
   out_of_corpus: false
   multihop: true
   table_id: Goya_Award_for_Best_Director_0
-- question: Which university was the first to found a Faculty of Health Sciences ?
-  expected_answer: University of Cape Town
-  expected_sources:
-  - List of medical schools in Africa
-  - University of Stellenbosch
-  out_of_corpus: false
-  multihop: true
-  table_id: List_of_medical_schools_in_Africa_0
 - question: FC Dallas had their last qualification in a year that the league had the
     inaugural edition of what ?
   expected_answer: Leagues Cup
@@ -553,15 +497,6 @@
   out_of_corpus: false
   multihop: true
   table_id: List_of_television_show_spoofs_in_Mad_5
-- question: Which character was created by Akira Toriy in a Japanese media franchise
-    ?
-  expected_answer: Yellow
-  expected_sources:
-  - List of fictional big cats in animation
-  - Battle Cat
-  out_of_corpus: false
-  multihop: true
-  table_id: List_of_fictional_big_cats_in_animation_3
 - question: What 2022 winter olympic sports with be played in the area used for volleyball
     in 2008 ?
   expected_answer: figure skating , curling and ice hockey
@@ -598,15 +533,6 @@
   out_of_corpus: false
   multihop: true
   table_id: Greta_Garbo_1
-- question: Which stadium located in the Romsdal Peninsula was designed by Kjell Kosberg
-    ?
-  expected_answer: Aker Stadion
-  expected_sources:
-  - List of sponsored sports venues
-  - Sør Arena
-  out_of_corpus: false
-  multihop: true
-  table_id: List_of_sports_venues_with_sole_naming_rights_24
 - question: After the Oregon State alum developed a social networking service originally
     sought to help users find class members , he co-founded what other company ?
   expected_answer: RedWeek.com
@@ -679,33 +605,6 @@
   out_of_corpus: false
   multihop: true
   table_id: Carrier_Air_Wing_Seven_0
-- question: What is the description for the church occupied by Union troops during
-    the Civil War and was built from reclaimed bricks ?
-  expected_answer: Gothic Revival
-  expected_sources:
-  - List of Catholic churches in the United States
-  - Renaissance Revival architecture
-  out_of_corpus: false
-  multihop: true
-  table_id: List_of_Catholic_churches_in_the_United_States_42
-- question: What are the games of the athlete who was honored with a Google Doodle
-    , on what would have been her 75th birthday ( May 10 , 2019 ) ?
-  expected_answer: 1962 Asian Games
-  expected_sources:
-  - Indonesia at the Asian Games
-  - Badminton at the 1962 Asian Games
-  out_of_corpus: false
-  multihop: true
-  table_id: Indonesia_at_the_Asian_Games_4
-- question: What was the name of this team until 1999 specializing in the oldest organized
-    sport in North America ?
-  expected_answer: Baltimore Thunder
-  expected_sources:
-  - Colorado
-  - Colorado Mammoth
-  out_of_corpus: false
-  multihop: true
-  table_id: Colorado_0
 - question: The directorate of the voivodship with 9.7 % of shares is located in a
     city on which river ?
   expected_answer: Warta River
@@ -779,15 +678,6 @@
   out_of_corpus: false
   multihop: true
   table_id: World_record_progression_100_metres_butterfly_1
-- question: What is the name of the district is home to a reserve that controlled
-    fishing is allowed in the lake ?
-  expected_answer: Göttingen district
-  expected_sources:
-  - List of nature reserves in Lower Saxony
-  - Seeburger See
-  out_of_corpus: false
-  multihop: true
-  table_id: Nature_reserves_in_Lower_Saxony_0
 - question: Whom does the title track of this jazz album feature whose leader was
     American jazz tenor saxophonist born on September 7 , 1930 ?
   expected_answer: Rollins and John Coltrane
@@ -858,33 +748,6 @@
   out_of_corpus: false
   multihop: true
   table_id: Live_with_Regis_and_Kelly_(season_22)_4
-- question: The earliest clergyman was a dean of what ?
-  expected_answer: Dean of Chichester Cathedral
-  expected_sources:
-  - List of clergy educated at Jesus College, Oxford
-  - George Stradling
-  out_of_corpus: false
-  multihop: true
-  table_id: List_of_clergy_educated_at_Jesus_College,_Oxford_1
-- question: Who is the developer of the game that features music by Shinji Hosoe and
-    character designs by Rui Tomono ?
-  expected_answer: Spike Chunsoft
-  expected_sources:
-  - Index of Windows games (Z)
-  - Zero Time Dilemma
-  out_of_corpus: false
-  multihop: true
-  table_id: Index_of_Windows_games_(Z)_0
-- question: what were the nicknames of the flag bearer of the most recent year of
-    the summer olympics ?
-  expected_answer: the Russian Bear , Russian King Kong , Alexander the Great and
-    The Experiment
-  expected_sources:
-  - List of flag bearers for the Soviet Union at the Olympics
-  - Aleksandr Karelin
-  out_of_corpus: false
-  multihop: true
-  table_id: List_of_flag_bearers_for_the_Soviet_Union_at_the_Olympics_0
 - question: How many buildings are in the historic site of the city with a population
     of 1,733 ?
   expected_answer: '70'
@@ -894,3 +757,217 @@
   out_of_corpus: false
   multihop: true
   table_id: National_Register_of_Historic_Places_listings_in_Marion_County,_Florida_0
+
+# --- hand-written hard cases ---
+# Harder than the sampled entries above, and in the ways retrieval actually
+# fails: two rows of one table compared before a passage is read, a filter
+# over a column, arithmetic across rows, one three-source chain, and one
+# question whose two documents hang off different tables entirely.
+
+- question: Two of the airports in Canada 's twenty busiest by aircraft movements
+    serve Calgary . How many passengers did the larger one handle in 2017 , and what
+    role does the smaller one play ?
+  expected_answer: 17.34 million ; Calgary/Springbank Airport is a general aviation
+    reliever for Calgary International
+  expected_sources:
+  - List of the busiest airports in Canada
+  - Calgary International Airport
+  - Calgary/Springbank Airport
+  out_of_corpus: false
+  multihop: true
+  table_id: List_of_the_busiest_airports_in_Canada_23
+- question: Of the two Greater Montreal airports in the busiest-airports list , the
+    one with more aircraft movements was formerly known by what name ?
+  expected_answer: Montréal-Dorval International Airport
+  expected_sources:
+  - List of the busiest airports in Canada
+  - Montréal–Pierre Elliott Trudeau International Airport
+  out_of_corpus: false
+  multihop: true
+  table_id: List_of_the_busiest_airports_in_Canada_23
+- question: Dagrofa owns several of the chains in the Danish supermarket list . The
+    one listed as full service employs how many people in Denmark ?
+  expected_answer: 5,500
+  expected_sources:
+  - List of supermarket chains in Denmark
+  - Meny
+  out_of_corpus: false
+  multihop: true
+  table_id: List_of_supermarket_chains_in_Denmark_0
+- question: Which city is the fifth-most populous in Switzerland , and which is the
+    fifth-largest in Poland ?
+  expected_answer: Bern and Poznań
+  expected_sources:
+  - Bern
+  - Poznań
+  out_of_corpus: false
+  multihop: true
+- question: What is the combined population of the two cities from the canton of Bern
+    that appear in the list of Switzerland 's largest cities ?
+  expected_answer: 177,316
+  expected_sources:
+  - Municipalities of Switzerland
+  out_of_corpus: false
+  multihop: false
+  table_id: Municipalities_of_Switzerland_0
+- question: Which chain in the Danish supermarket list is recorded with a store count
+    of zero ?
+  expected_answer: Kiwi
+  expected_sources:
+  - List of supermarket chains in Denmark
+  out_of_corpus: false
+  multihop: false
+  table_id: List_of_supermarket_chains_in_Denmark_0
+
+# --- out of corpus: must be refused ---
+# Mostly near misses on entities the corpus DOES hold, asking a fact its
+# passages do not state (Wikipedia leads only). Each was checked against the
+# ingested text; an easy probe ('capital of France') proves nothing here.
+
+- question: What is the average annual rainfall in Multan ?
+  expected_answer: ''
+  expected_sources: []
+  out_of_corpus: true
+- question: How many students are enrolled at Foundation University , Islamabad ?
+  expected_answer: ''
+  expected_sources: []
+  out_of_corpus: true
+- question: What is the elevation above sea level of Wailuku , Hawaii ?
+  expected_answer: ''
+  expected_sources: []
+  out_of_corpus: true
+- question: What is the unemployment rate in Bern ?
+  expected_answer: ''
+  expected_sources: []
+  out_of_corpus: true
+- question: How many Meny supermarkets operate in Sweden ?
+  expected_answer: ''
+  expected_sources: []
+  out_of_corpus: true
+- question: How tall is Rachel Riley ?
+  expected_answer: ''
+  expected_sources: []
+  out_of_corpus: true
+- question: Who is the current mayor of Milwaukee ?
+  expected_answer: ''
+  expected_sources: []
+  out_of_corpus: true
+- question: How many copies did The Conduit sell in its first week ?
+  expected_answer: ''
+  expected_sources: []
+  out_of_corpus: true
+- question: What is the average January temperature in Poznan ?
+  expected_answer: ''
+  expected_sources: []
+  out_of_corpus: true
+- question: How long is the Chenab River in kilometres ?
+  expected_answer: ''
+  expected_sources: []
+  out_of_corpus: true
+- question: What is the top speed of the SH-60 Seahawk ?
+  expected_answer: ''
+  expected_sources: []
+  out_of_corpus: true
+- question: What is the annual revenue of Dotmatics ?
+  expected_answer: ''
+  expected_sources: []
+  out_of_corpus: true
+- question: Who is the head coach of the Clemson Tigers men 's soccer team ?
+  expected_answer: ''
+  expected_sources: []
+  out_of_corpus: true
+- question: In what year was Ichinoseki , Iwate founded as a city ?
+  expected_answer: ''
+  expected_sources: []
+  out_of_corpus: true
+- question: What is the annual tuition at the University of California , Davis ?
+  expected_answer: ''
+  expected_sources: []
+  out_of_corpus: true
+- question: What is the land area of Coochin Creek , Queensland ?
+  expected_answer: ''
+  expected_sources: []
+  out_of_corpus: true
+- question: How many goals did Park Chang-Sun score for South Korea ?
+  expected_answer: ''
+  expected_sources: []
+  out_of_corpus: true
+- question: Who is Pharrell Williams married to ?
+  expected_answer: ''
+  expected_sources: []
+  out_of_corpus: true
+- question: What was the production budget of the film Omar ?
+  expected_answer: ''
+  expected_sources: []
+  out_of_corpus: true
+- question: Who is the chief executive of Red Hat ?
+  expected_answer: ''
+  expected_sources: []
+  out_of_corpus: true
+- question: Which valley adjoins Hilo , Hawaii ?
+  expected_answer: ''
+  expected_sources: []
+  out_of_corpus: true
+- question: Who won the Goya Award for Best Director in 2020 ?
+  expected_answer: ''
+  expected_sources: []
+  out_of_corpus: true
+- question: What is the debut album of the band Metric ?
+  expected_answer: ''
+  expected_sources: []
+  out_of_corpus: true
+- question: Which supermarket chain has the most stores in Finland ?
+  expected_answer: ''
+  expected_sources: []
+  out_of_corpus: true
+- question: Who won the Juno Award for Breakthrough Group of the Year in 2022 ?
+  expected_answer: ''
+  expected_sources: []
+  out_of_corpus: true
+- question: What is the melting point of tungsten ?
+  expected_answer: ''
+  expected_sources: []
+  out_of_corpus: true
+- question: How many vacation days do employees accrue each year ?
+  expected_answer: ''
+  expected_sources: []
+  out_of_corpus: true
+- question: What is the current interest rate on a 30-year mortgage ?
+  expected_answer: ''
+  expected_sources: []
+  out_of_corpus: true
+
+# --- out of corpus, adversarial: the corpus holds a near miss ---
+# Each of these retrieves something that looks like an answer — the same fact
+# for a neighbouring city, year, or sport. Refusing here is much harder than
+# refusing the probes above, and answering is the exact failure users notice.
+
+- question: How many municipalities does the Zürich agglomeration include ?
+  expected_answer: ''
+  expected_sources: []
+  out_of_corpus: true
+- question: What was the population of Wailuku , Hawaii at the 2020 census ?
+  expected_answer: ''
+  expected_sources: []
+  out_of_corpus: true
+- question: How many passengers went through Calgary International Airport in 2018
+    ?
+  expected_answer: ''
+  expected_sources: []
+  out_of_corpus: true
+- question: Who was Russia 's flag bearer at the 2010 Winter Olympics ?
+  expected_answer: ''
+  expected_sources: []
+  out_of_corpus: true
+- question: What is the average depth of the Canada Basin in feet ?
+  expected_answer: ''
+  expected_sources: []
+  out_of_corpus: true
+- question: How many types of routines are there in artistic gymnastics ?
+  expected_answer: ''
+  expected_sources: []
+  out_of_corpus: true
+- question: Which Danish supermarket chain has the most employees ?
+  expected_answer: ''
+  expected_sources: []
+  out_of_corpus: true

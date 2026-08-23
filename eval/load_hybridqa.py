@@ -3,8 +3,16 @@
 Fetches HybridQA ``dev.traced.json`` (questions carrying ``answer-node``
 evidence traces) plus WikiTables-WithLinks table metadata, and emits a
 review-ready sampled golden set where each entry spans the anchor table plus
-one or more linked passages — genuine cross-document multi-hop over tabular +
+exactly one linked passage — genuine cross-document multi-hop over tabular +
 textual data.
+
+``answer-node`` is distant supervision, not curated evidence: it marks every
+cell and every linked passage where the answer *string* happens to occur. Used
+raw it yields sources that are not evidence at all (answer "Gothic Revival"
+traced to the passage "Renaissance Revival architecture", which only mentions
+Gothic Revival to say it is something else). ``clean_trace`` and
+``answer_is_unique`` below drop those, so a kept entry's listed passage really
+is where the answer lives.
 
 The loader never writes to ``golden_set.yaml``: its output is a DRAFT for
 human review, mirroring the ``gen_golden.py`` convention.
@@ -14,6 +22,7 @@ Usage:
 """
 import argparse
 import random
+import re
 import sys
 from pathlib import Path
 
@@ -27,6 +36,10 @@ DEV_URL = (
 TABLE_URL = (
     "https://raw.githubusercontent.com/wenhuchen/WikiTables-WithLinks/"
     "master/tables_tok/{table_id}.json"
+)
+REQUEST_URL = (
+    "https://raw.githubusercontent.com/wenhuchen/WikiTables-WithLinks/"
+    "master/request_tok/{table_id}.json"
 )
 
 
@@ -62,18 +75,44 @@ def sources_for(question: dict, table_title: str) -> list[str]:
     return srcs
 
 
+def clean_trace(question: dict) -> bool:
+    """Do all answer-nodes agree on one linked passage?
+
+    A "table" node means the answer string also sits in a cell, so the
+    passage nodes alongside it may be incidental links rather than the hop
+    the question describes; several passage titles mean the trace cannot say
+    which one the answer came from. Neither is usable as ground truth for
+    ``multi_hop_citation_accuracy``, which demands every listed source.
+    """
+    nodes = question.get("answer-node") or []
+    if not nodes or any(node[3] != "passage" for node in nodes):
+        return False
+    return len({url2title(node[2]) for node in nodes}) == 1
+
+
+def _squash(text: str) -> str:
+    return re.sub(r"\s+", " ", text).strip().lower()
+
+
+def answer_is_unique(answer: str, passages: dict, cited: str) -> bool:
+    """Is the cited passage the only one in this table carrying the answer?
+
+    When a sibling passage of the same table also contains the answer string,
+    an answer citing that sibling looks wrong to the metric while being
+    perfectly defensible — the entry would score noise, not capability.
+    """
+    needle = _squash(answer)
+    holders = [url2title(path) for path, text in passages.items()
+               if needle in _squash(text)]
+    return holders == [cited]
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--n", type=int, default=25,
                         help="golden entries to sample")
     parser.add_argument("--seed", type=int, default=42,
                         help="deterministic sample so review is stable")
-    parser.add_argument("--min-hops", type=int, default=2,
-                        help="minimum distinct sources per entry "
-                             "(table = 1, plus passages)")
-    parser.add_argument("--max-sources", type=int, default=None,
-                        help="cap distinct sources per entry (table + passages). "
-                             "2 gives a clean anchor-table + 1-passage sample.")
     parser.add_argument("--out", type=Path,
                         default=Path("eval/golden_hybridqa_draft.yaml"))
     args = parser.parse_args()
@@ -81,38 +120,34 @@ def main() -> None:
     with httpx.Client(follow_redirects=True) as client:
         questions = fetch_json(client, DEV_URL)
 
-    multi: list[dict] = []
-    for q in questions:
-        nodes = q.get("answer-node") or []
-        if not nodes:
-            continue
-        passage_titles = sorted({
-            url2title(n[2]) for n in nodes if n[3] == "passage"
-        })
-        # Anchor table counts once; passages are the cross-document hops.
-        n_sources = 1 + len(passage_titles)
-        if n_sources < args.min_hops:
-            continue
-        if args.max_sources is not None and n_sources > args.max_sources:
-            continue
-        multi.append(q)
+    multi = [q for q in questions if clean_trace(q)]
 
+    # Walk a shuffled candidate list rather than sampling a fixed slice: the
+    # sibling-passage check needs the table's passages, which only the fetch
+    # below has, so rejects have to be replaced as they appear.
     rng = random.Random(args.seed)
-    sample = rng.sample(multi, min(args.n, len(multi)))
+    rng.shuffle(multi)
 
     entries: list[dict] = []
     with httpx.Client(follow_redirects=True) as client:
-        for q in sample:
+        for q in multi:
+            if len(entries) >= args.n:
+                break
             table_id = q["table_id"]
             try:
                 table = fetch_json(client, TABLE_URL.format(table_id=table_id))
+                passages = fetch_json(client,
+                                      REQUEST_URL.format(table_id=table_id))
             except Exception as exc:
                 print(f"# skipped {q['question_id']}: {exc}", file=sys.stderr)
+                continue
+            sources = sources_for(q, table["title"])
+            if not answer_is_unique(q["answer-text"], passages, sources[1]):
                 continue
             entries.append({
                 "question": q["question"],
                 "expected_answer": q["answer-text"],
-                "expected_sources": sources_for(q, table["title"]),
+                "expected_sources": sources,
                 "out_of_corpus": False,
                 "multihop": True,
                 "table_id": q["table_id"],
@@ -126,6 +161,12 @@ def main() -> None:
         "listed passage.\n"
         "# expected_sources = citation labels (document titles) the answerer "
         "must surface.\n"
+        "# Traces are filtered (single passage, answer nowhere else in the "
+        "table), but the\n"
+        "# questions are not: HybridQA phrases them against a table already "
+        "on screen, so\n"
+        "# some identify nothing on their own ('A 2009 title came out in what "
+        "month ?').\n"
         "# Review each entry, then merge accepted ones into eval/golden_set.yaml.\n"
     )
     args.out.write_text(

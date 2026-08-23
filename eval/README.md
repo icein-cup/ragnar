@@ -213,10 +213,45 @@ linked passage), and emits `eval/golden_hybridqa_draft.yaml`. Each entry:
   table_id: "..."
 ```
 
-**Review before running** — `expected_sources` is the full evidence trace and
-can list incidental cell links, not only the titles the answer needs. Prune
-each list to the 2–3 sources that actually answer the question, and drop
-long-chain outliers.
+HybridQA's `answer-node` field is distant supervision — it marks every cell
+and linked passage where the answer *string* occurs, not the evidence a
+reader would use. Taken raw it produces sources that are not evidence at all
+(answer "Gothic Revival" traced to the passage "Renaissance Revival
+architecture", which mentions Gothic Revival only to say it is something
+else). The loader therefore keeps a question only when its nodes all point at
+one passage, and that passage is the only one in the table containing the
+answer — a sibling passage carrying the same string would make a defensible
+citation score as a miss. Expect roughly a third of candidates to be dropped.
+
+**Review before running** — the traces are filtered, the questions are not.
+HybridQA phrases them against a table already on screen, so some identify
+nothing on their own ("A 2009 title came out in what month ?", "the older
+player between number 9 and number 10"), and a few carry a false premise.
+Those are unanswerable by retrieval and belong in no golden set: drop them.
+The committed draft has been through this pass — 100 sampled, 16 dropped.
+
+The draft also carries 28 hand-written `out_of_corpus: true` probes (a quarter
+of 112). Without them `refusal_accuracy` measures nothing on this collection:
+every remaining case is answerable, so the score is just "never refused". Most
+probes are near misses — an entity the corpus *does* hold, asked for a fact its
+passage never states ("What is the average annual rainfall in Multan ?") —
+because the ingested passages are Wikipedia lead sections and stop there. Each
+was checked against the ingested text. `load_hybridqa.py` cannot regenerate
+them, so keep them when you re-draft.
+
+Two hand-written blocks raise the ceiling, because the sampled entries are all
+the same shape — one table row, one passage, answer copied out:
+
+- **Hard cases** (6, in-corpus). Two rows of one table compared *before* any
+  passage is read, a filter over a column, arithmetic across rows, one
+  three-source chain, and one question whose two documents hang off different
+  tables — nothing links them but the question.
+- **Adversarial refusals** (7). The corpus holds a near miss for each: the
+  Zürich agglomeration's municipality count is absent but Bern's "36" sits in
+  the neighbouring passage; Calgary's 2018 passenger figure is absent but 2017
+  is right there; the Canada Basin's average depth is absent but the sentence
+  naming it gives the Amerasia Basin's. Retrieval succeeds and the answer still
+  has to be a refusal, which is the failure users actually notice.
 
 ### 2. Ingest the reachable subgraph
 
