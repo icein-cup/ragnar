@@ -67,7 +67,9 @@ def build_judge() -> ChatOpenAI:
     )
 
 
-def build_samples() -> list[SingleTurnSample]:
+def build_samples(agentic: bool = False,
+                  collection: str | None = None,
+                  golden: Path | None = None) -> list[SingleTurnSample]:
     """In-corpus, answered cases mapped to Ragas field names.
 
     Mapping to the golden set:
@@ -81,7 +83,8 @@ def build_samples() -> list[SingleTurnSample]:
     run_eval.py already covers those.
     """
     samples = []
-    for case in run_cases():
+    for case in run_cases(agentic=agentic, collection=collection,
+                          golden=golden):
         if case["out_of_corpus"] or case["refused"]:
             continue
         if not case["contexts"] or not case["answer"]:
@@ -131,10 +134,17 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--output", type=Path, default=None,
                         help="write the report JSON to this path")
+    parser.add_argument("--agentic", action="store_true",
+                        help="route through AgenticSearch, as the UI does")
+    parser.add_argument("--collection", default=None,
+                        help="override the Qdrant collection (e.g. hybridqa)")
+    parser.add_argument("--golden", type=Path, default=None,
+                        help="override the golden set YAML")
     args = parser.parse_args()
 
     cfg = Config()
-    samples = build_samples()
+    samples = build_samples(agentic=args.agentic,
+                            collection=args.collection, golden=args.golden)
     if not samples:
         raise SystemExit(
             "No in-corpus answered cases to score. Ingest the corpus and "

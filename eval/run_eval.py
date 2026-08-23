@@ -30,14 +30,16 @@ from retrieval.search import Search
 from retrieval.agentic import AgenticSearch
 from generation.llm import OllamaLLM
 from generation.answerer import Answerer, AnswerMode, classify
-from eval.metrics import refusal_accuracy, citation_accuracy
+from eval.metrics import refusal_accuracy, citation_accuracy, multi_hop_citation_accuracy
 
 ROOT = Path(__file__).parent
 
 
 def run_cases(score_floor: float | None = None,
               vector_floor: float | None = None,
-              agentic: bool = False) -> list[dict]:
+              agentic: bool = False,
+              collection: str | None = None,
+              golden: Path | None = None) -> list[dict]:
     """Run the golden set through retrieval + answering.
 
     Both floors must be passed: retrieval.search.clears_floor keeps a result
@@ -51,9 +53,11 @@ def run_cases(score_floor: float | None = None,
     cfg = Config()
     floor = cfg.score_floor if score_floor is None else score_floor
     vfloor = cfg.vector_floor if vector_floor is None else vector_floor
+    collection = collection or cfg.collection
+    golden = golden or (ROOT / "golden_set.yaml")
 
     embedder = OllamaEmbedder(cfg.ollama_url, cfg.embedding_model)
-    store = QdrantStore(cfg.qdrant_url, cfg.collection, cfg.embedding_dim)
+    store = QdrantStore(cfg.qdrant_url, collection, cfg.embedding_dim)
     llm = OllamaLLM(cfg.ollama_url, cfg.llm_model)
     search = Search(embedder, store, reranker=BGEReranker(cfg.reranker_model),
                     candidates=cfg.candidates, top_k=cfg.top_k,
@@ -64,10 +68,10 @@ def run_cases(score_floor: float | None = None,
         search = AgenticSearch(search, llm, **cfg.agentic)
     answerer = Answerer(llm)
 
-    golden = yaml.safe_load((ROOT / "golden_set.yaml").read_text())
+    golden_entries = yaml.safe_load(golden.read_text())
     cases = []
 
-    for entry in golden:
+    for entry in golden_entries:
         outcome = search.find(entry["question"])
         mode = classify(entry["question"], outcome.refused, outcome.results)
 
@@ -124,19 +128,27 @@ def main() -> None:
                         help="route through AgenticSearch, as the UI does")
     parser.add_argument("--vector-floor", type=float, default=None,
                         help="override config.yaml's retrieval.vector_floor")
+    parser.add_argument("--collection", default=None,
+                        help="override the Qdrant collection (e.g. hybridqa)")
+    parser.add_argument("--golden", type=Path, default=None,
+                        help="override the golden set YAML "
+                             "(default: eval/golden_set.yaml)")
     args = parser.parse_args()
 
     if args.calibrate:
         calibrate_floor(vector_floor=args.vector_floor, agentic=args.agentic)
         return
 
-    cases = run_cases(vector_floor=args.vector_floor, agentic=args.agentic)
+    cases = run_cases(vector_floor=args.vector_floor, agentic=args.agentic,
+                      collection=args.collection, golden=args.golden)
     report = {
         "timestamp": datetime.now().isoformat(timespec="seconds"),
         "n_cases": len(cases),
         "agentic": args.agentic,
+        "collection": args.collection or Config().collection,
         "refusal_accuracy": refusal_accuracy(cases),
         "citation_accuracy": citation_accuracy(cases),
+        "multi_hop_citation_accuracy": multi_hop_citation_accuracy(cases),
     }
 
     print(json.dumps(report, indent=2, ensure_ascii=False))

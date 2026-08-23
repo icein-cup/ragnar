@@ -187,6 +187,62 @@ Treat it as a starting point, not a validated production threshold.
 
 ---
 
+## Cross-document multi-hop benchmark (HybridQA)
+
+The hand-written golden set above is single-hop: every question answers from
+one document. Cross-document multi-hop — the case where an answer needs the
+anchor table **and** one or more linked passages — is measured separately,
+against the public **HybridQA** dataset (`wenhuchen/HybridQA` +
+`wenhuchen/WikiTables-WithLinks`), so the benchmark is independent of the
+random documents otherwise uploaded. HybridQA is table-plus-text, so it also
+exercises the `is_table` / `table_summary` retrieval path.
+
+### 1. Draft the golden set
+
+    .venv/bin/python eval/load_hybridqa.py --n 20 --seed 42 --out eval/golden_hybridqa_draft.yaml
+
+Fetches `dev.traced.json`, samples N multi-hop questions (anchor table + ≥1
+linked passage), and emits `eval/golden_hybridqa_draft.yaml`. Each entry:
+
+```yaml
+- question: "..."
+  expected_answer: "..."
+  expected_sources: ["anchor table title", "linked passage title", ...]
+  out_of_corpus: false
+  multihop: true
+  table_id: "..."
+```
+
+**Review before running** — `expected_sources` is the full evidence trace and
+can list incidental cell links, not only the titles the answer needs. Prune
+each list to the 2–3 sources that actually answer the question, and drop
+long-chain outliers.
+
+### 2. Ingest the reachable subgraph
+
+    .venv/bin/python eval/ingest_hybridqa.py --golden eval/golden_hybridqa_draft.yaml
+
+Fetches only the tables + passages named in the draft, chunks them
+(`filename` = source title), embeds, and upserts into a **separate** Qdrant
+collection `hybridqa` — the app's `documents` collection is untouched.
+
+### 3. Run
+
+    .venv/bin/python eval/run_eval.py --collection hybridqa --golden eval/golden_hybridqa_draft.yaml --agentic
+
+The report adds `multi_hop_citation_accuracy`: over `multihop` entries, the
+fraction whose answer cited **every** `expected_sources` title (vs
+`citation_accuracy`, which only requires any one). This is the deterministic
+signal for the multi-hop capability.
+
+Citation matching is canonicalized so a sub-article citation counts as its
+parent: Wikipedia tables link both a parent page and its specific sub-pages
+(e.g. `Alpine skiing at the 1988 Winter Olympics` and `… – Men's super-G`),
+and retrieval may rank either. Both are the correct evidence, so
+`multi_hop_citation_accuracy` accepts a word-boundary prefix match.
+
+---
+
 ## Comparing configurations
 
     # edit config.yaml: chunking.strategy: semantic (or back to structural)

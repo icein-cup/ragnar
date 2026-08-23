@@ -1,4 +1,4 @@
-from eval.metrics import refusal_accuracy, citation_accuracy
+from eval.metrics import refusal_accuracy, citation_accuracy, multi_hop_citation_accuracy
 
 
 def test_refusal_accuracy_rewards_correct_refusals():
@@ -53,3 +53,44 @@ def test_citation_accuracy_rejects_substring_filename_match():
         "out_of_corpus": False,
     }]
     assert citation_accuracy(cases) == 0.0
+
+
+def test_multi_hop_citation_accuracy_requires_all_sources():
+    cases = [{
+        "expected_sources": ["table A", "passage B"],
+        "citations": ["table A, p. 1", "passage B, p. 2"],
+        "out_of_corpus": False,
+        "multihop": True,
+    }]
+    assert multi_hop_citation_accuracy(cases) == 1.0
+
+
+def test_multi_hop_citation_accuracy_fails_when_a_source_missing():
+    cases = [{
+        "expected_sources": ["table A", "passage B"],
+        "citations": ["table A, p. 1"],
+        "out_of_corpus": False,
+        "multihop": True,
+    }]
+    assert multi_hop_citation_accuracy(cases) == 0.0
+
+
+def test_multi_hop_citation_accuracy_skips_non_multihop_and_ooc():
+    cases = [
+        {"expected_sources": ["a.pdf"], "citations": ["a.pdf, p. 1"],
+         "out_of_corpus": False, "multihop": False},
+        {"expected_sources": [], "citations": [], "out_of_corpus": True},
+        {"expected_sources": ["t", "p"], "citations": ["t", "p"],
+         "out_of_corpus": False, "multihop": True},
+    ]
+    assert multi_hop_citation_accuracy(cases) == 1.0
+
+
+def test_multi_hop_citation_accuracy_accepts_sub_article_citation():
+    cases = [{
+        "expected_sources": ["Alpine skiing at the 1988 Winter Olympics"],
+        "citations": ["Alpine skiing at the 1988 Winter Olympics – Men's super-G"],
+        "out_of_corpus": False,
+        "multihop": True,
+    }]
+    assert multi_hop_citation_accuracy(cases) == 1.0

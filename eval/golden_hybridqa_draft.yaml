@@ -1,0 +1,896 @@
+# HybridQA sampled multi-hop golden set (DRAFT for review).
+# Source: wenhuchen/HybridQA dev.traced.json + wenhuchen/WikiTables-WithLinks tables_tok.
+# multihop: true = the answer requires the anchor table AND every listed passage.
+# expected_sources = citation labels (document titles) the answerer must surface.
+# Review each entry, then merge accepted ones into eval/golden_set.yaml.
+
+- question: What river flows near the city with the $ 6.5 billion GDP in 2017 ?
+  expected_answer: the Chenab River
+  expected_sources:
+  - List of Pakistani provinces by gross domestic product
+  - Multan
+  out_of_corpus: false
+  multihop: true
+  table_id: List_of_Pakistani_provinces_by_gross_domestic_product_2
+- question: For the owner who made the cover of TIME magazine on May 7 , 1934 , what
+    was the horse name ?
+  expected_answer: Busher
+  expected_sources:
+  - American Champion Two-Year-Old Filly
+  - James W. Smith
+  out_of_corpus: false
+  multihop: true
+  table_id: American_Champion_Two-Year-Old_Filly_2
+- question: What is the Ordinance No . of 2002 that a University was granted its charter
+    located in the city that is located on the Pothohar Plateau in the northeastern
+    part of the country ?
+  expected_answer: LXXXVIII
+  expected_sources:
+  - List of universities in Pakistan
+  - Foundation University, Islamabad
+  out_of_corpus: false
+  multihop: true
+  table_id: List_of_universities_in_Pakistan_0
+- question: What is the person sometimes known as who was part of the New York Alpha
+    chapter and was initiated in 1869 ?
+  expected_answer: the Father of Geochemistry
+  expected_sources:
+  - List of Phi Kappa Psi brothers
+  - Frank Wigglesworth Clarke
+  out_of_corpus: false
+  multihop: true
+  table_id: List_of_Phi_Kappa_Psi_brothers_19
+- question: In which city is this institute located that Detroit 's first librarian
+    founded ?
+  expected_answer: Ann Arbor , Michigan
+  expected_sources:
+  - List of Washington & Jefferson College alumni
+  - University of Michigan
+  out_of_corpus: false
+  multihop: true
+  table_id: List_of_Washington_&_Jefferson_College_alumni_0
+- question: What is the population ranking of the region of Chile where 34.8 % of
+    households have Internet access ?
+  expected_answer: second highest
+  expected_sources:
+  - Ranked lists of Chilean regions
+  - Valparaíso Region
+  out_of_corpus: false
+  multihop: true
+  table_id: Ranked_lists_of_Chilean_regions_28
+- question: What degree did the dancer with the worst score in quickstep during series
+    11 of Strictly Come Dancing graduate with ?
+  expected_answer: mathematics
+  expected_sources:
+  - Strictly Come Dancing (series 11)
+  - Rachel Riley
+  out_of_corpus: false
+  multihop: true
+  table_id: Strictly_Come_Dancing_(series_11)_2
+- question: Which valley adjoins the city of KAII-TV ?
+  expected_answer: Iao
+  expected_sources:
+  - List of television stations in the United States by call sign (initial letter
+    K)
+  - Wailuku, Hawaii
+  out_of_corpus: false
+  multihop: true
+  table_id: List_of_television_stations_in_the_United_States_by_call_sign_(initial_letter_K)_0
+- question: Who is the current minister of the ministry whose candidate has made significant
+    contributions to Afghanistan 's education , agriculture and medical sectors ?
+  expected_answer: Shahzad Aryobee
+  expected_sources:
+  - Second Karzai cabinet
+  - Ministry of Communications (Afghanistan)
+  out_of_corpus: false
+  multihop: true
+  table_id: Second_Karzai_cabinet_2
+- question: What date was the politician born who took office in 1934 and left office
+    in 1937 ?
+  expected_answer: April 24 , 1898
+  expected_sources:
+  - List of Minority Leaders of the House of Representatives of Puerto Rico
+  - Ernesto Ramos Antonini
+  out_of_corpus: false
+  multihop: true
+  table_id: List_of_Minority_Leaders_of_the_House_of_Representatives_of_Puerto_Rico_0
+- question: What clan still has descendants living in the area it is named after ?
+  expected_answer: Mackay
+  expected_sources:
+  - KW postcode area
+  - Sutherland
+  out_of_corpus: false
+  multihop: true
+  table_id: KW_postcode_area_0
+- question: Who is the author of the novel the 1995 film in which Tim Daly played
+    Doctor Richard Jacks is based on ?
+  expected_answer: Robert Louis Stevenson
+  expected_sources:
+  - Tim Daly
+  - Dr. Jekyll and Ms. Hyde
+  out_of_corpus: false
+  multihop: true
+  table_id: Tim_Daly_0
+- question: How many are employed by the supermarket chain with 190 stores in Denmark
+    ?
+  expected_answer: 5,500
+  expected_sources:
+  - List of supermarket chains in Denmark
+  - Meny
+  out_of_corpus: false
+  multihop: true
+  table_id: List_of_supermarket_chains_in_Denmark_0
+- question: What is the birth date of the older player between number 9 and number
+    10 ?
+  expected_answer: 3 July 1973
+  expected_sources:
+  - 2009 Warrington Wolves season
+  - Paul Rauhihi
+  out_of_corpus: false
+  multihop: true
+  table_id: 2009_Warrington_Wolves_season_0
+- question: Which empire called the city containing Soekarno - Hatta International
+    Airport Batavia ?
+  expected_answer: Dutch East Indies
+  expected_sources:
+  - List of the busiest airports in Asia
+  - Jakarta
+  out_of_corpus: false
+  multihop: true
+  table_id: List_of_the_busiest_airports_in_Asia_6
+- question: What is the name of the debut album of the winner of the 2018 Juno Award
+    for Breakthrough Group of the Year ?
+  expected_answer: Late Show
+  expected_sources:
+  - Juno Award for Breakthrough Group of the Year
+  - The Beaches (band)
+  out_of_corpus: false
+  multihop: true
+  table_id: Juno_Award_for_Breakthrough_Group_of_the_Year_3
+- question: The first appearance of Porky Pig 's paramour is in a dark animation of
+    rejection and attempted suicide , was the last cartoon that featured what voice
+    actor as Porky ?
+  expected_answer: Joe Dougherty
+  expected_sources:
+  - 'Looney Tunes Golden Collection: Volume 3'
+  - Porky's Romance
+  out_of_corpus: false
+  multihop: true
+  table_id: Looney_Tunes_Golden_Collection:_Volume_3_2
+- question: How many types of routines are in the sport that Russia won the second
+    most gold medals in ?
+  expected_answer: Three
+  expected_sources:
+  - Russia at the World Games
+  - Acrobatic gymnastics
+  out_of_corpus: false
+  multihop: true
+  table_id: Russia_at_the_World_Games_1
+- question: Which teams did the player who was captain of South Korea in FIFA 's World
+    Cup in Mexico 1986 play professionally for ?
+  expected_answer: Hallelujah FC , Daewoo Royals and Yukong Elephants
+  expected_sources:
+  - South Korea national football team records and statistics
+  - Park Chang-Sun
+  out_of_corpus: false
+  multihop: true
+  table_id: South_Korea_national_football_team_records_4
+- question: How many municipalities does the Swiss city with the fifth most people
+    contain ?
+  expected_answer: '36'
+  expected_sources:
+  - Municipalities of Switzerland
+  - Bern
+  out_of_corpus: false
+  multihop: true
+  table_id: Municipalities_of_Switzerland_0
+- question: Which non-European country has its embassy in the district where the Pushkin
+    Museum is located ?
+  expected_answer: Austria
+  expected_sources:
+  - List of diplomatic missions in Russia
+  - Embassy of Austria in Moscow
+  out_of_corpus: false
+  multihop: true
+  table_id: List_of_diplomatic_missions_in_Russia_0
+- question: What was the last film in the Before romantic trilogy of the director
+    of the 2011 film Bernie ?
+  expected_answer: Before Midnight
+  expected_sources:
+  - Ebertfest
+  - Richard Linklater
+  out_of_corpus: false
+  multihop: true
+  table_id: Ebertfest:_Roger_Ebert's_Film_Festival_4
+- question: Who plays Adam Beach 's partner in the show starring Mariska Hargitay
+    ?
+  expected_answer: Ice-T
+  expected_sources:
+  - Adam Beach
+  - Chester Lake (Law & Order)
+  out_of_corpus: false
+  multihop: true
+  table_id: Adam_Beach_1
+- question: What city is the club based in that included the player that won an award
+    in the season that began on 20 January ?
+  expected_answer: Ipoh
+  expected_sources:
+  - FAM Football Awards
+  - PKNP F.C.
+  out_of_corpus: false
+  multihop: true
+  table_id: FAM_Football_Awards_3
+- question: What is the 2016 population of the locality in the Sunshine Coast that
+    has the newest defunct school ?
+  expected_answer: '84'
+  expected_sources:
+  - List of schools in Sunshine Coast, Queensland
+  - Coochin Creek, Queensland
+  out_of_corpus: false
+  multihop: true
+  table_id: List_of_schools_in_Sunshine_Coast,_Queensland_3
+- question: The Prince George , British Columbia radio station with frequency 0093.1
+    FM predominantly plays pop music from what time frame ?
+  expected_answer: pre-1980
+  expected_sources:
+  - Media in Prince George, British Columbia
+  - CFIS-FM
+  out_of_corpus: false
+  multihop: true
+  table_id: Media_in_Prince_George,_British_Columbia_0
+- question: What is the full name of the person from Vasco ?
+  expected_answer: Odvan Gomes Silva
+  expected_sources:
+  - 2002 Santos FC season
+  - Odvan
+  out_of_corpus: false
+  multihop: true
+  table_id: 2002_Santos_FC_season_0
+- question: What caused the second sinking of the Costa Line ship ?
+  expected_answer: explosion and fire
+  expected_sources:
+  - List of cruise ships
+  - MV Bianca C.
+  out_of_corpus: false
+  multihop: true
+  table_id: List_of_cruise_ships_1
+- question: What society of Catholicism first traversed the region of the city which
+    contains Valley Fields ?
+  expected_answer: Jesuit
+  expected_sources:
+  - 2013 Big East Conference men's soccer season
+  - Milwaukee
+  out_of_corpus: false
+  multihop: true
+  table_id: 2013_Big_East_Conference_men's_soccer_season_0
+- question: Which organization acquired this historic building in 1993 located in
+    this borough founded in 1849 ?
+  expected_answer: Historical Society
+  expected_sources:
+  - Washington County History & Landmarks Foundation
+  - Jennings-Gallagher House
+  out_of_corpus: false
+  multihop: true
+  table_id: Washington_County_History_&_Landmarks_Foundation_3
+- question: Which 2006 award was received by the scholar who obtained post graduate
+    degree from an Australian University ?
+  expected_answer: Gintong Aklat Award ( Golden Book Award , Philippines )
+  expected_sources:
+  - List of University of Santo Tomas alumni
+  - Merlinda Bobis
+  out_of_corpus: false
+  multihop: true
+  table_id: List_of_University_of_Santo_Tomas_people_21
+- question: A 2009 title came out in what month ?
+  expected_answer: November
+  expected_sources:
+  - Achu Rajamani
+  - Kurradu
+  out_of_corpus: false
+  multihop: true
+  table_id: Achu_Rajamani_0
+- question: What part of the body did the person from France injure in 2008 ?
+  expected_answer: ankle
+  expected_sources:
+  - 2007 European Artistic Gymnastics Championships
+  - Cassy Véricel
+  out_of_corpus: false
+  multihop: true
+  table_id: 2007_European_Women's_Artistic_Gymnastics_Championships_11
+- question: What is the population of the city that contains historic structures that
+    were used to make dye ?
+  expected_answer: 35,938
+  expected_sources:
+  - National Register of Historic Places listings in Berkeley County, South Carolina
+  - Goose Creek, South Carolina
+  out_of_corpus: false
+  multihop: true
+  table_id: National_Register_of_Historic_Places_listings_in_Berkeley_County,_South_Carolina_0
+- question: Which date did this sporting event , in which the winner of three gold
+    medals at the 2002 Asian Games won a silver , begin ?
+  expected_answer: November 15
+  expected_sources:
+  - Singapore at the 2010 Asian Games
+  - Bowling at the 2010 Asian Games
+  out_of_corpus: false
+  multihop: true
+  table_id: Singapore_at_the_2010_Asian_Games_1
+- question: What is the English title of the film whose director was born on 11 October
+    1961 ?
+  expected_answer: Omar
+  expected_sources:
+  - List of Palestinian submissions for the Academy Award for Best International Feature
+    Film
+  - Hany Abu-Assad
+  out_of_corpus: false
+  multihop: true
+  table_id: List_of_Palestinian_submissions_for_the_Academy_Award_for_Best_Foreign_Language_Film_0
+- question: Who is the owner of the location that is named after the British Queen
+    consort ( and Electress of Hanover ) ?
+  expected_answer: University of Virginia
+  expected_sources:
+  - Physical history of the United States Declaration of Independence
+  - Charlottesville, Virginia
+  out_of_corpus: false
+  multihop: true
+  table_id: Physical_history_of_the_United_States_Declaration_of_Independence_0
+- question: What date did the station open that is home to one of the three Central
+    line depots ?
+  expected_answer: 31 May 1948
+  expected_sources:
+  - London Borough of Redbridge
+  - Newbury Park tube station
+  out_of_corpus: false
+  multihop: true
+  table_id: London_Borough_of_Redbridge_3
+- question: What is the name of the auditorium where the gold medalist Asrelawandi
+    competed in ?
+  expected_answer: Qurum City Auditorium
+  expected_sources:
+  - Indonesia at the 2010 Asian Beach Games
+  - Bodybuilding at the 2010 Asian Beach Games
+  out_of_corpus: false
+  multihop: true
+  table_id: Indonesia_at_the_2010_Asian_Beach_Games_0
+- question: How many people in 2016 lived in the town that is home to Niutsuhime Jinja
+    ?
+  expected_answer: 16,686
+  expected_sources:
+  - List of Historic Sites of Japan (Wakayama)
+  - Katsuragi, Wakayama
+  out_of_corpus: false
+  multihop: true
+  table_id: List_of_Historic_Sites_of_Japan_(Wakayama)_0
+- question: To whom does Elemental ( software ) 's developer supply software ?
+  expected_answer: Half of the world 's 20 largest drugmakers
+  expected_sources:
+  - Molecule editor
+  - Dotmatics
+  out_of_corpus: false
+  multihop: true
+  table_id: Molecule_editor_0
+- question: Who did the men 's 1500m gold medalist beat for the gold ?
+  expected_answer: Abubaker Ali Kamal of Qatar
+  expected_sources:
+  - India at the 2007 Asian Indoor Games
+  - Chatholi Hamza
+  out_of_corpus: false
+  multihop: true
+  table_id: India_at_the_2007_Asian_Indoor_Games_0
+- question: What is the second decan ruler of the sign also known as the Archer ?
+  expected_answer: Saturn
+  expected_sources:
+  - Decan
+  - Capricorn (astrology)
+  out_of_corpus: false
+  multihop: true
+  table_id: Decans_2
+- question: On which date was this attraction , inspired by the tower built from 1887
+    to 1889 for the 1889 World 's Fair , opened to the public ?
+  expected_answer: 14 May 1894
+  expected_sources:
+  - Listed buildings in Blackpool
+  - Blackpool Tower
+  out_of_corpus: false
+  multihop: true
+  table_id: Listed_buildings_in_Blackpool_0
+- question: What singer was born in Long Beach , CA and has an album in Mexico ?
+  expected_answer: Julieta Venegas
+  expected_sources:
+  - Club Fonograma
+  - Bueninvento
+  out_of_corpus: false
+  multihop: true
+  table_id: Club_Fonograma_0
+- question: Which peninsula is the home country of Mariya Shatalova in a dispute with
+    Russia over ?
+  expected_answer: Crimean Peninsula
+  expected_sources:
+  - 2010 European Team Championships Super League
+  - Ukraine
+  out_of_corpus: false
+  multihop: true
+  table_id: 2010_European_Team_Championships_Super_League_27
+- question: What is the song title whose artist is the lead vocalist of the band N*E*R*D
+    ?
+  expected_answer: Happy
+  expected_sources:
+  - List of number-one singles from the 2010s (New Zealand)
+  - Pharrell Williams
+  out_of_corpus: false
+  multihop: true
+  table_id: List_of_number-one_singles_from_the_2010s_(New_Zealand)_2
+- question: How many passengers in 2017 went through the airport in Canada that has
+    234,306 aircraft movements per year ?
+  expected_answer: 17.34 million
+  expected_sources:
+  - List of the busiest airports in Canada
+  - Calgary International Airport
+  out_of_corpus: false
+  multihop: true
+  table_id: List_of_the_busiest_airports_in_Canada_23
+- question: What year did the city which contains Kent State University gain the status
+    of city ?
+  expected_answer: '1920'
+  expected_sources:
+  - List of Delta Sigma Theta chapters
+  - Kent, Ohio
+  out_of_corpus: false
+  multihop: true
+  table_id: List_of_Delta_Sigma_Theta_chapters_5
+- question: Which region contains the city of KVII-TV ?
+  expected_answer: Llano Estacado
+  expected_sources:
+  - List of ABC television affiliates (table)
+  - Amarillo, Texas
+  out_of_corpus: false
+  multihop: true
+  table_id: List_of_ABC_television_affiliates_(table)_1
+- question: What is the establishing year of the University created by an Act of the
+    State Legislature ?
+  expected_answer: '2005'
+  expected_sources:
+  - List of institutions of higher education in Uttar Pradesh
+  - Amity University, Noida
+  out_of_corpus: false
+  multihop: true
+  table_id: List_of_institutions_of_higher_education_in_Uttar_Pradesh_0
+- question: 'What is the area of the hometown of The Real World : D.C. cast member
+    Ashley Lindley ?'
+  expected_answer: 637.4 square miles
+  expected_sources:
+  - 'The Real World: D.C.'
+  - Houston, Texas
+  out_of_corpus: false
+  multihop: true
+  table_id: The_Real_World:_D.C._0
+- question: Who came in second to Alfonso Ribeiro in the 19th season of Dancing With
+    The Stars ?
+  expected_answer: Sadie Robertson
+  expected_sources:
+  - Witney Carson
+  - Dancing with the Stars (U.S. season 19)
+  out_of_corpus: false
+  multihop: true
+  table_id: Witney_Carson_0
+- question: What was the country 's population near the end of the reign of the Polish
+    United Worker 's Party ?
+  expected_answer: 37.9 million
+  expected_sources:
+  - Eastern Bloc politics
+  - Polish People's Republic
+  out_of_corpus: false
+  multihop: true
+  table_id: Eastern_Bloc_politics_0
+- question: How many square miles does the location covered where an accident occurred
+    at the home to the IUPUI Jaguars of the NCAA ?
+  expected_answer: '368'
+  expected_sources:
+  - List of disasters in the United States by death toll
+  - Indianapolis, Indiana
+  out_of_corpus: false
+  multihop: true
+  table_id: List_of_disasters_in_the_United_States_by_death_toll_3
+- question: How many players can a game support with the online multiplayer feature
+    for the game whose developer is based in Hoffman Estates , Illinois ?
+  expected_answer: '12'
+  expected_sources:
+  - Wii Speak
+  - The Conduit
+  out_of_corpus: false
+  multihop: true
+  table_id: Wii_Speak_0
+- question: When did the director that has received the second most Goya nominations
+    for Best Director die ?
+  expected_answer: 26 May 2015
+  expected_sources:
+  - Goya Award for Best Director
+  - Vicente Aranda
+  out_of_corpus: false
+  multihop: true
+  table_id: Goya_Award_for_Best_Director_0
+- question: Which university was the first to found a Faculty of Health Sciences ?
+  expected_answer: University of Cape Town
+  expected_sources:
+  - List of medical schools in Africa
+  - University of Stellenbosch
+  out_of_corpus: false
+  multihop: true
+  table_id: List_of_medical_schools_in_Africa_0
+- question: FC Dallas had their last qualification in a year that the league had the
+    inaugural edition of what ?
+  expected_answer: Leagues Cup
+  expected_sources:
+  - List of MLS club post-season droughts
+  - 2019 Leagues Cup
+  out_of_corpus: false
+  multihop: true
+  table_id: List_of_MLS_club_post-season_droughts_8
+- question: What two counties is the city located in that has an historic listing
+    that is a triangular property ?
+  expected_answer: Custer and Washita
+  expected_sources:
+  - National Register of Historic Places listings in Custer County, Oklahoma
+  - Clinton, Oklahoma
+  out_of_corpus: false
+  multihop: true
+  table_id: National_Register_of_Historic_Places_listings_in_Custer_County,_Oklahoma_0
+- question: Which constituency did the speaker known for being educated at Oxford
+    university belong to ?
+  expected_answer: Essex
+  expected_sources:
+  - List of Speakers of the House of Commons of England
+  - John Guildesborough
+  out_of_corpus: false
+  multihop: true
+  table_id: List_of_Speakers_of_the_House_of_Commons_of_England_1
+- question: An author with 19 names penned a parody of a gameshow developed for the
+    U.S. by Michael Davies that was originally hosted in American by what person ?
+  expected_answer: by Regis Philbin
+  expected_sources:
+  - List of television show spoofs in Mad
+  - Who Wants to Be a Millionaire (U.S. game show)
+  out_of_corpus: false
+  multihop: true
+  table_id: List_of_television_show_spoofs_in_Mad_5
+- question: Which character was created by Akira Toriy in a Japanese media franchise
+    ?
+  expected_answer: Yellow
+  expected_sources:
+  - List of fictional big cats in animation
+  - Battle Cat
+  out_of_corpus: false
+  multihop: true
+  table_id: List_of_fictional_big_cats_in_animation_3
+- question: What 2022 winter olympic sports with be played in the area used for volleyball
+    in 2008 ?
+  expected_answer: figure skating , curling and ice hockey
+  expected_sources:
+  - Venues of the 2008 Summer Olympics
+  - Capital Indoor Stadium
+  out_of_corpus: false
+  multihop: true
+  table_id: Venues_of_the_2008_Summer_Olympics_3
+- question: Who did the ruler of the country ruled by the House of Wittelsbach between
+    1832 and 1862 marry ?
+  expected_answer: Princess Anne-Marie of Denmark
+  expected_sources:
+  - List of living former sovereign monarchs
+  - Constantine II of Greece
+  out_of_corpus: false
+  multihop: true
+  table_id: List_of_living_former_sovereign_monarchs_0
+- question: What company internationally circulates Son Pari 's channel ?
+  expected_answer: The Walt Disney Company India
+  expected_sources:
+  - Manasi Salvi
+  - Star Plus
+  out_of_corpus: false
+  multihop: true
+  table_id: Manasi_Salvi_1
+- question: What actress whose first and last names start with the same letter joined
+    Greta Garbo in the cast of a 1932 film where the latter played Zara aka Marie
+    ?
+  expected_answer: Hedda Hopper
+  expected_sources:
+  - Greta Garbo
+  - As You Desire Me (film)
+  out_of_corpus: false
+  multihop: true
+  table_id: Greta_Garbo_1
+- question: Which stadium located in the Romsdal Peninsula was designed by Kjell Kosberg
+    ?
+  expected_answer: Aker Stadion
+  expected_sources:
+  - List of sponsored sports venues
+  - Sør Arena
+  out_of_corpus: false
+  multihop: true
+  table_id: List_of_sports_venues_with_sole_naming_rights_24
+- question: After the Oregon State alum developed a social networking service originally
+    sought to help users find class members , he co-founded what other company ?
+  expected_answer: RedWeek.com
+  expected_sources:
+  - List of Oregon State University alumni
+  - Randy Conrads
+  out_of_corpus: false
+  multihop: true
+  table_id: List_of_Oregon_State_University_alumni_2
+- question: What label has been applied to the university that Ryan Royster attended
+    , meaning comparable to an Ivy League school in quality ?
+  expected_answer: Public Ivies
+  expected_sources:
+  - 2008 Seattle Mariners season
+  - University of California, Davis
+  out_of_corpus: false
+  multihop: true
+  table_id: 2008_Seattle_Mariners_season_3
+- question: What Neolithic society was in the area of the home country of PFC CSKA
+    Sofia ?
+  expected_answer: Karanovo culture
+  expected_sources:
+  - Star (football badge)
+  - Bulgaria
+  out_of_corpus: false
+  multihop: true
+  table_id: Star_(football_badge)_7
+- question: Who was the author of the semi-autobiographical 1966 novel which a movie
+    was based on of the genre that contains elements that encourage a broader range
+    of moods ?
+  expected_answer: Larry McMurtry
+  expected_sources:
+  - Bert Schneider
+  - The Last Picture Show
+  out_of_corpus: false
+  multihop: true
+  table_id: Bert_Schneider_0
+- question: What is the name of the airport that lies on the outskirts of town where
+    an attack occurred by a perpetrator that officially declared its support for National
+    Bolshevism ?
+  expected_answer: Ben Gurion Airport
+  expected_sources:
+  - List of terrorist incidents involving railway systems
+  - Lydda
+  out_of_corpus: false
+  multihop: true
+  table_id: List_of_terrorist_incidents_involving_railway_systems_0
+- question: What is the city or town of the place that was abandoned in 1910 ?
+  expected_answer: Petersburg
+  expected_sources:
+  - National Register of Historic Places listings in Pendleton County, West Virginia
+  - Old Judy Church
+  out_of_corpus: false
+  multihop: true
+  table_id: National_Register_of_Historic_Places_listings_in_Pendleton_County,_West_Virginia_0
+- question: What high school did the person in the class of 1970 attend ?
+  expected_answer: Douglas MacArthur High School
+  expected_sources:
+  - List of Texas Tech University alumni
+  - Robert T. Clark
+  out_of_corpus: false
+  multihop: true
+  table_id: List_of_Texas_Tech_University_alumni_6
+- question: Which aircraft are the planes of the squadron known as the Nightdippers
+    based on ?
+  expected_answer: United States Army UH-60 Black Hawk
+  expected_sources:
+  - Carrier Air Wing Seven
+  - SH-60 Seahawk
+  out_of_corpus: false
+  multihop: true
+  table_id: Carrier_Air_Wing_Seven_0
+- question: What is the description for the church occupied by Union troops during
+    the Civil War and was built from reclaimed bricks ?
+  expected_answer: Gothic Revival
+  expected_sources:
+  - List of Catholic churches in the United States
+  - Renaissance Revival architecture
+  out_of_corpus: false
+  multihop: true
+  table_id: List_of_Catholic_churches_in_the_United_States_42
+- question: What are the games of the athlete who was honored with a Google Doodle
+    , on what would have been her 75th birthday ( May 10 , 2019 ) ?
+  expected_answer: 1962 Asian Games
+  expected_sources:
+  - Indonesia at the Asian Games
+  - Badminton at the 1962 Asian Games
+  out_of_corpus: false
+  multihop: true
+  table_id: Indonesia_at_the_Asian_Games_4
+- question: What was the name of this team until 1999 specializing in the oldest organized
+    sport in North America ?
+  expected_answer: Baltimore Thunder
+  expected_sources:
+  - Colorado
+  - Colorado Mammoth
+  out_of_corpus: false
+  multihop: true
+  table_id: Colorado_0
+- question: The directorate of the voivodship with 9.7 % of shares is located in a
+    city on which river ?
+  expected_answer: Warta River
+  expected_sources:
+  - Polregio
+  - Poznań
+  out_of_corpus: false
+  multihop: true
+  table_id: Przewozy_Regionalne_0
+- question: Who was the flag bearer for the country whose gold medalist competed at
+    the games held at the Cesana-San Sicario arena ?
+  expected_answer: Dmitry Dorofeev
+  expected_sources:
+  - List of Olympic medalists in biathlon
+  - Russia at the 2006 Winter Olympics
+  out_of_corpus: false
+  multihop: true
+  table_id: List_of_Olympic_medalists_in_biathlon_5
+- question: Who sponsors the distribution that is in-progress and using binary blobs
+    ?
+  expected_answer: Red Hat Inc.
+  expected_sources:
+  - Comparison of Linux distributions
+  - Fedora (operating system)
+  out_of_corpus: false
+  multihop: true
+  table_id: List_of_Linux_distributions_endorsed_by_the_Free_Software_Foundation_1
+- question: What is the biggest achievement of this American Major General and test
+    pilot who served in a two-star general officer rank and was involved with the
+    transonic jet fighter aircraft ?
+  expected_answer: Systems Engineering at Wright Field
+  expected_sources:
+  - List of U.S. Air Force Test Pilot School alumni
+  - Fred J. Ascani
+  out_of_corpus: false
+  multihop: true
+  table_id: List_of_U.S._Air_Force_Test_Pilot_School_alumni_1
+- question: Which country contains the namesake of the city of the Argentinian football
+    club Racing ?
+  expected_answer: Spain
+  expected_sources:
+  - List of football clubs in Argentina
+  - Córdoba, Argentina
+  out_of_corpus: false
+  multihop: true
+  table_id: List_of_football_clubs_in_Argentina_8
+- question: What is the average depth , in feet , of the feature also known as the
+    Central Polar Basin ?
+  expected_answer: 12,960
+  expected_sources:
+  - List of submarine topographical features
+  - Amerasian Basin
+  out_of_corpus: false
+  multihop: true
+  table_id: List_of_submarine_topographical_features_0
+- question: 'What year did the Nez Perce War take place that had the final engagement
+    at the historical site with date listed # 70000355 ?'
+  expected_answer: '1877'
+  expected_sources:
+  - National Register of Historic Places listings in Montana
+  - Battle of Bear Paw
+  out_of_corpus: false
+  multihop: true
+  table_id: National_Register_of_Historic_Places_listings_in_Montana_1
+- question: Who founded the city where Michael Klim swam the 100 metres butterfly
+    in 51.16 ?
+  expected_answer: Arthur Phillip
+  expected_sources:
+  - World record progression 100 metres butterfly
+  - Sydney, Australia
+  out_of_corpus: false
+  multihop: true
+  table_id: World_record_progression_100_metres_butterfly_1
+- question: What is the name of the district is home to a reserve that controlled
+    fishing is allowed in the lake ?
+  expected_answer: Göttingen district
+  expected_sources:
+  - List of nature reserves in Lower Saxony
+  - Seeburger See
+  out_of_corpus: false
+  multihop: true
+  table_id: Nature_reserves_in_Lower_Saxony_0
+- question: Whom does the title track of this jazz album feature whose leader was
+    American jazz tenor saxophonist born on September 7 , 1930 ?
+  expected_answer: Rollins and John Coltrane
+  expected_sources:
+  - John Coltrane discography
+  - Tenor Madness
+  out_of_corpus: false
+  multihop: true
+  table_id: John_Coltrane_discography_12
+- question: What was the 1957 Big Ten football standing of the university attended
+    by Ray Nitschke ?
+  expected_answer: seventh
+  expected_sources:
+  - 1958 Green Bay Packers season
+  - 1957 Illinois Fighting Illini football team
+  out_of_corpus: false
+  multihop: true
+  table_id: 1958_Green_Bay_Packers_season_0
+- question: In 1998 the Champion team was a part of what division ?
+  expected_answer: Atlantic Coast Conference of NCAA Division I soccer
+  expected_sources:
+  - ACC Men's Soccer Tournament
+  - Clemson Tigers men's soccer
+  out_of_corpus: false
+  multihop: true
+  table_id: ACC_Men's_Soccer_Tournament_0
+- question: What is the name of the novel that is the inspiration for the sculpture
+    made with bronze and has a date of 1890 ?
+  expected_answer: The Old Curiosity Shop
+  expected_sources:
+  - Bureau Brothers Foundry
+  - Dickens and Little Nell (Elwell)
+  out_of_corpus: false
+  multihop: true
+  table_id: Bureau_Brothers_Foundry_0
+- question: Which city in Colombia is larger than the starting city of the passenger
+    air route with 366,630 passengers in 2017 ?
+  expected_answer: Bogotá
+  expected_sources:
+  - List of busiest passenger air routes
+  - Medellín
+  out_of_corpus: false
+  multihop: true
+  table_id: World's_busiest_passenger_air_routes_15
+- question: How many inhabitants are in the city where the Murone Jinja festival takes
+    place ?
+  expected_answer: 114,922
+  expected_sources:
+  - List of Important Intangible Folk Cultural Properties
+  - Ichinoseki, Iwate
+  out_of_corpus: false
+  multihop: true
+  table_id: List_of_Important_Intangible_Folk_Cultural_Properties_5
+- question: What submission hold was invented by the person that is related to Gory
+    Guerrero ?
+  expected_answer: La Cerrajera
+  expected_sources:
+  - List of family relations in professional wrestling
+  - Enrique Llanes
+  out_of_corpus: false
+  multihop: true
+  table_id: List_of_family_relations_in_professional_wrestling_20
+- question: The guest that appeared on the 27th was in what movie in 2018 ?
+  expected_answer: A Kid Like Jake
+  expected_sources:
+  - Live with Regis and Kelly (season 22)
+  - Claire Danes
+  out_of_corpus: false
+  multihop: true
+  table_id: Live_with_Regis_and_Kelly_(season_22)_4
+- question: The earliest clergyman was a dean of what ?
+  expected_answer: Dean of Chichester Cathedral
+  expected_sources:
+  - List of clergy educated at Jesus College, Oxford
+  - George Stradling
+  out_of_corpus: false
+  multihop: true
+  table_id: List_of_clergy_educated_at_Jesus_College,_Oxford_1
+- question: Who is the developer of the game that features music by Shinji Hosoe and
+    character designs by Rui Tomono ?
+  expected_answer: Spike Chunsoft
+  expected_sources:
+  - Index of Windows games (Z)
+  - Zero Time Dilemma
+  out_of_corpus: false
+  multihop: true
+  table_id: Index_of_Windows_games_(Z)_0
+- question: what were the nicknames of the flag bearer of the most recent year of
+    the summer olympics ?
+  expected_answer: the Russian Bear , Russian King Kong , Alexander the Great and
+    The Experiment
+  expected_sources:
+  - List of flag bearers for the Soviet Union at the Olympics
+  - Aleksandr Karelin
+  out_of_corpus: false
+  multihop: true
+  table_id: List_of_flag_bearers_for_the_Soviet_Union_at_the_Olympics_0
+- question: How many buildings are in the historic site of the city with a population
+    of 1,733 ?
+  expected_answer: '70'
+  expected_sources:
+  - National Register of Historic Places listings in Marion County, Florida
+  - Dunnellon Boomtown Historic District
+  out_of_corpus: false
+  multihop: true
+  table_id: National_Register_of_Historic_Places_listings_in_Marion_County,_Florida_0
