@@ -46,4 +46,14 @@ RAGAS (20-case subset only — needs full run):
 - Track C: Floor calibration (find optimal score_floor/vector_floor from score distributions)
 - Fresh baseline eval running with real floors (0.55/0.42) on full 125-case set
 
-**Status**: Running
+**Status**: Code committed (da922ea), awaiting eval re-run
+
+**Results**: Pending — baseline eval with real floors still running (~55 min)
+
+### Floor calibration findings (Track C)
+- Analyzed 743 chunks from the floors-at-0.0 report (140 expected, 603 unexpected)
+- Rerank scores: expected median 0.678, unexpected median 0.513
+- Vector scores: expected median 0.522, unexpected median 0.444
+- OR semantics (current): best floor combo (0.58/0.38) filters only 66/603 noise chunks (11%)
+- AND semantics: barely better, loses expected chunks at higher thresholds
+- Conclusion: floor calibration alone cannot fix citation noise. Answer-overlap pruning (Track B) is the right approach.
