@@ -139,3 +139,35 @@ Tests: 290 passed, 19 skipped.
 4. `len > 4` too aggressive for 5-result multi-hop sets → raised to `len >= 6`
 
 Tests: 290 passed, 19 skipped.
+
+## 2026-08-24 — Iteration 3 changes (commits pending)
+
+### Iter 3A — Retrieval confidence signal (in progress)
+- build_user_prompt() gets optional retrieval_confidence param
+- "high" if top score > 0.6, "medium" if > 0.55, else None
+- Tells model to check excerpts carefully before refusing
+- Expected: answer_coverage 0.49→0.56+, refusal_accuracy 0.76→0.82+
+
+### Iter 3B — Task-specific multi-hop prompt (commit 09e8add)
+- MULTI_HOP_SYSTEM_PROMPT replaced with table→passage→answer guidance
+- Identifies entity in table row, generates entity-based follow-up query
+- Output format preserved (Sufficient/Missing/FollowUp)
+- Expected: multi_hop_citation_accuracy 0.52→0.62+
+
+### Iter 3C — Hyperparameter tuning (consultant in progress)
+- Consultant analyzing all tunable parameters (temperature, top_k, chunk size, etc.)
+- Results will be logged here when available
+
+### Eval comparison tracking
+
+| Metric | Baseline (floors 0.0) | 20-case quick | Full 125-case |
+|---|---|---|---|
+| answer_coverage | 0.49 | pending | pending |
+| answer_accuracy | 0.71 | pending | pending |
+| refusal_accuracy | 0.76 | pending | pending |
+| citation_accuracy | 0.67 | pending | pending |
+| citation_precision | 0.26 | pending | pending |
+| multi_hop_citation_accuracy | 0.52 | pending | pending |
+| RAGAS faithfulness | 0.70 | — | pending |
+| RAGAS answer_correctness | 0.33 | — | pending |
+| RAGAS context_precision | 0.58 | — | pending |

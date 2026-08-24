@@ -1,0 +1,155 @@
+- expected_answer: the Chenab River
+  expected_sources:
+  - List of Pakistani provinces by gross domestic product
+  - Multan
+  multihop: true
+  out_of_corpus: false
+  question: What river flows near the city with the $ 6.5 billion GDP in 2017 ?
+  table_id: List_of_Pakistani_provinces_by_gross_domestic_product_2
+- expected_answer: LXXXVIII
+  expected_sources:
+  - List of universities in Pakistan
+  - Foundation University, Islamabad
+  multihop: true
+  out_of_corpus: false
+  question: What is the Ordinance No . of 2002 that a University was granted its charter
+    located in the city that is located on the Pothohar Plateau in the northeastern
+    part of the country ?
+  table_id: List_of_universities_in_Pakistan_0
+- expected_answer: the Father of Geochemistry
+  expected_sources:
+  - List of Phi Kappa Psi brothers
+  - Frank Wigglesworth Clarke
+  multihop: true
+  out_of_corpus: false
+  question: What is the person sometimes known as who was part of the New York Alpha
+    chapter and was initiated in 1869 ?
+  table_id: List_of_Phi_Kappa_Psi_brothers_19
+- expected_answer: Ann Arbor , Michigan
+  expected_sources:
+  - List of Washington & Jefferson College alumni
+  - University of Michigan
+  multihop: true
+  out_of_corpus: false
+  question: In which city is this institute located that Detroit 's first librarian
+    founded ?
+  table_id: List_of_Washington_&_Jefferson_College_alumni_0
+- expected_answer: second highest
+  expected_sources:
+  - Ranked lists of Chilean regions
+  - Valparaíso Region
+  multihop: true
+  out_of_corpus: false
+  question: What is the population ranking of the region of Chile where 34.8 % of
+    households have Internet access ?
+  table_id: Ranked_lists_of_Chilean_regions_28
+- expected_answer: mathematics
+  expected_sources:
+  - Strictly Come Dancing (series 11)
+  - Rachel Riley
+  multihop: true
+  out_of_corpus: false
+  question: What degree did the dancer with the worst score in quickstep during series
+    11 of Strictly Come Dancing graduate with ?
+  table_id: Strictly_Come_Dancing_(series_11)_2
+- expected_answer: Iao
+  expected_sources:
+  - List of television stations in the United States by call sign (initial letter
+    K)
+  - Wailuku, Hawaii
+  multihop: true
+  out_of_corpus: false
+  question: Which valley adjoins the city of KAII-TV ?
+  table_id: List_of_television_stations_in_the_United_States_by_call_sign_(initial_letter_K)_0
+- expected_answer: Shahzad Aryobee
+  expected_sources:
+  - Second Karzai cabinet
+  - Ministry of Communications (Afghanistan)
+  multihop: true
+  out_of_corpus: false
+  question: Who is the current minister of the ministry whose candidate has made significant
+    contributions to Afghanistan 's education , agriculture and medical sectors ?
+  table_id: Second_Karzai_cabinet_2
+- expected_answer: April 24 , 1898
+  expected_sources:
+  - List of Minority Leaders of the House of Representatives of Puerto Rico
+  - Ernesto Ramos Antonini
+  multihop: true
+  out_of_corpus: false
+  question: What date was the politician born who took office in 1934 and left office
+    in 1937 ?
+  table_id: List_of_Minority_Leaders_of_the_House_of_Representatives_of_Puerto_Rico_0
+- expected_answer: Mackay
+  expected_sources:
+  - KW postcode area
+  - Sutherland
+  multihop: true
+  out_of_corpus: false
+  question: What clan still has descendants living in the area it is named after ?
+  table_id: KW_postcode_area_0
+- expected_answer: Robert Louis Stevenson
+  expected_sources:
+  - Tim Daly
+  - Dr. Jekyll and Ms. Hyde
+  multihop: true
+  out_of_corpus: false
+  question: Who is the author of the novel the 1995 film in which Tim Daly played
+    Doctor Richard Jacks is based on ?
+  table_id: Tim_Daly_0
+- expected_answer: 5,500
+  expected_sources:
+  - List of supermarket chains in Denmark
+  - Meny
+  multihop: true
+  out_of_corpus: false
+  question: How many are employed by the supermarket chain with 190 stores in Denmark
+    ?
+  table_id: List_of_supermarket_chains_in_Denmark_0
+- expected_answer: Dutch East Indies
+  expected_sources:
+  - List of the busiest airports in Asia
+  - Jakarta
+  multihop: true
+  out_of_corpus: false
+  question: Which empire called the city containing Soekarno - Hatta International
+    Airport Batavia ?
+  table_id: List_of_the_busiest_airports_in_Asia_6
+- expected_answer: Late Show
+  expected_sources:
+  - Juno Award for Breakthrough Group of the Year
+  - The Beaches (band)
+  multihop: true
+  out_of_corpus: false
+  question: What is the name of the debut album of the winner of the 2018 Juno Award
+    for Breakthrough Group of the Year ?
+  table_id: Juno_Award_for_Breakthrough_Group_of_the_Year_3
+- expected_answer: Joe Dougherty
+  expected_sources:
+  - 'Looney Tunes Golden Collection: Volume 3'
+  - Porky's Romance
+  multihop: true
+  out_of_corpus: false
+  question: The first appearance of Porky Pig 's paramour is in a dark animation of
+    rejection and attempted suicide , was the last cartoon that featured what voice
+    actor as Porky ?
+  table_id: Looney_Tunes_Golden_Collection:_Volume_3_2
+- expected_answer: ''
+  expected_sources: []
+  out_of_corpus: true
+  question: What is the average annual rainfall in Multan ?
+- expected_answer: ''
+  expected_sources: []
+  out_of_corpus: true
+  question: How many students are enrolled at Foundation University , Islamabad ?
+- expected_answer: ''
+  expected_sources: []
+  out_of_corpus: true
+  question: What is the elevation above sea level of Wailuku , Hawaii ?
+- expected_answer: ''
+  expected_sources: []
+  out_of_corpus: true
+  question: What is the unemployment rate in Bern ?
+- expected_answer: ''
+  expected_sources: []
+  out_of_corpus: true
+  question: How many Meny supermarkets operate in Sweden ?

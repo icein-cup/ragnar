@@ -233,16 +233,29 @@ def build_user_prompt(
     excerpts: list[tuple[str, str]],
     *,
     context_summary: str | None = None,
+    retrieval_confidence: str | None = None,
 ) -> str:
     """excerpts: list of (source_label, text).
 
     When context_summary is provided it is prepended before the excerpts so
     the model can refer back to earlier questions in the conversation.
+
+    When retrieval_confidence is provided ("high" or "medium"), a signal is
+    prepended before the excerpts telling the model the retrieval system found
+    likely-relevant results. This gives the model permission to answer rather
+    than default to refusal — the pipeline's #1 problem is over-refusal of
+    in-corpus questions whose answers ARE in the contexts.
     """
     blocks = format_excerpts(excerpts)
     parts: list[str] = []
     if context_summary:
         parts.append(f"Conversation so far:\n{context_summary}")
+    if retrieval_confidence:
+        parts.append(
+            f"Retrieval confidence: {retrieval_confidence}. The system found "
+            f"excerpts likely relevant to your question. Check them carefully "
+            f"before deciding the answer is not present."
+        )
     parts.append(f"Excerpts:\n\n{blocks}")
     parts.append(f"Question: {question}")
     return "\n\n".join(parts)

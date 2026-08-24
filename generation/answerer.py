@@ -17,6 +17,45 @@ from generation.prompts import (
 
 NO_RESULTS_MESSAGE = "I could not find anything relevant in the indexed documents."
 
+# ──────────────────────────────────────────────────────────────────────────────
+# Retrieval confidence signal
+# ──────────────────────────────────────────────────────────────────────────────
+# Over-refusal is the pipeline's #1 problem — 16/90 in-corpus questions refused
+# when the answer IS in the contexts. The prompt already says "default to
+# answering" but the model still refuses. A retrieval confidence signal gives
+# the model explicit permission to answer by telling it the retrieval system
+# found likely-relevant results.
+#
+# "high"   — top rerank score > 0.6  (strong match, almost certainly relevant)
+# "medium" — top rerank score > 0.55 (decent match, worth a careful look)
+# None     — score too low to signal anything; no confidence line is added.
+#
+# The thresholds are deliberately conservative: the signal only fires when the
+# reranker is reasonably sure, so it never overrides the model's judgment on
+# genuinely weak results. It is additive — it says "check carefully before
+# deciding the answer is not present", not "the answer is here".
+
+# Score above which the top result is considered a high-confidence retrieval.
+HIGH_CONFIDENCE_THRESHOLD = 0.6
+# Score above which the top result is considered a medium-confidence retrieval.
+MEDIUM_CONFIDENCE_THRESHOLD = 0.55
+
+
+def _retrieval_confidence(results: list[SearchResult]) -> str | None:
+    """Return "high", "medium", or None from the top result's rerank score.
+
+    None means no signal — build_user_prompt treats it as absent and adds no
+    confidence line to the prompt.
+    """
+    if not results:
+        return None
+    top_score = results[0].score
+    if top_score > HIGH_CONFIDENCE_THRESHOLD:
+        return "high"
+    if top_score > MEDIUM_CONFIDENCE_THRESHOLD:
+        return "medium"
+    return None
+
 # How many of the most recent messages are replayed verbatim to the answer
 # call. Summarization (summarize_history) always sees the full transcript —
 # only this verbatim copy is windowed, since sending the whole conversation
@@ -293,9 +332,11 @@ class Answerer:
             # Skip the model entirely — a refusal it cannot embellish.
             return Answer(text=NO_RESULTS_MESSAGE, refused=True)
 
+        confidence = _retrieval_confidence(results)
         text = "".join(self.stream(
             question, results, model=model, temperature=temperature,
             history=history, context_summary=context_summary,
+            retrieval_confidence=confidence,
         ))
         # is_refusal reads the raw text — the NO_ANSWER sentinel is the point
         # — and only then is the token stripped from what callers see.
@@ -340,9 +381,11 @@ class Answerer:
         if not results:
             return Answer(text=NO_RESULTS_MESSAGE, refused=True)
 
+        confidence = _retrieval_confidence(results)
         text = "".join(self.stream(
             question, results, model=model, temperature=temperature,
             history=history, context_summary=context_summary,
+            retrieval_confidence=confidence,
         ))
         refused = is_refusal(text)
         if refused:
@@ -434,6 +477,7 @@ class Answerer:
         temperature: float | None = None,
         history: list[dict] | None = None,
         context_summary: str | None = None,
+        retrieval_confidence: str | None = None,
     ):
         """Yield answer-text deltas for the UI's st.write_stream.
 
@@ -441,13 +485,20 @@ class Answerer:
         citation_labels(results) and are known before generation starts.
         model/temperature are threaded through per call so a shared Answerer
         instance never has to mutate the underlying LLM's state.
+
+        retrieval_confidence ("high"/"medium"/None) is passed through to
+        build_user_prompt. When None, no confidence signal is added to the
+        prompt — callers that already computed it (answer, answer_async)
+        pass it explicitly; direct callers of stream() can omit it.
         """
         if context_summary is None:
             context_summary = self.summarize_history(history or [], model=model)
         yield from self._llm.stream(
             SYSTEM_PROMPT,
             build_user_prompt(
-                question, build_excerpts(results), context_summary=context_summary
+                question, build_excerpts(results),
+                context_summary=context_summary,
+                retrieval_confidence=retrieval_confidence,
             ),
             model=model,
             temperature=temperature,
