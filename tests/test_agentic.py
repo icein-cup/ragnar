@@ -349,6 +349,64 @@ def test_fuse_results_keeps_highest_score():
     assert fused[0].score == 0.9
 
 
+def test_fuse_results_score_gap_pruning_truncates_to_top3():
+    """When >4 results and a clear gap (>0.05) separates top-3 from the
+    rest, the noisy tail should be dropped."""
+    results = [
+        _result(f"chunk {i}", doc_id="d", chunk_index=i, page=i + 1)
+        for i in range(6)
+    ]
+    # Top-3 are clearly separated from the rest
+    for i, score in enumerate([0.80, 0.75, 0.70, 0.60, 0.58, 0.55]):
+        results[i].score = score
+    fused = AgenticSearch._fuse_results(results)
+
+    assert len(fused) == 3
+    assert fused[0].score == 0.80
+    assert fused[2].score == 0.70
+
+
+def test_fuse_results_score_gap_pruning_skipped_when_gap_is_small():
+    """When the gap between 3rd and 4th is <= 0.05, all results are kept."""
+    results = [
+        _result(f"chunk {i}", doc_id="d", chunk_index=i, page=i + 1)
+        for i in range(6)
+    ]
+    # Gap between 3rd (0.70) and 4th (0.68) is only 0.02
+    for i, score in enumerate([0.80, 0.75, 0.70, 0.68, 0.65, 0.60]):
+        results[i].score = score
+    fused = AgenticSearch._fuse_results(results)
+
+    assert len(fused) == 6
+
+
+def test_fuse_results_score_gap_pruning_skipped_when_leq_4_results():
+    """Pruning never fires on result sets of 4 or fewer."""
+    results = [
+        _result(f"chunk {i}", doc_id="d", chunk_index=i, page=i + 1)
+        for i in range(4)
+    ]
+    for i, score in enumerate([0.90, 0.85, 0.80, 0.50]):
+        results[i].score = score
+    fused = AgenticSearch._fuse_results(results)
+
+    assert len(fused) == 4
+
+
+def test_fuse_results_score_gap_pruning_boundary_gap():
+    """A gap of exactly 0.05 is NOT enough to prune (boundary: must be >0.05)."""
+    results = [
+        _result(f"chunk {i}", doc_id="d", chunk_index=i, page=i + 1)
+        for i in range(5)
+    ]
+    for i, score in enumerate([0.80, 0.75, 0.70, 0.65, 0.60]):
+        results[i].score = score
+    fused = AgenticSearch._fuse_results(results)
+
+    # gap is exactly 0.05 — not > 0.05, so no pruning
+    assert len(fused) == 5
+
+
 def test_parse_tag_finds_value():
     text = "Sufficient: yes\nMissing: nothing"
     assert AgenticSearch._parse_tag(text, "Sufficient", "no") == "yes"

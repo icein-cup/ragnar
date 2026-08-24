@@ -537,7 +537,15 @@ class AgenticSearch:
 
     @staticmethod
     def _fuse_results(results: list[SearchResult]) -> list[SearchResult]:
-        """Deduplicate by chunk text and keep the best score per unique chunk."""
+        """Deduplicate by chunk text and keep the best score per unique chunk.
+
+        After sorting by score (descending), apply score-gap pruning: if there
+        are more than 4 results and a clear gap (>0.05) separates the top-3
+        from the rest, truncate to the top-3.  This drops fusion noise — the
+        low-scoring chunks that multi-query and multi-hop retrieval inject
+        without adding relevant signal — while preserving relevant chunks when
+        scores are close enough that a gap-based cut would be unsafe.
+        """
         best: dict[str, SearchResult] = {}
         for r in results:
             key = f"{r.chunk.doc_id}:{r.chunk.chunk_index}"
@@ -545,6 +553,21 @@ class AgenticSearch:
             if existing is None or r.score > existing.score:
                 best[key] = r
         fused = sorted(best.values(), key=lambda x: x.score, reverse=True)
+
+        # Score-gap pruning: keep only the top-3 when there's a clear
+        # separation (>0.05) between the 3rd and 4th results.  Only fires
+        # when we have more than 4 results, so small result sets are never
+        # cut.
+        if len(fused) > 4:
+            gap = fused[2].score - fused[3].score
+            if gap > 0.05:
+                logger.debug(
+                    "Score-gap pruning: top-3 score=%.3f, 4th=%.3f, gap=%.3f "
+                    "— truncating %d results to 3",
+                    fused[2].score, fused[3].score, gap, len(fused),
+                )
+                fused = fused[:3]
+
         return fused
 
     @staticmethod
