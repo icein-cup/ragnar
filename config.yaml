@@ -53,9 +53,9 @@ models:
 
 chunking:
   strategy: structural   # structural | semantic
-  target_tokens: 500
+  target_tokens: 350
   overlap_tokens: 50
-  table_rows_per_group: 20
+  table_rows_per_group: 10
   # Semantic strategy only: how large a similarity drop between consecutive
   # sentences counts as a topic boundary, as a percentile of the document's
   # own drops. Higher = fewer, larger chunks. Overlap does not apply to this
@@ -64,7 +64,7 @@ chunking:
 
 retrieval:
   candidates: 25
-  top_k: 5
+  top_k: 3
   # NOT VALIDLY CALIBRATED. The --calibrate sweep this value came from was
   # broken: eval/run_eval.py left vector_floor at 0.0, and since the floors
   # are OR'd, every result cleared the gate at every swept floor. The sweep
@@ -114,8 +114,8 @@ agentic:
   enable_multi_query: true
   enable_multi_hop: true
   enable_self_correction: true
-  max_hops: 3
-  multi_query_count: 3
+  max_hops: 2
+  multi_query_count: 5
   # Temperature for the two calls that emit a retrieval query (query rewrite
   # and multi-query fan-out). Those want lexical variety — three "different
   # ways to ask the same question" generated greedily come out nearly

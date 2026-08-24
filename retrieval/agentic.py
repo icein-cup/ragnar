@@ -23,7 +23,7 @@ from generation.agentic_prompts import (
 
 logger = logging.getLogger(__name__)
 
-FAST_PATH_MIN_RESULTS = 3         # Need at least N results clearing the floor
+FAST_PATH_MIN_RESULTS = 4         # Need at least N results clearing the floor
 
 # Temperature for the two calls that emit a retrieval query (_rewrite and
 # _generate_multi_queries). Everything else in this file stays at the

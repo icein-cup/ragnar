@@ -44,6 +44,12 @@ class OllamaLLM:
         options: dict = {
             "temperature": self.temperature if temperature is None
             else temperature,
+            # Ollama defaults num_ctx to 4096, which silently truncates the
+            # system prompt when excerpts + history + system prompt exceed it.
+            # qwen2.5:7b supports 32768; setting it ensures the full system
+            # prompt (anti-refusal, multi-hop synthesis, NO_ANSWER contract)
+            # is always visible to the model.
+            "num_ctx": 32768,
         }
         if self.seed is not None:
             options["seed"] = self.seed
