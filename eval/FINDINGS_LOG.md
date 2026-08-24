@@ -104,3 +104,17 @@ Tests: 290 passed, 19 skipped.
 ### Eval re-run started
 - Running with all Iter 1+2 changes on rebuilt Docker image
 - proc_4d8d878b3aa9, ~55 min ETA
+
+## 2026-08-24 — Cavecrew-reviewer Iter 2 findings + fixes (commit 2b45fb7)
+
+3 critical, 3 medium, 1 minor found. All fixed:
+
+**_table_to_sentences (3 critical):**
+1. No-header tables lost first data row → fixed: require header+separator pattern
+2. Multi-table excerpts corrupted (headers never reset) → fixed: reset headers on non-table lines
+3. Pipe-prefixed non-table text (math notation) silently dropped → fixed: require separator row to activate table mode
+
+**Score-gap pruning (1 medium):**
+4. `len > 4` too aggressive for 5-result multi-hop sets → raised to `len >= 6`
+
+Tests: 290 passed, 19 skipped.
