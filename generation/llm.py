@@ -6,7 +6,7 @@ import httpx
 class OllamaLLM:
     def __init__(self, base_url: str, model: str, client=None,
                  timeout: float = 300.0, temperature: float = 0.0,
-                 keep_alive: str = "10m"):
+                 keep_alive: str = "10m", think: bool | None = None):
         self.base_url = base_url.rstrip("/")
         self.model = model
         self.timeout = timeout
@@ -15,6 +15,10 @@ class OllamaLLM:
         # turns instead of evicting it on its default 5-minute TTL — a
         # multi-turn chat would otherwise cold-reload on almost every reply.
         self.keep_alive = keep_alive
+        # None = omit the option (non-thinking models ignore it anyway). Set
+        # False to disable a thinking model's reasoning pass so its content
+        # comes back clean instead of prefixed with chain-of-thought.
+        self.think = think
         self._client = client or httpx.Client()
 
     def _payload(self, system: str, user: str, stream: bool,
@@ -29,15 +33,18 @@ class OllamaLLM:
             # (citations) by the caller — pass them through as-is.
             messages.extend(history)
         messages.append({"role": "user", "content": user})
+        options: dict = {
+            "temperature": self.temperature if temperature is None
+            else temperature,
+        }
+        if self.think is not None:
+            options["think"] = self.think
         return {
             "model": model or self.model,
             "messages": messages,
             "stream": stream,
             "keep_alive": self.keep_alive,
-            "options": {
-                "temperature": self.temperature if temperature is None
-                else temperature,
-            },
+            "options": options,
         }
 
     def generate(self, system: str, user: str, *, model: str | None = None,

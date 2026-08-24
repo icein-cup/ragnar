@@ -71,6 +71,12 @@ def main() -> None:
 
     cfg = Config()
     store = QdrantStore(cfg.qdrant_url, args.collection, cfg.embedding_dim)
+    # Rebuild the collection fresh so chunks from a prior golden set never act
+    # as stale distractors for the current entries.
+    try:
+        store.drop_collection()
+    except Exception:
+        pass
     store.ensure_collection()
     embedder = OllamaEmbedder(cfg.ollama_url, cfg.embedding_model)
 

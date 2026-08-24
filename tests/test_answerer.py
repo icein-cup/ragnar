@@ -119,14 +119,16 @@ def test_per_request_model_and_temperature_are_threaded_to_the_llm():
     Answerer(llm).answer(
         "q", [_result("a.pdf", 1, "x")], model="llama3", temperature=0.7
     )
+    # answer() makes two calls: the streamed answer, then the grounding check.
     assert llm.opts[0] == ("llama3", 0.7)
+    assert llm.opts[1] == ("llama3", None)
 
     list(
         Answerer(llm).stream(
             "q", [_result("a.pdf", 1, "x")], model="qwen", temperature=0.2
         )
     )
-    assert llm.opts[1] == ("qwen", 0.2)
+    assert llm.opts[2] == ("qwen", 0.2)
 
 
 # --- classify: the shared refuse / guard / answer policy ---------------------
@@ -204,14 +206,15 @@ def test_empty_history_produces_no_summary():
 
     answerer.answer("only question", [_result("a.pdf", 1, "x")], history=[])
 
-    # No summarisation call was made — only the main answer.
-    assert len(llm.prompts) == 1
+    # No summarisation call was made — the answer stream plus the grounding
+    # check, and the answer prompt must not carry a conversation summary.
+    assert len(llm.prompts) == 2
     _system, user = llm.prompts[0]
     assert "Conversation so far:" not in user
 
 
 def test_single_turn_history_produces_no_summary():
-    # < 2 messages is too short to summarise — only the main answer call.
+    # < 2 messages is too short to summarise — answer stream + grounding check.
     llm = StubLLM()
     answerer = Answerer(llm)
 
@@ -221,7 +224,7 @@ def test_single_turn_history_produces_no_summary():
         history=[{"role": "user", "content": "hi"}],
     )
 
-    assert len(llm.prompts) == 1
+    assert len(llm.prompts) == 2
     _system, user = llm.prompts[0]
     assert "Conversation so far:" not in user
 
@@ -234,8 +237,8 @@ def test_history_none_default_preserves_existing_behaviour():
 
     assert answer.refused is False
     assert answer.citations == ["a.pdf, p. 1"]
-    # No summarisation call, main call has history=None.
-    assert len(llm.prompts) == 1
+    # No summarisation call — answer stream + grounding check, history=None.
+    assert len(llm.prompts) == 2
     assert llm.histories[0] is None
 
 
@@ -368,3 +371,108 @@ def test_converse_stream_with_no_history_still_calls_llm():
     list(answerer.converse_stream("what is my name?", history=None))
 
     assert llm.prompts  # LLM was called
+
+
+def test_answer_marks_the_models_own_refusal_and_drops_citations():
+    llm = StubLLM(reply="The excerpts do not contain that information.")
+    answer = Answerer(llm).answer("q?", [_result("a.pdf", 1, "a")])
+
+    assert answer.refused
+    assert answer.citations == []
+
+
+class SequencedLLM:
+    """Streams one answer, then returns a fixed verdict from generate()."""
+
+    def __init__(self, answer, verdict):
+        self.answer = answer
+        self.verdict = verdict
+        self.prompts = []
+
+    def generate(self, system, user, *, model=None, temperature=None, history=None):
+        self.prompts.append((system, user))
+        return self.verdict
+
+    def stream(self, system, user, *, model=None, temperature=None, history=None):
+        self.prompts.append((system, user))
+        yield self.answer
+
+
+# _grounded is deliberately NOT wired into answer() — on qwen2.5:3b it refused
+# 23 of 25 good answers. It stays covered here because eval/replay_gate.py
+# scores candidate models through it.
+
+
+def test_grounded_reads_the_judges_verdict():
+    llm = SequencedLLM("The SH-60 Seahawk cruises at Mach 2.2.", "UNSUPPORTED")
+    assert not Answerer(llm)._grounded("answer", [_result("a.pdf", 1, "text")])
+
+    llm = SequencedLLM("Multan sits on the Chenab River.", "SUPPORTED")
+    assert Answerer(llm)._grounded("answer", [_result("a.pdf", 1, "text")])
+
+
+def test_grounded_fails_open_when_the_judge_is_down():
+    # A judge outage must never drop a valid answer.
+    class FailingLLM(SequencedLLM):
+        def generate(self, system, user, *, model=None, temperature=None, history=None):
+            raise RuntimeError("judge down")
+
+    assert Answerer(FailingLLM("x", "y"))._grounded("answer", [_result("a.pdf", 1, "t")])
+
+
+def test_answer_async_returns_immediately_and_grounds_in_background():
+    import time
+
+    class SlowJudgeLLM(SequencedLLM):
+        """Streams instantly, but the grounding generate() blocks briefly."""
+
+        def generate(self, system, user, *, model=None, temperature=None, history=None):
+            time.sleep(0.2)
+            return self.verdict
+
+    llm = SlowJudgeLLM("The contract number is SC-4471.", "SUPPORTED")
+    answerer = Answerer(llm)
+
+    answer = answerer.answer_async("q?", [_result("a.pdf", 1, "x")])
+
+    # The answer is returned before the grounding check has run.
+    assert answer.text == "The contract number is SC-4471."
+    assert answer.grounded is None
+
+    # The background thread lands the verdict shortly after.
+    deadline = time.monotonic() + 5
+    while answer.grounded is None and time.monotonic() < deadline:
+        time.sleep(0.01)
+    assert answer.grounded is True
+
+
+def test_answer_async_skips_grounding_on_refusal():
+    llm = SequencedLLM("The excerpts do not contain that information.", "UNSUPPORTED")
+    answer = Answerer(llm).answer_async("q?", [_result("a.pdf", 1, "a")])
+
+    assert answer.refused
+    assert answer.citations == []
+    assert answer.grounded is None  # no background thread spawned
+
+
+def test_ground_async_runs_the_gate_on_existing_text():
+    import time
+
+    class SlowJudgeLLM(SequencedLLM):
+        def generate(self, system, user, *, model=None, temperature=None, history=None):
+            time.sleep(0.2)
+            return self.verdict
+
+    llm = SlowJudgeLLM("The contract number is SC-4471.", "UNSUPPORTED")
+    answer = Answerer(llm).ground_async(
+        "The contract number is SC-4471.", [_result("a.pdf", 1, "x")]
+    )
+
+    # Returns immediately with the verdict still pending.
+    assert answer.text == "The contract number is SC-4471."
+    assert answer.grounded is None
+
+    deadline = time.monotonic() + 5
+    while answer.grounded is None and time.monotonic() < deadline:
+        time.sleep(0.01)
+    assert answer.grounded is False  # UNSUPPORTED verdict lands in background

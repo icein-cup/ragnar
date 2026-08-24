@@ -526,11 +526,26 @@ class AgenticSearch:
     def _parse_tag(text: str, tag: str, default: str) -> str:
         """Parse a tagged value from structured LLM output.
 
-        Matches "Tag: value" at the start of a line, case-insensitive.
+        Matches "Tag: value" at the start of a line, case-insensitive. Tolerates
+        a code fence or preamble the model adds despite instructions, and a
+        value the model put on the line after the tag instead of beside it.
         """
         tag_lower = tag.lower()
-        for line in text.splitlines():
-            line = line.strip()
+        lines = [ln.strip() for ln in text.splitlines()]
+        # Drop a leading/trailing code fence (``` or ~~~) if present.
+        if lines and lines[0].startswith("```"):
+            lines = lines[1:]
+        if lines and lines[-1].startswith("```"):
+            lines = lines[:-1]
+        for i, line in enumerate(lines):
             if line.lower().startswith(f"{tag_lower}:"):
-                return line.split(":", 1)[1].strip()
+                value = line.split(":", 1)[1].strip()
+                # A value that ends with ":" is a label, not a value — the
+                # model put the real content on the following line.
+                if value.endswith(":"):
+                    value = value[:-1].strip()
+                # An empty value means the model put it on the next line.
+                if not value and i + 1 < len(lines):
+                    value = lines[i + 1].strip()
+                return value
         return default

@@ -62,10 +62,10 @@ class FakeLLM:
             return self._responses.get("rewrite", "rewritten query")
         if "different ways" in system.lower() or "generate" in user.lower():
             return self._responses.get("multi_query", "variant 1\nvariant 2")
-        if "multi-hop" in user.lower() or "Sufficient" in user:
+        if "Sufficient" in system or "Sufficient" in user:
             return self._responses.get("multi_hop",
                 "Sufficient: yes\nMissing: none\nFollowUp: none")
-        if "self-correction" in user.lower() or "Complete" in user:
+        if "Complete" in system or "Complete" in user:
             return self._responses.get("self_correct",
                 "Complete: yes\nContradictions: no\nImprovement: none")
         return self._responses.get("default", "default response")
@@ -107,7 +107,7 @@ def _result(text, vector_score=0.5, doc_id="d", filename="f.pdf", page=1, chunk_
 def test_build_rewrite_prompt_without_context():
     system, user = build_rewrite_prompt("What is AI?")
     assert "rewrite" in system.lower()
-    assert user == "What is AI?"
+    assert user == "Question: What is AI?"
 
 
 def test_build_rewrite_prompt_with_context():
@@ -126,7 +126,7 @@ def test_build_multi_hop_prompt():
     excerpts = [("doc.pdf, p. 1", "RAG is retrieval augmented generation.")]
     system, user = build_multi_hop_prompt("How does RAG work?", excerpts)
     assert "RAG is retrieval augmented generation" in user
-    assert "Sufficient:" in user
+    assert "Sufficient:" in system
 
 
 def test_build_self_correction_prompt():
@@ -134,7 +134,7 @@ def test_build_self_correction_prompt():
     system, user = build_self_correction_prompt(
         "What is RAG?", excerpts, "RAG is a system."
     )
-    assert "Complete:" in user
+    assert "Complete:" in system
     assert "RAG is a system." in user
 
 
@@ -235,7 +235,7 @@ def test_multi_hop_continues_on_partial_result():
         """Returns 'partial' on the first multi-hop call, 'yes' after that."""
 
         def generate(self, system, user, **kwargs):
-            if "Sufficient" not in user:
+            if "Sufficient" not in system and "Sufficient" not in user:
                 return super().generate(system, user, **kwargs)
             self._call_count += 1
             self._calls.append((system, user))

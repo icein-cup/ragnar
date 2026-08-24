@@ -90,3 +90,50 @@ def aggregation_refusal(results: list[SearchResult]) -> str:
         "could be wrong.\n\n"
         f"The relevant data is in: {listed}"
     )
+
+
+# Phrases a model reaches for when the excerpts do not cover the question.
+# English and Polish, matching AGGREGATION_TERMS' bilingual scope.
+# ponytail: phrase list in two languages. If a third language shows up, swap
+# this for a sentinel token the SYSTEM_PROMPT emits (needs stream buffering
+# in the UI so the token never flashes mid-answer).
+REFUSAL_PATTERNS = (
+    # English
+    r"do(?:es)? not (?:contain|provide|specify|mention|state|include)",
+    r"not (?:provided|specified|mentioned|available|found|listed)",
+    r"no information",
+    r"there is no ",
+    r"cannot be (?:determined|answered|found)",
+    r"does not appear",
+    # Polish
+    r"nie zawiera",
+    r"nie podano",
+    r"nie ma informacji",
+    r"brak informacji",
+    r"nie zosta[łl]o (?:podane|okre[śs]lone)",
+)
+
+_REFUSAL_RE = re.compile("|".join(REFUSAL_PATTERNS), re.IGNORECASE)
+_SENTENCE_END_RE = re.compile(r"(?<=[.!?])\s")
+
+
+def _first_sentence(text: str) -> str:
+    text = text.strip()
+    match = _SENTENCE_END_RE.search(text)
+    return text[:match.start()] if match else text
+
+
+def is_refusal(text: str) -> bool:
+    """Did the model say the excerpts do not answer the question?
+
+    The retrieval-side refusal in ``classify`` only fires when nothing
+    cleared the floors, which on a large corpus is almost never — so the
+    model writes "the excerpts do not contain that" and the app still marks
+    it an answer and staples five citations to it.
+
+    Only the FIRST sentence is examined. An answer that states a fact and
+    then caveats a missing detail ("Larry McMurtry wrote it. The excerpts do
+    not give the year.") is an answer, not a refusal, and matching the whole
+    text would throw it away along with its citations.
+    """
+    return bool(_REFUSAL_RE.search(_first_sentence(text)))

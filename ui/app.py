@@ -11,7 +11,7 @@ import streamlit as st
 # only ever reached stderr at WARNING+. INFO surfaces both.
 logging.basicConfig(level=logging.INFO)
 
-from generation.guards import aggregation_refusal
+from generation.guards import aggregation_refusal, is_refusal
 from generation.answerer import (
     AnswerMode,
     classify,
@@ -23,7 +23,6 @@ from history.chat_store import chat_title, dataclass_to_dict
 from ui.services import build_services
 from ui.static_files import file_url
 from ui.panels import settings, documents, chats
-from ui.viking import viking_running_html
 
 st.set_page_config(page_title="RAGnar", page_icon="🪓")
 
@@ -62,24 +61,6 @@ div[data-testid="stExpander"] summary p {
 .agentic-trace .trace-label {
     color: #cdd6f4;
     font-weight: 500;
-}
-/* Viking-themed spinner — replaces the default "thinking" animation
-   in chat messages. Targets Streamlit's chat-message running spinner
-   and the st.spinner element. */
-.stSpinner > div {
-    border-top-color: #8B4513 !important;
-    border-right-color: #C0C0C0 !important;
-    border-bottom-color: #3B6B8A !important;
-    border-left-color: #5C3317 !important;
-}
-.stSpinner > div > span {
-    color: #8B4513 !important;
-    font-weight: 600 !important;
-}
-/* Chat message avatar spinner — viking axe emoji already set via avatar
-   param, but style the running indicator ring with viking colors */
-[data-testid="stChatMessageAvatarIcon"] {
-    /* nothing to override here — avatar emoji is set via Python */
 }
 </style>
 """
@@ -247,12 +228,43 @@ if "messages" not in st.session_state:
 # None until the current conversation has been saved for the first time.
 st.session_state.setdefault("current_chat_id", None)
 
+# Reconcile background grounding verdicts that landed after the last rerun.
+# answer_async/ground_async run the fabrication check on a daemon thread and
+# write the verdict onto an Answer object; that object outlives the rerun, so
+# we re-read it here and fold any finished verdict into the persisted message.
+_pending = st.session_state.get("pending_grounding", {})
+if _pending:
+    _still_pending = {}
+    _dirty = False
+    for _idx, _answer in _pending.items():
+        if _answer.grounded is None:
+            _still_pending[_idx] = _answer
+        else:
+            _dirty = True
+            if _idx < len(st.session_state.messages):
+                st.session_state.messages[_idx]["grounded"] = _answer.grounded
+    st.session_state.pending_grounding = _still_pending
+    if _dirty and st.session_state.current_chat_id is not None:
+        try:
+            svc["chats"].save(
+                st.session_state.current_chat_id,
+                chat_title(st.session_state.messages),
+                st.session_state.messages,
+            )
+        except Exception as exc:
+            logging.exception("Failed to persist grounding verdict: %s", exc)
+
 _VIKING_AVATAR = "🪓"
 
 for _msg_idx, message in enumerate(st.session_state.messages):
     avatar = _VIKING_AVATAR if message["role"] == "assistant" else None
     with st.chat_message(message["role"], avatar=avatar):
         st.markdown(message["content"])
+        if message.get("grounded") is False:
+            st.warning(
+                "⚠️ This answer may not be fully supported by the retrieved "
+                "documents — it was flagged by the grounding check."
+            )
         _render_sources_expander(
             message.get("citations") or [],
             message.get("related"),
@@ -284,13 +296,8 @@ if question := st.chat_input("Ask about your documents"):
             history, model=query["model"]
         )
 
-        # Show a running viking while searching. The viking SVG renders in
-        # an st.empty() container, and st.spinner's context entry triggers a
-        # frontend flush — both elements reach the browser before the blocking
-        # search call starts. Without st.spinner as the flush trigger,
-        # st.empty().markdown() alone never renders during a blocking call.
-        thinking = st.empty()
-        thinking.markdown(viking_running_html(), unsafe_allow_html=True)
+        # st.spinner's context entry triggers a frontend flush so the spinner
+        # reaches the browser before the blocking search call starts.
         with st.spinner("🪓 RAGnar is running through your documents…"):
             # Use agentic search if available. Flags are passed per-call, not
             # mutated on the shared (st.cache_resource) instance — see find()'s
@@ -322,9 +329,6 @@ if question := st.chat_input("Ask about your documents"):
                     context_summary=context_summary,
                 )
 
-        # Search done — clear the running viking before showing the answer.
-        thinking.empty()
-
         mode = classify(question, outcome.refused, outcome.results)
 
         related_labels = citation_labels(outcome.related)
@@ -332,6 +336,10 @@ if question := st.chat_input("Ask about your documents"):
             {"label": label, "doc_id": None, "page": None, "sheet": None}
             for label in related_labels
         ]
+
+        # Only the ANSWER branch spawns a grounding check; the other branches
+        # leave this None so the commit below skips registration.
+        grounded_answer = None
 
         if mode is AnswerMode.NO_RESULTS:
             citations = []
@@ -360,10 +368,6 @@ if question := st.chat_input("Ask about your documents"):
             citations = []
             rich_citations = []
         else:
-            # Build rich citations with navigation metadata
-            rich_citations = build_citations(outcome.results)
-            citations = [c.label for c in rich_citations]
-
             # Reuse the self-correction draft when available — it was
             # built with the same prompt/context as Answerer.stream
             # would use, so displaying it directly avoids a duplicate
@@ -381,6 +385,23 @@ if question := st.chat_input("Ask about your documents"):
                         history=history,
                         context_summary=context_summary,
                     )
+                )
+
+            # Citations are chosen AFTER the answer exists: a model that says
+            # the excerpts do not cover the question gets none. Covers the
+            # streamed answer and the reused draft alike.
+            rich_citations = [] if is_refusal(text) else build_citations(outcome.results)
+            citations = [c.label for c in rich_citations]
+
+            # Kick off the fabrication check in the background. It never blocks
+            # the answer; the verdict lands on the Answer object and is folded
+            # into the persisted message on a later rerun (see the reconcile
+            # block above). Refusals are skipped — a "the excerpts do not
+            # cover this" sentence would be judged UNSUPPORTED against the
+            # excerpts, which is noise, not a fabrication.
+            if not is_refusal(text):
+                grounded_answer = svc["answerer"].ground_async(
+                    text, outcome.results, model=query["model"]
                 )
 
         elapsed = time.perf_counter() - start
@@ -402,8 +423,17 @@ if question := st.chat_input("Ask about your documents"):
                 "related": related_dicts,
                 "elapsed": elapsed,
                 "trace": _build_trace(outcome),
+                "grounded": None,
             }
         )
+
+        # Register the in-flight grounding check so a later rerun can fold its
+        # verdict into the message above. The Answer object is a plain Python
+        # object (not session state), so it survives the rerun and the daemon
+        # thread keeps writing to it.
+        if grounded_answer is not None:
+            _msg_idx = len(st.session_state.messages) - 1
+            st.session_state.setdefault("pending_grounding", {})[_msg_idx] = grounded_answer
 
         # Persist the conversation. Mint an id on first save so a chat only
         # appears in the list once it actually has content.

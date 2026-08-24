@@ -1,5 +1,11 @@
 from core.models import Chunk, SearchResult
-from generation.guards import should_refuse_aggregation, aggregation_refusal
+import pytest
+
+from generation.guards import (
+    aggregation_refusal,
+    is_refusal,
+    should_refuse_aggregation,
+)
 
 
 def _result(text, is_table, filename="data.xlsx", sheet="Q1"):
@@ -102,3 +108,33 @@ def test_superlative_stems_do_not_fire_on_prose():
         _result("Payment terms are net 30.", False),
     ]
     assert not should_refuse_aggregation("Jaka jest największa kwota?", results)
+
+
+@pytest.mark.parametrize("text", [
+    "The provided excerpts do not contain any information about rainfall.",
+    "The elevation of Wailuku, Hawaii is not provided in the given excerpts.",
+    "There is no information provided about a guest appearing in 2018.",
+    "The question cannot be answered with the provided information.",
+    "Fragmenty nie zawierają informacji o tej umowie.",
+    "Brak informacji na ten temat w dokumentach.",
+])
+def test_is_refusal_catches_the_models_own_refusal(text):
+    assert is_refusal(text)
+
+
+@pytest.mark.parametrize("text", [
+    "Multan sits on the banks of the Chenab River.",
+    # States the fact first, caveats a missing detail second — still an answer,
+    # and matching the whole text would strip its citations.
+    "Larry McMurtry was the author. However, the excerpts do not give the year.",
+    "The hometown is Houston, Texas. The excerpts do not provide its area.",
+])
+def test_is_refusal_leaves_real_answers_alone(text):
+    assert not is_refusal(text)
+
+
+def test_is_refusal_reads_a_bare_value_then_a_denial_as_a_refusal():
+    """A stray token with no sentence break before the denial stays inside the
+    first sentence, so the denial wins. That is the safe reading: the model
+    disowned the value it just emitted."""
+    assert is_refusal("0\n\nThe excerpts do not provide this number.")

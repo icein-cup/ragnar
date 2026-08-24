@@ -34,11 +34,23 @@ conversation.
 """
 
 
+# Cap on the summarization transcript. The verbatim history copy is already
+# windowed to MAX_HISTORY_MESSAGES in answerer.py; this bounds the *full*
+# transcript the summarizer sees so a long session cannot grow it unbounded.
+MAX_SUMMARY_CHARS = 8000
+
+# Per-excerpt and total character caps so a large chunk or a fused pile of
+# multi-query/multi-hop results cannot blow past the model's context window.
+MAX_EXCERPT_CHARS = 2000
+MAX_TOTAL_EXCERPT_CHARS = 12000
+
+
 def build_history_summary_prompt(history: list[dict]) -> tuple[str, str]:
     """Build (system, user) prompts to summarize a conversation history.
 
     Returns the summarization system prompt and a formatted transcript of
-    user/assistant turns.
+    user/assistant turns, truncated to MAX_SUMMARY_CHARS (oldest turns first,
+    so the most recent context is preserved).
     """
     lines: list[str] = []
     for msg in history:
@@ -46,12 +58,29 @@ def build_history_summary_prompt(history: list[dict]) -> tuple[str, str]:
         content = msg.get("content", "")
         label = {"user": "User", "assistant": "Assistant"}.get(role, role)
         lines.append(f"{label}: {content}")
-    return SUMMARIZE_HISTORY_PROMPT, "\n\n".join(lines)
+    transcript = "\n\n".join(lines)
+    if len(transcript) > MAX_SUMMARY_CHARS:
+        transcript = transcript[-MAX_SUMMARY_CHARS:]
+    return SUMMARIZE_HISTORY_PROMPT, transcript
 
 
 def format_excerpts(excerpts: list[tuple[str, str]]) -> str:
-    """(source_label, text) pairs as labelled blocks for a prompt body."""
-    return "\n\n".join(f"[{label}]\n{text}" for label, text in excerpts)
+    """(source_label, text) pairs as labelled blocks for a prompt body.
+
+    Each excerpt is capped at MAX_EXCERPT_CHARS and the whole body at
+    MAX_TOTAL_EXCERPT_CHARS, so oversized chunks or a large fused result set
+    cannot overflow the context window.
+    """
+    blocks: list[str] = []
+    total = 0
+    for label, text in excerpts:
+        if total >= MAX_TOTAL_EXCERPT_CHARS:
+            break
+        text = text[:MAX_EXCERPT_CHARS]
+        block = f"[{label}]\n{text}"
+        blocks.append(block)
+        total += len(block)
+    return "\n\n".join(blocks)
 
 
 def build_user_prompt(
@@ -72,3 +101,29 @@ def build_user_prompt(
     parts.append(f"Excerpts:\n\n{blocks}")
     parts.append(f"Question: {question}")
     return "\n\n".join(parts)
+
+
+GROUNDING_PROMPT = """\
+You are a fact-checker. Decide whether an answer is fully supported by the \
+provided document excerpts.
+
+The answer is UNSUPPORTED if it states any fact that is:
+- absent from the excerpts, or
+- contradicted by the excerpts, or
+- about the wrong entity, year, or field (a number that belongs to a \
+different city, a different year, or a different column).
+
+Ignore wording differences; judge the facts, not the phrasing. If the answer \
+correctly says the excerpts lack the information, that is SUPPORTED.
+
+Output exactly one word: SUPPORTED or UNSUPPORTED.
+"""
+
+
+def build_grounding_prompt(
+    answer: str, excerpts: list[tuple[str, str]]
+) -> tuple[str, str]:
+    """Build (system, user) prompts to verify an answer against the excerpts."""
+    return GROUNDING_PROMPT, (
+        f"Excerpts:\n\n{format_excerpts(excerpts)}\n\nAnswer:\n{answer}"
+    )

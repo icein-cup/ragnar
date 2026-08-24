@@ -1,0 +1,5 @@
+Traceback (most recent call last):
+  File "/tmp/async_test.py", line 19, in <module>
+    time.sleep(1)
+    ~~~~~~~~~~^^^
+KeyboardInterrupt

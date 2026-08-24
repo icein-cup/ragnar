@@ -1,13 +1,15 @@
+import threading
 from dataclasses import dataclass, field
 from enum import Enum
 
 from core.models import SearchResult, Citation
-from generation.guards import should_refuse_aggregation
+from generation.guards import is_refusal, should_refuse_aggregation
 from generation.prompts import (
     SYSTEM_PROMPT,
     CONVERSATION_SYSTEM_PROMPT,
     build_user_prompt,
     build_history_summary_prompt,
+    build_grounding_prompt,
 )
 
 NO_RESULTS_MESSAGE = "I could not find anything relevant in the indexed documents."
@@ -93,11 +95,21 @@ class Answer:
     text: str
     citations: list[str] = field(default_factory=list)
     refused: bool = False
+    grounded: bool | None = None  # None = grounding check not run
 
 
 class Answerer:
     def __init__(self, llm):
         self._llm = llm
+
+    # Citations are every retrieved chunk, deliberately. Pruning them by
+    # scoring each chunk against the finished answer was tried and measured:
+    # bge-reranker-v2-m3 gives 44% of the chunks a question NEEDS the same
+    # neutral 0.500 it gives unrelated ones, so every threshold that lifted
+    # citation precision from 0.26 to ~0.5 dropped source recall from 0.74 to
+    # ~0.42 — halving multi_hop_citation_accuracy to tidy the citation list.
+    # The noise comes from retrieval handing over sixteen chunks; fix it there,
+    # not here.
 
     def summarize_history(
         self, history: list[dict], model: str | None = None
@@ -137,7 +149,115 @@ class Answerer:
             question, results, model=model, temperature=temperature,
             history=history, context_summary=context_summary,
         ))
-        return Answer(text=text, citations=citation_labels(results))
+        if is_refusal(text):
+            # The model said the excerpts do not cover this. Citing sources
+            # for a non-answer makes it read as a sourced one.
+            return Answer(text=text, citations=[], refused=True)
+        grounded = self._grounded(text, results, model=model)
+        return Answer(
+            text=text,
+            citations=citation_labels(results),
+            grounded=grounded,
+        )
+
+    def answer_async(
+        self,
+        question: str,
+        results: list[SearchResult],
+        *,
+        model: str | None = None,
+        temperature: float | None = None,
+        history: list[dict] | None = None,
+        context_summary: str | None = None,
+    ) -> Answer:
+        """Answer immediately, then run the grounding check in the background.
+
+        The answer streams synchronously (the caller still waits for the text),
+        but the grounding verdict — a second, slow LLM call — runs on a daemon
+        thread and lands on ``answer.grounded`` whenever it finishes. The caller
+        never blocks on it; a judge outage or a slow model simply leaves
+        ``grounded`` as None.
+
+        This is the latency-safe form of ``answer()``: the user sees the answer
+        as fast as the model can produce it, and the fabrication check catches
+        up in the background instead of adding a second model round-trip to the
+        critical path.
+        """
+        if not results:
+            return Answer(text=NO_RESULTS_MESSAGE, refused=True)
+
+        text = "".join(self.stream(
+            question, results, model=model, temperature=temperature,
+            history=history, context_summary=context_summary,
+        ))
+        if is_refusal(text):
+            return Answer(text=text, citations=[], refused=True)
+
+        answer = Answer(text=text, citations=citation_labels(results))
+
+        def _check() -> None:
+            answer.grounded = self._grounded(text, results, model=model)
+
+        threading.Thread(target=_check, daemon=True).start()
+        return answer
+
+    def ground_async(
+        self,
+        text: str,
+        results: list[SearchResult],
+        *,
+        model: str | None = None,
+    ) -> Answer:
+        """Run the grounding check on already-produced text in the background.
+
+        The UI streams the answer itself (st.write_stream over ``stream()``),
+        so it already has the text and cannot use ``answer_async`` (which
+        joins the stream internally). This spawns the same daemon-thread gate
+        and returns an ``Answer`` whose ``grounded`` field lands whenever the
+        judge finishes — the caller never blocks on it.
+
+        Refusals are the caller's concern here: pass only non-refusal text,
+        or the gate will judge a "the excerpts do not cover this" sentence
+        against the excerpts and mark it UNSUPPORTED.
+        """
+        answer = Answer(text=text, citations=citation_labels(results))
+
+        def _check() -> None:
+            answer.grounded = self._grounded(text, results, model=model)
+
+        threading.Thread(target=_check, daemon=True).start()
+        return answer
+
+    def _grounded(
+        self,
+        text: str,
+        results: list[SearchResult],
+        *,
+        model: str | None = None,
+    ) -> bool:
+        """Is the answer fully supported by the retrieved excerpts?
+
+        A second LLM pass that judges facts, not phrasing. The refusal-phrase
+        detector only catches answers that *say* they lack the information;
+        this catches answers that confidently state a fact the excerpts do not
+        contain (a helicopter "cruising at Mach 2.2", a tuition figure from a
+        different school, a number from the wrong year or column).
+
+        NOT WIRED INTO ``answer()``. On qwen2.5:3b this scored 10/10
+        fabrications caught and 23/25 good answers destroyed — a gate that
+        refuses everything, which would have taken refusal_accuracy from 0.82
+        to ~0.33. eval/replay_gate.py scores it against a saved report in two
+        minutes; re-wire it here only once a model passes that bar.
+
+        Any failure to run the check (LLM error, malformed reply) resolves to
+        True — the answer stands rather than being dropped on a judge outage.
+        """
+        system, user = build_grounding_prompt(text, build_excerpts(results))
+        try:
+            verdict = self._llm.generate(system, user, model=model).strip().upper()
+        except Exception:
+            return True
+        return not verdict.startswith("UNSUPPORTED")
 
     def stream(
         self,

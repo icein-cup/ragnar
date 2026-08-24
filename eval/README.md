@@ -102,12 +102,19 @@ sweep the other axis by re-running with a different value.
 
 | Metric | Judge | Measures |
 |---|---|---|
+| answer_accuracy | No | The answer states the expected answer |
 | refusal_accuracy | No | Refused exactly on out-of-corpus questions |
 | citation_accuracy | No | Cited the expected source |
+| citation_precision | No | Of the sources cited, how many were needed |
 
-These cover the two failure modes that matter most in a business context:
-confidently answering something the corpus doesn't contain, and citing the
-wrong source.
+These cover the failure modes that matter most in a business context:
+confidently answering something the corpus doesn't contain, citing the wrong
+source, and — the one a citation check cannot see — retrieving the right
+document and then stating a fact that is not in it.
+
+Read `citation_accuracy` and `answer_accuracy` together, never apart. On the
+HybridQA benchmark they read 0.83 and 0.50: the retriever is doing its job and
+the answerer is not.
 
 ---
 
@@ -153,11 +160,16 @@ app itself.
 
 ## Current state
 
-The golden set has 5 cases (3 in-corpus, 2 out-of-corpus) against the
-`sample.pdf` fixture only — enough to prove the harness works end-to-end,
-not enough to calibrate the similarity floor with real confidence. The
-design calls for 30-50 hand-written cases against the real corpus before
-this calibration should be trusted for production use.
+`golden_set.yaml` holds 208 cases (51 out-of-corpus) across 17 real
+documents. `golden_hybridqa_draft.yaml` holds a separate 125 (35
+out-of-corpus) for the cross-document multi-hop benchmark.
+
+The headline result, measured over the HybridQA benchmark on `qwen2.5:3b`:
+**96% of answered questions cite a source the question needed, and 50%
+actually state the right answer.** Retrieval finds the document; the model
+then misreads it about half the time. `answer_accuracy` is the metric that
+shows this — it was added after a review found that `citation_accuracy`
+alone made a system answering wrongly look healthy.
 
 **The current `retrieval.score_floor` (0.55, in `config.yaml`) has not been
 validly calibrated.** It was chosen by sweeping candidate floors with
@@ -172,8 +184,19 @@ vary.
 That is fixed (both floors are passed now, and the pinned `vector_floor`
 is printed in the header), but the number it produced has not been
 re-derived. Re-run `--calibrate` against a real corpus before treating 0.55
-as anything but a placeholder. With only 5 golden cases the signal would be
-crude even once the mechanism works.
+as anything but a placeholder.
+
+Measured on the HybridQA corpus, the floors are worse than uncalibrated —
+they are **inert**. `bge-reranker-v2-m3` returns the neutral 0.500 (a zero
+logit, "no opinion") for most chunks, including 44% of the chunks a question
+genuinely needs, and tops out at 0.731. A 0.55 floor under that distribution
+rejects almost nothing: **zero** cases in the last 125-case run were refused
+by retrieval. Every refusal came from the model saying so in words. Treat
+`classify()`'s NO_RESULTS path as untested on table-heavy corpora.
+
+Reports now record the rerank and vector score of every retrieved chunk, so
+the next calibration is arithmetic over a saved report instead of nine full
+pipeline runs.
 
 A second floor, `retrieval.vector_floor` (0.42), was added later: the
 reranker scores table-row chunks as near-neutral regardless of relevance,

@@ -1,5 +1,8 @@
 models:
-  llm: qwen2.5:3b
+  # 3b measured 0.50 answer_accuracy on the HybridQA benchmark — retrieval
+  # found the right document 96% of the time and the model then misread it
+  # half the time. 7b is the re-baseline; see eval/README.md.
+  llm: qwen2.5:7b
   embedding: bge-m3
   embedding_dim: 1024
   reranker: BAAI/bge-reranker-v2-m3

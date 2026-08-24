@@ -12,6 +12,7 @@ Usage:
 import argparse
 import json
 import sys
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -30,7 +31,8 @@ from retrieval.search import Search
 from retrieval.agentic import AgenticSearch
 from generation.llm import OllamaLLM
 from generation.answerer import Answerer, AnswerMode, classify
-from eval.metrics import refusal_accuracy, citation_accuracy, multi_hop_citation_accuracy
+from eval.metrics import (answer_accuracy, refusal_accuracy, citation_accuracy,
+                          citation_precision, multi_hop_citation_accuracy)
 
 ROOT = Path(__file__).parent
 
@@ -71,7 +73,11 @@ def run_cases(score_floor: float | None = None,
     golden_entries = yaml.safe_load(golden.read_text())
     cases = []
 
-    for entry in golden_entries:
+    # A --agentic run is ~10s per case and prints nothing until the end, which
+    # reads as a hang on a 100+ entry golden set. One line per case on stderr,
+    # so the report on stdout stays pipeable.
+    started = time.monotonic()
+    for n, entry in enumerate(golden_entries, 1):
         outcome = search.find(entry["question"])
         mode = classify(entry["question"], outcome.refused, outcome.results)
 
@@ -89,7 +95,21 @@ def run_cases(score_floor: float | None = None,
             "citations": citations,
             "refused": refused,
             "contexts": [r.chunk.text for r in outcome.results],
+            # Scores are what floor calibration needs. Without them, tuning
+            # score_floor/vector_floor means re-running the whole pipeline once
+            # per candidate value; with them it is arithmetic over this file.
+            "scores": [{"label": r.chunk.citation_label(),
+                        "rerank": r.score, "vector": r.vector_score}
+                       for r in outcome.results],
         })
+
+        elapsed = time.monotonic() - started
+        eta = elapsed / n * (len(golden_entries) - n)
+        want = "refuse" if entry["out_of_corpus"] else "answer"
+        got = "refuse" if refused else "answer"
+        print(f"[{n}/{len(golden_entries)}] {'ok ' if want == got else 'MISS'} "
+              f"want={want} got={got} eta={eta / 60:.1f}m "
+              f"| {entry['question'][:60]}", file=sys.stderr, flush=True)
 
     return cases
 
@@ -146,8 +166,10 @@ def main() -> None:
         "n_cases": len(cases),
         "agentic": args.agentic,
         "collection": args.collection or Config().collection,
+        "answer_accuracy": answer_accuracy(cases),
         "refusal_accuracy": refusal_accuracy(cases),
         "citation_accuracy": citation_accuracy(cases),
+        "citation_precision": citation_precision(cases),
         "multi_hop_citation_accuracy": multi_hop_citation_accuracy(cases),
     }
 

@@ -1,4 +1,7 @@
-from eval.metrics import refusal_accuracy, citation_accuracy, multi_hop_citation_accuracy
+import pytest
+
+from eval.metrics import (answer_accuracy, refusal_accuracy, citation_accuracy,
+                          citation_precision, multi_hop_citation_accuracy)
 
 
 def test_refusal_accuracy_rewards_correct_refusals():
@@ -94,3 +97,58 @@ def test_multi_hop_citation_accuracy_accepts_sub_article_citation():
         "multihop": True,
     }]
     assert multi_hop_citation_accuracy(cases) == 1.0
+
+
+def test_citation_precision_penalises_citing_everything_retrieved():
+    cases = [{
+        "expected_sources": ["Multan"],
+        "citations": ["Multan", "Hong Kong", "Memphis, Tennessee"],
+        "out_of_corpus": False,
+    }]
+    assert citation_precision(cases) == pytest.approx(1 / 3)
+
+
+def test_citation_precision_is_one_when_only_expected_sources_are_cited():
+    cases = [{
+        "expected_sources": ["table A", "passage B"],
+        "citations": ["table A", "passage B"],
+        "out_of_corpus": False,
+    }]
+    assert citation_precision(cases) == 1.0
+
+
+def test_citation_precision_skips_cases_with_no_citations():
+    cases = [
+        {"expected_sources": ["a.pdf"], "citations": [], "out_of_corpus": False},
+        {"expected_sources": ["a.pdf"], "citations": ["a.pdf"], "out_of_corpus": False},
+    ]
+    assert citation_precision(cases) == 1.0
+
+
+def test_answer_accuracy_requires_the_expected_answer_in_the_text():
+    cases = [{
+        "expected_answer": "the Chenab River",
+        "answer": "Multan sits on the banks of the Chenab River.",
+        "refused": False, "out_of_corpus": False,
+    }]
+    assert answer_accuracy(cases) == 1.0
+
+
+def test_answer_accuracy_fails_a_confidently_wrong_answer():
+    # The failure citation_accuracy cannot see: right document, wrong fact.
+    cases = [{
+        "expected_answer": "Sadie Robertson",
+        "answer": "Kel Mitchell came in second to Alfonso Ribeiro.",
+        "refused": False, "out_of_corpus": False,
+    }]
+    assert answer_accuracy(cases) == 0.0
+
+
+def test_answer_accuracy_skips_refusals_and_out_of_corpus():
+    cases = [
+        {"expected_answer": "", "answer": "", "refused": True, "out_of_corpus": True},
+        {"expected_answer": "x", "answer": "", "refused": True, "out_of_corpus": False},
+        {"expected_answer": "SC-4471", "answer": "It is SC-4471.",
+         "refused": False, "out_of_corpus": False},
+    ]
+    assert answer_accuracy(cases) == 1.0
