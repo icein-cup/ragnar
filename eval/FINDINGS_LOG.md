@@ -86,3 +86,21 @@ Addressed 4 MEDIUM findings from reviewer (sa-0-c30598f1):
 4. **Docstring inaccuracy** — fixed "minus" to "plus stopword filtering"
 
 Tests: 290 passed, 19 skipped.
+
+## 2026-08-24 — Iteration 2 changes (commits 758b083, af5e64a)
+
+### Table-to-text serialization (generation/prompts.py)
+- _table_to_sentences() converts markdown table rows to "Header: Value" sentences at prompt-build time
+- Only converts lines starting with |, skips separator rows
+- Non-table text passes through unchanged
+- Expected: answer_accuracy 0.71→0.80+, answer_correctness 0.33→0.45+
+
+### Score-gap pruning (retrieval/agentic.py)
+- _fuse_results() now truncates to top-3 when >4 results AND gap >0.05 between 3rd and 4th
+- Small result sets never cut
+- 4 new tests added
+- Expected: citation_precision 0.26→0.40+, context_precision 0.58→0.70+
+
+### Eval re-run started
+- Running with all Iter 1+2 changes on rebuilt Docker image
+- proc_4d8d878b3aa9, ~55 min ETA
