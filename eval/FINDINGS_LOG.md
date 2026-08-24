@@ -76,3 +76,13 @@ Running log of discoveries, patterns, and decisions. Updated each iteration.
 5. **Expand RAGAS to 60+ cases + multi-hop metrics** (eval/run_ragas.py, eval/metrics.py) — 20 cases = 5 pts each, statistically inadequate
 
 Recommended order: #5 → #1 → #2 → #4 → #3
+
+## 2026-08-24 — Code review fixes (commit 49234ad)
+
+Addressed 4 MEDIUM findings from reviewer (sa-0-c30598f1):
+1. **Reasoning step leakage** — added "do not show them in your output" + "Output ONLY the final answer" to SYSTEM_PROMPT
+2. **Polish stopwords missing** — added 30+ Polish function words to _STOPWORDS
+3. **Polish diacritics mangled** — switched regex from `[a-z0-9]+` to `\w+` with re.UNICODE
+4. **Docstring inaccuracy** — fixed "minus" to "plus stopword filtering"
+
+Tests: 290 passed, 19 skipped.
