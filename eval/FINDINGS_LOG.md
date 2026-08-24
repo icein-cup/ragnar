@@ -180,12 +180,20 @@ Expected impact: faithfulness ↑↑ (num_ctx fix), context_precision ↑↑ (ti
 
 | Metric | Baseline (floors 0.0) | 20-case quick | Full 125-case |
 |---|---|---|---|
-| answer_coverage | 0.49 | pending | pending |
-| answer_accuracy | 0.71 | pending | pending |
-| refusal_accuracy | 0.76 | pending | pending |
-| citation_accuracy | 0.67 | pending | pending |
-| citation_precision | 0.26 | pending | pending |
-| multi_hop_citation_accuracy | 0.52 | pending | pending |
+| answer_coverage | 0.49 | running | pending |
+| answer_accuracy | 0.71 | running | pending |
+| refusal_accuracy | 0.76 | running | pending |
+| citation_accuracy | 0.67 | running | pending |
+| citation_precision | 0.26 | running | pending |
+| multi_hop_citation_accuracy | 0.52 | running | pending |
 | RAGAS faithfulness | 0.70 | — | pending |
 | RAGAS answer_correctness | 0.33 | — | pending |
 | RAGAS context_precision | 0.58 | — | pending |
+
+## 2026-08-24 — Cavecrew-reviewer Iter 3 (clean)
+
+290 passed, 19 skipped. No critical, no medium. 2 INFO:
+- num_ctx hardcoded (works for qwen2.5:7b, could be configurable later)
+- FAST_PATH_MIN_RESULTS=4 + max_hops=2 is a design tradeoff, not a bug
+
+All Iter 3 code approved. Ready for eval.
