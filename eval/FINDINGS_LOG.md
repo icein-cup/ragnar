@@ -53,11 +53,32 @@ Running log of discoveries, patterns, and decisions. Updated each iteration.
 - No code change — conclusion documented
 
 ### Pending verification
-- Baseline eval with real floors (0.55/0.42) running — ~50 min ETA
+- ~~Baseline eval with real floors (0.55/0.42) running — ~50 min ETA~~ **DIED** — partial JSONL (9/125 lines) found by watchdog
 - Re-eval with new prompt + pruning needed after baseline completes
 - RAGAS on full 125-case set (previous was only 20 cases)
-- Code review subagent reviewing diffs
-- RAG consultant subagent proposing next improvements
+- ~~Code review subagent reviewing diffs~~ **DONE** (commit 49234ad)
+- ~~RAG consultant subagent proposing next improvements~~ **DONE** (recommendations logged above)
+
+## 2026-08-24 — Watchdog recovery (15:41 CEST)
+
+**Diagnosis**: Session STALLED. No background processes, no subagents, no file changes for ~10 min. Two partial eval JSONL files found:
+- `20260824-131803.jsonl` (6/125 lines) — first eval attempt, died early
+- `20260824-132844.jsonl` (9/125 lines) — second eval attempt, also died
+
+Both were eval re-runs with all Iter 1+2 changes on the rebuilt Docker image. Neither completed.
+
+**Git state**: `iteration_ai` branch, clean working tree, last commit `126904c` (15:31). All code changes committed.
+
+**Recovery action**: Restarted eval as background process `proc_a3ab8201e728`:
+`docker compose exec app python eval/run_eval.py --collection hybridqa --golden eval/golden_hybridqa_draft.yaml --agentic`
+Using config.yaml floors (0.55/0.42). Model weights loaded, processing started. ETA ~55 min.
+
+**Next steps after eval completes**:
+1. Parse results JSON, compute metrics
+2. Compare against baseline (answer_coverage 0.49, citation_precision 0.26, etc.)
+3. Update IMPROVEMENT_LOG.md and FINDINGS_LOG.md with results
+4. If scores improved, consider running RAGAS on full 125-case set
+5. If not improved, dispatch subagents for next iteration tracks
 
 ### Open questions
 - Will the 4-step reasoning in SYSTEM_PROMPT cause the model to output reasoning steps in its answer? (qwen2.5:7b may not follow "work through steps internally")

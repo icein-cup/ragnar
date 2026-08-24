@@ -46,9 +46,9 @@ RAGAS (20-case subset only — needs full run):
 - Track C: Floor calibration (find optimal score_floor/vector_floor from score distributions)
 - Fresh baseline eval running with real floors (0.55/0.42) on full 125-case set
 
-**Status**: Code committed (da922ea), awaiting eval re-run
+**Status**: Code committed (126904c), eval re-run restarted by watchdog after two prior attempts died
 
-**Results**: Pending — baseline eval with real floors still running (~55 min)
+**Results**: Pending — eval re-run in progress (proc_a3ab8201e728, started 15:41 CEST). Two prior attempts died silently with partial output (6 and 9 of 125 cases).
 
 ### Floor calibration findings (Track C)
 - Analyzed 743 chunks from the floors-at-0.0 report (140 expected, 603 unexpected)
