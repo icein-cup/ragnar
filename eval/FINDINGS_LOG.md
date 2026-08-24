@@ -154,9 +154,27 @@ Tests: 290 passed, 19 skipped.
 - Output format preserved (Sufficient/Missing/FollowUp)
 - Expected: multi_hop_citation_accuracy 0.52→0.62+
 
-### Iter 3C — Hyperparameter tuning (consultant in progress)
-- Consultant analyzing all tunable parameters (temperature, top_k, chunk size, etc.)
-- Results will be logged here when available
+### Iter 3C — Hyperparameter tuning (commit 771cc85)
+
+Consultant found critical issue: Ollama `num_ctx` not set → defaults to 4096 → silently truncates SYSTEM_PROMPT. Likely root cause of 16/90 over-refusal.
+
+Changes applied:
+| Parameter | Old | New | Reason |
+|---|---|---|---|
+| num_ctx (llm.py) | 4096 (default) | 32768 | System prompt was being truncated |
+| target_tokens | 500 | 350 | Tighter chunks, better reranker precision |
+| table_rows_per_group | 20 | 10 | Less dilution per table chunk |
+| top_k | 5 | 3 | Align base search with gap-pruned path |
+| max_hops | 3 | 2 | Reduces spurious follow-up noise |
+| multi_query_count | 3 | 5 | More retrieval coverage (22 RETRIEVAL_MISS) |
+| FAST_PATH_MIN_RESULTS | 3 | 4 | Self-correction gets more chances |
+
+Kept unchanged (already optimal):
+- Answer temperature: 0.0 (deterministic)
+- query_temperature: 0.7 (lexical variety for multi-query)
+- candidates: 25 (appropriate for reranker)
+
+Expected impact: faithfulness ↑↑ (num_ctx fix), context_precision ↑↑ (tighter chunks + top_k=3), answer_coverage ↑ (more multi-query coverage), refusal_accuracy ↑↑ (system prompt visible)
 
 ### Eval comparison tracking
 
