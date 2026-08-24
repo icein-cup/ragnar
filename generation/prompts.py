@@ -1,3 +1,5 @@
+import re
+
 from generation.guards import NO_ANSWER
 
 # The NO_ANSWER rule below is a contract with generation.guards.is_refusal,
@@ -115,18 +117,78 @@ def build_history_summary_prompt(history: list[dict]) -> tuple[str, str]:
     return SUMMARIZE_HISTORY_PROMPT, transcript
 
 
+def _table_to_sentences(text: str) -> str:
+    """Convert markdown table rows to natural-language "Header: Value" sentences.
+
+    Lines starting with ``|`` are treated as markdown table rows. The first
+    such row is the header; subsequent rows are data rows. Separator lines
+    (``|---|---|``) are skipped. Each data row becomes a single line of
+    ``"Header: Value | Header: Value | ..."`` pairs. Non-table lines pass
+    through unchanged.
+
+    Example::
+
+        | City | Population | Year |
+        |------|-----------|------|
+        | Multan | 1871843 | 2017 |
+
+    becomes::
+
+        City: Multan | Population: 1871843 | Year: 2017
+    """
+    lines = text.split("\n")
+    headers: list[str] | None = None
+    out: list[str] = []
+
+    for line in lines:
+        stripped = line.strip()
+        if not stripped.startswith("|"):
+            out.append(line)
+            continue
+
+        # Split on | and discard the leading/trailing empty cells produced by
+        # the leading/trailing pipes.
+        cells = [c.strip() for c in stripped.split("|")]
+        if cells and cells[0] == "":
+            cells = cells[1:]
+        if cells and cells[-1] == "":
+            cells = cells[:-1]
+
+        # Skip separator rows like |---|---|
+        if all(re.match(r"^:?-+:?$", c) for c in cells if c):
+            continue
+
+        if headers is None:
+            headers = cells
+            continue
+
+        if headers and len(cells) == len(headers):
+            pairs = [f"{h}: {v}" for h, v in zip(headers, cells)]
+            out.append(" | ".join(pairs))
+        else:
+            # Malformed row — keep the original line.
+            out.append(line)
+
+    return "\n".join(out)
+
+
 def format_excerpts(excerpts: list[tuple[str, str]]) -> str:
     """(source_label, text) pairs as labelled blocks for a prompt body.
 
     Each excerpt is capped at MAX_EXCERPT_CHARS and the whole body at
     MAX_TOTAL_EXCERPT_CHARS, so oversized chunks or a large fused result set
     cannot overflow the context window.
+
+    Markdown table rows in each excerpt are converted to natural-language
+    "Header: Value" sentences via :func:`_table_to_sentences` so that a 7B
+    model can bind entities to values without misreading a table grid.
     """
     blocks: list[str] = []
     total = 0
     for label, text in excerpts:
         if total >= MAX_TOTAL_EXCERPT_CHARS:
             break
+        text = _table_to_sentences(text)
         text = text[:MAX_EXCERPT_CHARS]
         block = f"[{label}]\n{text}"
         blocks.append(block)
