@@ -64,3 +64,15 @@ Running log of discoveries, patterns, and decisions. Updated each iteration.
 - Will citation pruning hurt multi_hop_citation_accuracy? (If answer doesn't contain words from a needed source's chunk, that source gets pruned)
 - Should Polish stopwords be added to the pruning filter?
 - Is the 20-case RAGAS run too small to be meaningful? (Yes — need full 125-case run)
+
+## 2026-08-24 — RAG consultant recommendations (subagent sa-0-ac6fde77)
+
+5 improvements ranked by expected impact:
+
+1. **Table-to-text serialization** (generation/prompts.py, format_excerpts) — convert markdown tables to "Entity | Property | Value" sentences before sending to LLM. 7B models read NL far better than markdown tables. Zero extra LLM calls. Expected: answer_accuracy 0.71→0.80+, answer_correctness 0.33→0.45+
+2. **Reduce top_k to 3 + score-gap pruning** (config.yaml, retrieval/agentic.py _fuse_results) — fewer chunks = less confusion for 7B model. Expected: citation_precision 0.26→0.40+, context_precision 0.58→0.70+
+3. **Two-stage extract-then-synthesize** (generation/prompts.py + answerer.py) — separate fact extraction from reasoning. +1.5s latency. Expected: answer_accuracy 0.71→0.82+, faithfulness 0.70→0.82+
+4. **Retrieval confidence signal** (prompts.py build_user_prompt) — tell model "retrieval found relevant content" to reduce over-refusal. Expected: answer_coverage 0.49→0.56+, refusal_accuracy 0.76→0.82+
+5. **Expand RAGAS to 60+ cases + multi-hop metrics** (eval/run_ragas.py, eval/metrics.py) — 20 cases = 5 pts each, statistically inadequate
+
+Recommended order: #5 → #1 → #2 → #4 → #3

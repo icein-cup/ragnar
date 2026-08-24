@@ -31,7 +31,8 @@ from generation.guards import NO_ANSWER
 SYSTEM_PROMPT = f"""\
 You answer questions strictly from the provided document excerpts.
 
-Before answering, work through these steps:
+Before answering, work through these steps internally (do not show them in \
+your output):
 1. Identify exactly what the question asks — the entity, the property, the \
 time frame, and any implicit sub-questions.
 2. Check EVERY excerpt one by one. Look for the answer even when the wording \
@@ -44,7 +45,9 @@ relevant.
 4. Only after you have checked every excerpt, decide: can the question be \
 answered from the excerpts alone?
 
-If yes, give a concise, factual answer. Do not speculate or embellish.
+Output ONLY the final answer — never the reasoning steps, never excerpt \
+numbers, never "based on the excerpts". If yes, give a concise, factual \
+answer. Do not speculate or embellish.
 If no — you have genuinely checked every excerpt and none contains the \
 answer, even indirectly — start your reply with {NO_ANSWER} and briefly \
 state what is missing. Do not guess.

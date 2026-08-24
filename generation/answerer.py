@@ -43,12 +43,18 @@ MAX_HISTORY_MESSAGES = 6
 # chunk and every answer, so matching on them would keep every citation
 # (defeating the purpose). Only content words count.
 _STOPWORDS = frozenset(
+    # English
     "a an the and or but in on at to for of is are was were be been being "
     "by with from as it its this that these those has have had will would "
     "could should may might can do does did not no yes if then than also "
     "more most about into over under between within without which who whom "
     "what when where why how all each every both few many much some any "
     "such only own same so than too very just per via etc".split()
+    # Polish — common function words that would inflate overlap counts
+    + "i w na z o że się jest są nie od po dla jak tylko lub ale czy "
+    "to co kto czym co do gdy gdyby aby ponieważ więc więc lecz jednak "
+    "już jeszcze też również bardzo więcej mniej bez nad pod przed za "
+    "przy przez podczas oraz orazże żeby aby żeby".split()
 )
 
 # Minimum number of distinct content-word overlaps for a chunk to be cited.
@@ -61,9 +67,13 @@ _MIN_OVERLAP_WORDS = 2
 
 
 def _content_words(text: str) -> set[str]:
-    """Alphanumeric words lowercased, minus stopwords. Same tokeniser as
-    eval/metrics.py._words, minus the stopword filtering."""
-    words = re.findall(r"[a-z0-9]+", text.lower())
+    """Alphanumeric words lowercased, minus stopwords.
+
+    Uses a Unicode-aware regex so Polish diacritics (ł, ą, ę, ś, ż, ź, ć, ń, ó)
+    are preserved rather than splitting words. Shares the tokeniser approach
+    from eval/metrics.py._words but adds stopword filtering on top.
+    """
+    words = re.findall(r"\w+", text.lower(), re.UNICODE)
     return {w for w in words if w not in _STOPWORDS}
 
 
