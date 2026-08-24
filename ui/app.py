@@ -401,8 +401,9 @@ if question := st.chat_input("Ask about your documents"):
 
             # Citations are chosen AFTER the answer exists: a model that says
             # the excerpts do not cover the question gets none. Covers the
-            # streamed answer and the reused draft alike.
-            rich_citations = [] if refused else build_citations(outcome.results)
+            # streamed answer and the reused draft alike. Pruned to only
+            # chunks whose text overlaps the answer (see prune_citations).
+            rich_citations = [] if refused else build_citations(outcome.results, str(text))
             citations = [c.label for c in rich_citations]
 
             # Kick off the fabrication check in the background. It never blocks

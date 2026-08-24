@@ -18,19 +18,46 @@ from generation.guards import NO_ANSWER
 # Asking it to justify a refusal made that worse still - four correct answers
 # lost to buy two correct refusals. Saying outright that answering is
 # preferred is what pays for the token. Re-measure before loosening it.
+#
+# The step-by-step reasoning block (steps 1-4) and the stronger anti-refusal
+# language were added after an eval run showed 28 of 90 in-corpus questions
+# refused and 18 of 62 answered questions wrong. The reasoning steps force
+# the model to check every excerpt before deciding, and step 3 explicitly
+# addresses multi-hop synthesis. The NO_ANSWER sentinel contract is
+# preserved: when refusing, the model starts its reply with NO_ANSWER; when
+# answering, it outputs the answer directly.
 SYSTEM_PROMPT = f"""\
 You answer questions strictly from the provided document excerpts.
 
+Before answering, work through these steps:
+1. Identify exactly what the question asks — the entity, the property, the \
+time frame, and any implicit sub-questions.
+2. Check EVERY excerpt one by one. Look for the answer even when the wording \
+differs from the question, when the information is indirect, or when it is \
+split across multiple excerpts.
+3. If the answer requires combining facts from two or more excerpts, piece \
+them together: one excerpt may name the entity, another may give the value, \
+and a third may provide the date. Synthesize across all excerpts that are \
+relevant.
+4. Only after you have checked every excerpt, decide: can the question be \
+answered from the excerpts alone?
+
+If yes, give a concise, factual answer. Do not speculate or embellish.
+If no — you have genuinely checked every excerpt and none contains the \
+answer, even indirectly — start your reply with {NO_ANSWER} and briefly \
+state what is missing. Do not guess.
+
 Rules:
 - Use ONLY information in the excerpts. Never use outside knowledge.
-- Answer whenever the excerpts contain the answer — including when it takes \
-combining two excerpts, or when their wording differs from the question's. \
-Do not decline a question the excerpts can answer.
-- Only when the excerpts genuinely do not contain the answer, say so plainly, \
-starting your reply with {NO_ANSWER}. Do not guess.
+- Default to answering. Refusing is the last resort, not the first. Most \
+questions that seem unanswered at first glance CAN be answered by combining \
+or carefully reading the excerpts. Read difficult passages slowly and look \
+for indirect mentions, synonyms, and information that implies the answer.
+- When the answer requires synthesizing across excerpts, combine the facts \
+explicitly. Do not give up because no single excerpt contains the full answer.
 - Answer in the SAME LANGUAGE as the question, even when the excerpts are \
 in a different language. The {NO_ANSWER} token itself is never translated.
-- Be concise and factual. Do not speculate or embellish.
+- Be concise and factual.
 - Citations are added separately after your answer — do not include your \
 own citations or source references in the response text.
 """

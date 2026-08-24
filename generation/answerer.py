@@ -1,3 +1,4 @@
+import re
 import threading
 from dataclasses import dataclass, field
 from enum import Enum
@@ -23,6 +24,79 @@ NO_RESULTS_MESSAGE = "I could not find anything relevant in the indexed document
 # session gets longer.
 MAX_HISTORY_MESSAGES = 6
 
+# ──────────────────────────────────────────────────────────────────────────────
+# Citation pruning: answer-overlap filtering
+# ──────────────────────────────────────────────────────────────────────────────
+# After the answer is generated, we filter the citation list to only those
+# chunks whose text has meaningful word overlap with the answer. This drops
+# the noise from fusion (chunks retrieved by multi-query/multi-hop that the
+# model never actually used) without touching the result set sent to the LLM.
+#
+# Reranker-based pruning was tried and failed (see the comment on Answerer
+# below): bge-reranker-v2-m3 scores 44% of needed chunks at the same neutral
+# 0.500 as irrelevant ones, so every threshold that lifted precision halved
+# source recall. Answer-overlap filtering sidesteps that entirely — it asks
+# "did the model USE this chunk?" not "does the reranker THINK this chunk is
+# relevant?".
+
+# Stopwords excluded from overlap counting. These appear in almost every
+# chunk and every answer, so matching on them would keep every citation
+# (defeating the purpose). Only content words count.
+_STOPWORDS = frozenset(
+    "a an the and or but in on at to for of is are was were be been being "
+    "by with from as it its this that these those has have had will would "
+    "could should may might can do does did not no yes if then than also "
+    "more most about into over under between within without which who whom "
+    "what when where why how all each every both few many much some any "
+    "such only own same so than too very just per via etc".split()
+)
+
+# Minimum number of distinct content-word overlaps for a chunk to be cited.
+# Set to 2 — a single shared word could be a coincidence (a common noun,
+# a number), but two distinct content words appearing in both the chunk and
+# the answer is strong evidence the model drew from that chunk. This is
+# deliberately conservative: the goal is to drop chunks with ZERO content
+# overlap (pure fusion noise), not to aggressively trim borderline ones.
+_MIN_OVERLAP_WORDS = 2
+
+
+def _content_words(text: str) -> set[str]:
+    """Alphanumeric words lowercased, minus stopwords. Same tokeniser as
+    eval/metrics.py._words, minus the stopword filtering."""
+    words = re.findall(r"[a-z0-9]+", text.lower())
+    return {w for w in words if w not in _STOPWORDS}
+
+
+def prune_citations(answer_text: str,
+                    results: list[SearchResult]) -> list[SearchResult]:
+    """Filter results to only those whose chunk text overlaps the answer.
+
+    Returns results in first-seen order, deduplicated by citation label.
+    A chunk is kept when at least _MIN_OVERLAP_WORDS distinct content words
+    from its text appear in the answer.
+
+    If the answer is empty or too short to extract meaningful words, no
+    filtering is applied — return all results (safe default that preserves
+    citation_accuracy).
+    """
+    answer_words = _content_words(answer_text)
+    if len(answer_words) < _MIN_OVERLAP_WORDS:
+        # Answer too short to filter meaningfully — keep everything.
+        return results
+
+    seen_labels: set[str] = set()
+    kept: list[SearchResult] = []
+    for r in results:
+        label = r.chunk.citation_label()
+        if label in seen_labels:
+            continue
+        chunk_words = _content_words(r.chunk.text)
+        overlap = answer_words & chunk_words
+        if len(overlap) >= _MIN_OVERLAP_WORDS:
+            seen_labels.add(label)
+            kept.append(r)
+    return kept
+
 
 def _recent(history: list[dict] | None) -> list[dict] | None:
     if not history:
@@ -30,12 +104,18 @@ def _recent(history: list[dict] | None) -> list[dict] | None:
     return history[-MAX_HISTORY_MESSAGES:]
 
 
-def citation_labels(results: list[SearchResult]) -> list[str]:
+def citation_labels(results: list[SearchResult],
+                     answer_text: str | None = None) -> list[str]:
     """Deduplicated citation labels from search results, first-seen order.
 
     Citations come from retrieved chunk metadata, never from model prose —
     the model can't cite a document that wasn't actually retrieved.
+
+    When answer_text is provided, citations are pruned to only those chunks
+    whose text has word overlap with the answer. See prune_citations.
     """
+    if answer_text is not None:
+        results = prune_citations(answer_text, results)
     seen: list[str] = []
     for result in results:
         label = result.chunk.citation_label()
@@ -44,11 +124,16 @@ def citation_labels(results: list[SearchResult]) -> list[str]:
     return seen
 
 
-def build_citations(results: list[SearchResult]) -> list[Citation]:
+def build_citations(results: list[SearchResult],
+                    answer_text: str | None = None) -> list[Citation]:
     """Rich citations with navigation metadata for the UI.
 
-    Deduplicated by label, first-seen order.
+    Deduplicated by label, first-seen order. When answer_text is provided,
+    citations are pruned to only those chunks whose text has word overlap
+    with the answer. See prune_citations.
     """
+    if answer_text is not None:
+        results = prune_citations(answer_text, results)
     seen: set[str] = set()
     citations: list[Citation] = []
     for result in results:
@@ -154,14 +239,15 @@ class Answerer:
     def __init__(self, llm):
         self._llm = llm
 
-    # Citations are every retrieved chunk, deliberately. Pruning them by
-    # scoring each chunk against the finished answer was tried and measured:
+    # Citations are pruned by answer-overlap after generation. Pruning them
+    # by scoring each chunk against the finished answer was tried and measured:
     # bge-reranker-v2-m3 gives 44% of the chunks a question NEEDS the same
     # neutral 0.500 it gives unrelated ones, so every threshold that lifted
     # citation precision from 0.26 to ~0.5 dropped source recall from 0.74 to
     # ~0.42 — halving multi_hop_citation_accuracy to tidy the citation list.
-    # The noise comes from retrieval handing over sixteen chunks; fix it there,
-    # not here.
+    # The noise comes from retrieval handing over sixteen chunks; answer-
+    # overlap filtering (prune_citations) fixes the citation list without
+    # touching the context set the model sees, so answer quality is preserved.
 
     def summarize_history(
         self, history: list[dict], model: str | None = None
@@ -216,7 +302,7 @@ class Answerer:
         # answer_async and ground_async run it off the critical path for the
         # UI, which is where it belongs until it measures well enough to gate
         # on. See _grounded's docstring.
-        return Answer(text=text, citations=citation_labels(results))
+        return Answer(text=text, citations=citation_labels(results, text))
 
     def answer_async(
         self,
@@ -253,7 +339,7 @@ class Answerer:
             return Answer(text=refusal_text(text), citations=[], refused=True)
         text = strip_no_answer(text)
 
-        answer = Answer(text=text, citations=citation_labels(results))
+        answer = Answer(text=text, citations=citation_labels(results, text))
 
         def _check() -> None:
             answer.grounded = self._grounded(text, results, model=model)
@@ -280,7 +366,7 @@ class Answerer:
         or the gate will judge a "the excerpts do not cover this" sentence
         against the excerpts and mark it UNSUPPORTED.
         """
-        answer = Answer(text=text, citations=citation_labels(results))
+        answer = Answer(text=text, citations=citation_labels(results, text))
 
         def _check() -> None:
             answer.grounded = self._grounded(text, results, model=model)

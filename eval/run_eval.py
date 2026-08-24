@@ -65,7 +65,8 @@ def resolve_answer(question: str, outcome, mode: AnswerMode,
         refused = is_refusal(draft)
         if refused:
             return refusal_text(draft), [], True, True
-        return strip_no_answer(draft), citation_labels(outcome.results), False, True
+        stripped = strip_no_answer(draft)
+        return stripped, citation_labels(outcome.results, stripped), False, True
 
     answer = answerer.answer(question, outcome.results)
     return answer.text, answer.citations, answer.refused, False

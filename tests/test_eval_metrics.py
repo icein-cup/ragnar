@@ -179,7 +179,7 @@ class _Outcome:
         self.results = list(results)
 
 
-def _chunk_result(filename="a.pdf", page=1, text="x"):
+def _chunk_result(filename="a.pdf", page=1, text="Kiwi is a fast-food chain."):
     from core.models import Chunk, SearchResult
     return SearchResult(
         chunk=Chunk(doc_id="d", filename=filename, text=text,

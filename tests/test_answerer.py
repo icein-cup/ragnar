@@ -6,8 +6,10 @@ from generation.answerer import (
     AnswerStream,
     NO_RESULTS_MESSAGE,
     build_excerpts,
+    build_citations,
     citation_labels,
     classify,
+    prune_citations,
 )
 from generation.guards import NO_ANSWER_MESSAGE
 from generation.prompts import CONVERSATION_SYSTEM_PROMPT
@@ -33,13 +35,14 @@ class StubLLM:
         yield self.reply
 
 
-def _result(filename, page, text, score=0.9, is_table=False, is_summary=False):
+def _result(filename, page, text, score=0.9, is_table=False,
+            is_summary=False, chunk_index=0):
     return SearchResult(
         chunk=Chunk(
             doc_id="d1",
             filename=filename,
             text=text,
-            chunk_index=0,
+            chunk_index=chunk_index,
             page=page,
             is_table=is_table,
             is_summary=is_summary,
@@ -52,7 +55,8 @@ def test_citations_derive_from_chunks_not_model_output():
     llm = StubLLM(reply="The answer is in doc_that_does_not_exist.pdf")
     answerer = Answerer(llm)
 
-    answer = answerer.answer("q", [_result("real.pdf", 4, "text")])
+    # Chunk text overlaps with the reply so it survives citation pruning.
+    answer = answerer.answer("q", [_result("real.pdf", 4, "answer doc pdf")])
 
     assert answer.citations == ["real.pdf, p. 4"]
 
@@ -60,9 +64,9 @@ def test_citations_derive_from_chunks_not_model_output():
 def test_citations_are_deduplicated_by_file_and_page():
     answerer = Answerer(StubLLM())
     results = [
-        _result("a.pdf", 1, "one"),
-        _result("a.pdf", 1, "two"),
-        _result("a.pdf", 2, "three"),
+        _result("a.pdf", 1, "contract number SC-4471"),
+        _result("a.pdf", 1, "contract details"),
+        _result("a.pdf", 2, "number 4471 reference"),
     ]
 
     answer = answerer.answer("q", results)
@@ -237,7 +241,8 @@ def test_history_none_default_preserves_existing_behaviour():
     llm = StubLLM()
     answerer = Answerer(llm)
 
-    answer = answerer.answer("q", [_result("a.pdf", 1, "text")])
+    # Chunk text overlaps with the stub reply so it survives pruning.
+    answer = answerer.answer("q", [_result("a.pdf", 1, "contract number SC-4471")])
 
     assert answer.refused is False
     assert answer.citations == ["a.pdf, p. 1"]
@@ -545,3 +550,140 @@ def test_a_sentinel_with_its_own_explanation_keeps_that_explanation():
     answer = Answerer(StubLLM(reply="NO_ANSWER The excerpts stop at 2019.")).answer(
         "q", [_result("a.pdf", 1, "x")])
     assert answer.text == "The excerpts stop at 2019."
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Citation pruning: answer-overlap filtering
+# ──────────────────────────────────────────────────────────────────────────────
+
+def test_prune_citations_drops_chunks_with_no_answer_overlap():
+    """A chunk whose text shares no content words with the answer is noise
+    from fusion — it was retrieved but the model never used it."""
+    results = [
+        _result("relevant.pdf", 1, "contract number SC-4471"),
+        _result("irrelevant.pdf", 1, "weather forecast rain tomorrow"),
+    ]
+    pruned = prune_citations("The contract number is SC-4471.", results)
+    labels = [r.chunk.citation_label() for r in pruned]
+    assert labels == ["relevant.pdf, p. 1"]
+
+
+def test_prune_citations_keeps_chunks_with_word_overlap():
+    """Chunks that share content words with the answer are kept."""
+    results = [
+        _result("a.pdf", 1, "contract number SC-4471"),
+        _result("b.pdf", 2, "SC-4471 reference document"),
+    ]
+    pruned = prune_citations("The contract number is SC-4471.", results)
+    labels = [r.chunk.citation_label() for r in pruned]
+    assert "a.pdf, p. 1" in labels
+    assert "b.pdf, p. 2" in labels
+
+
+def test_prune_citations_deduplicates_by_label():
+    """Multiple chunks from the same page collapse to one citation."""
+    results = [
+        _result("a.pdf", 1, "contract number SC-4471"),
+        _result("a.pdf", 1, "contract details SC-4471"),
+    ]
+    pruned = prune_citations("The contract number is SC-4471.", results)
+    assert len(pruned) == 1
+    assert pruned[0].chunk.citation_label() == "a.pdf, p. 1"
+
+
+def test_prune_citations_preserves_first_seen_order():
+    """Results are returned in the order they first appear."""
+    results = [
+        _result("z.pdf", 1, "contract number SC-4471"),
+        _result("a.pdf", 1, "number SC-4471 details"),
+        _result("m.pdf", 1, "weather rain forecast"),
+    ]
+    pruned = prune_citations("The contract number is SC-4471.", results)
+    labels = [r.chunk.citation_label() for r in pruned]
+    assert labels == ["z.pdf, p. 1", "a.pdf, p. 1"]
+
+
+def test_prune_citations_returns_all_when_answer_too_short():
+    """A very short answer can't produce meaningful overlap — safe default
+    is to keep everything (preserves citation_accuracy)."""
+    results = [
+        _result("a.pdf", 1, "contract number SC-4471"),
+        _result("b.pdf", 1, "weather forecast rain"),
+    ]
+    pruned = prune_citations("Yes.", results)
+    assert len(pruned) == 2
+
+
+def test_prune_citations_returns_all_for_empty_answer():
+    results = [_result("a.pdf", 1, "anything")]
+    assert prune_citations("", results) == results
+
+
+def test_prune_citations_requires_min_two_overlap_words():
+    """A single shared word is not enough — it could be coincidence."""
+    results = [
+        _result("a.pdf", 1, "contract number SC-4471"),
+        _result("b.pdf", 1, "contract zzzz"),
+    ]
+    # a.pdf shares "contract", "sc", "4471" (3 words) — kept.
+    # b.pdf shares only "contract" (1 word) — below _MIN_OVERLAP_WORDS=2.
+    pruned = prune_citations("The contract is SC-4471.", results)
+    labels = [r.chunk.citation_label() for r in pruned]
+    assert "a.pdf, p. 1" in labels
+    assert "b.pdf, p. 1" not in labels
+
+
+def test_citation_labels_with_answer_text_prunes():
+    """citation_labels accepts an optional answer_text for pruning."""
+    results = [
+        _result("a.pdf", 1, "contract number SC-4471"),
+        _result("b.pdf", 1, "weather forecast rain"),
+    ]
+    labels = citation_labels(results, "The contract number is SC-4471.")
+    assert labels == ["a.pdf, p. 1"]
+
+
+def test_citation_labels_without_answer_text_no_pruning():
+    """Backward-compatible: without answer_text, no pruning is applied."""
+    results = [
+        _result("a.pdf", 1, "contract number SC-4471"),
+        _result("b.pdf", 1, "weather forecast rain"),
+    ]
+    labels = citation_labels(results)
+    assert labels == ["a.pdf, p. 1", "b.pdf, p. 1"]
+
+
+def test_build_citations_with_answer_text_prunes():
+    """build_citations accepts an optional answer_text for pruning."""
+    results = [
+        _result("a.pdf", 1, "contract number SC-4471"),
+        _result("b.pdf", 1, "weather forecast rain"),
+    ]
+    citations = build_citations(results, "The contract number is SC-4471.")
+    assert len(citations) == 1
+    assert citations[0].label == "a.pdf, p. 1"
+
+
+def test_answer_prunes_citations_to_answer_overlap():
+    """The answer() method should only cite chunks that overlap with the
+    generated answer text."""
+    llm = StubLLM(reply="The contract number is SC-4471.")
+    answerer = Answerer(llm)
+    results = [
+        _result("relevant.pdf", 1, "contract number SC-4471"),
+        _result("noise.pdf", 1, "weather forecast rain tomorrow"),
+    ]
+    answer = answerer.answer("q", results)
+    assert answer.citations == ["relevant.pdf, p. 1"]
+
+
+def test_answer_keeps_all_citations_when_answer_overlaps_all():
+    """When the answer draws from all chunks, all are cited."""
+    llm = StubLLM(reply="The contract number SC-4471 is found in document reference.")
+    answerer = Answerer(llm)
+    results = [
+        _result("a.pdf", 1, "contract number SC-4471"),
+        _result("b.pdf", 1, "document reference page"),
+    ]
+    answer = answerer.answer("q", results)
+    assert set(answer.citations) == {"a.pdf, p. 1", "b.pdf, p. 1"}
