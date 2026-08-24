@@ -99,6 +99,24 @@ class Config:
         return self._raw["models"]["reranker"]
 
     @property
+    def llm_think(self) -> bool | None:
+        """Whether to ask a thinking model to reason before answering.
+
+        None (the default) omits the field, which is what non-thinking
+        models need — Ollama rejects "think" for a model that cannot do it.
+        """
+        return self._raw["models"].get("think")
+
+    @property
+    def llm_seed(self) -> int | None:
+        """Sampling seed, or None to let the model sample freely.
+
+        Only matters because query generation runs at a non-zero
+        temperature; pinning this is what keeps two eval runs comparable.
+        """
+        return self._raw["models"].get("seed")
+
+    @property
     def collection(self) -> str:
         return self._raw["storage"]["collection"]
 

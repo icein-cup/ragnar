@@ -3,11 +3,13 @@ from core.models import Chunk, SearchResult
 from generation.answerer import (
     Answerer,
     AnswerMode,
+    AnswerStream,
     NO_RESULTS_MESSAGE,
     build_excerpts,
     citation_labels,
     classify,
 )
+from generation.guards import NO_ANSWER_MESSAGE
 from generation.prompts import CONVERSATION_SYSTEM_PROMPT
 
 
@@ -119,16 +121,17 @@ def test_per_request_model_and_temperature_are_threaded_to_the_llm():
     Answerer(llm).answer(
         "q", [_result("a.pdf", 1, "x")], model="llama3", temperature=0.7
     )
-    # answer() makes two calls: the streamed answer, then the grounding check.
+    # One call: the streamed answer. answer() deliberately does not run the
+    # grounding check — that is answer_async/ground_async's job, off the
+    # critical path. See Answerer.answer.
     assert llm.opts[0] == ("llama3", 0.7)
-    assert llm.opts[1] == ("llama3", None)
 
     list(
         Answerer(llm).stream(
             "q", [_result("a.pdf", 1, "x")], model="qwen", temperature=0.2
         )
     )
-    assert llm.opts[2] == ("qwen", 0.2)
+    assert llm.opts[1] == ("qwen", 0.2)
 
 
 # --- classify: the shared refuse / guard / answer policy ---------------------
@@ -206,15 +209,16 @@ def test_empty_history_produces_no_summary():
 
     answerer.answer("only question", [_result("a.pdf", 1, "x")], history=[])
 
-    # No summarisation call was made — the answer stream plus the grounding
-    # check, and the answer prompt must not carry a conversation summary.
-    assert len(llm.prompts) == 2
+    # No summarisation call was made — the answer stream is the only call,
+    # and the answer prompt must not carry a conversation summary.
+    assert len(llm.prompts) == 1
     _system, user = llm.prompts[0]
     assert "Conversation so far:" not in user
 
 
 def test_single_turn_history_produces_no_summary():
-    # < 2 messages is too short to summarise — answer stream + grounding check.
+    # < 2 messages is too short to summarise, so the answer stream is the
+    # only call.
     llm = StubLLM()
     answerer = Answerer(llm)
 
@@ -224,7 +228,7 @@ def test_single_turn_history_produces_no_summary():
         history=[{"role": "user", "content": "hi"}],
     )
 
-    assert len(llm.prompts) == 2
+    assert len(llm.prompts) == 1
     _system, user = llm.prompts[0]
     assert "Conversation so far:" not in user
 
@@ -237,8 +241,9 @@ def test_history_none_default_preserves_existing_behaviour():
 
     assert answer.refused is False
     assert answer.citations == ["a.pdf, p. 1"]
-    # No summarisation call — answer stream + grounding check, history=None.
-    assert len(llm.prompts) == 2
+    # history=None means no summarisation call, so the answer stream is
+    # the only call.
+    assert len(llm.prompts) == 1
     assert llm.histories[0] is None
 
 
@@ -476,3 +481,67 @@ def test_ground_async_runs_the_gate_on_existing_text():
     while answer.grounded is None and time.monotonic() < deadline:
         time.sleep(0.01)
     assert answer.grounded is False  # UNSUPPORTED verdict lands in background
+
+
+# AnswerStream: the NO_ANSWER sentinel must never reach the screen, but the
+# refusal it signals must still reach the caller. st.write_stream renders each
+# delta on arrival, so those two requirements pull in opposite directions.
+
+def test_answer_stream_hides_the_sentinel_and_reports_the_refusal():
+    stream = AnswerStream(iter(["NO_", "ANSWER", " The excerpts ", "stop at 2019."]))
+    assert "".join(stream) == "The excerpts stop at 2019."
+    assert stream.refused is True
+
+
+def test_answer_stream_passes_a_real_answer_through_unchanged():
+    deltas = ["Multan sits on ", "the Chenab ", "River."]
+    stream = AnswerStream(iter(deltas))
+    assert "".join(stream) == "".join(deltas)
+    assert stream.refused is False
+
+
+def test_answer_stream_handles_a_sentinel_split_across_many_deltas():
+    """One character per delta is the worst case for the buffer, and the case
+    a naive startswith() on the first delta gets wrong."""
+    stream = AnswerStream(iter(list("NO_ANSWER") + [" nothing here."]))
+    assert "".join(stream) == "nothing here."
+    assert stream.refused is True
+
+
+def test_answer_stream_survives_a_stream_shorter_than_the_sentinel():
+    stream = AnswerStream(iter(["No."]))
+    assert "".join(stream) == "No."
+    assert stream.refused is False
+
+
+def test_answer_strips_the_sentinel_but_still_marks_the_refusal():
+    llm = StubLLM(reply="NO_ANSWER The excerpts do not cover 2020.")
+    answer = Answerer(llm).answer("q", [_result("a.pdf", 1, "x")])
+    assert answer.refused is True
+    assert answer.citations == []
+    assert answer.text == "The excerpts do not cover 2020."
+    assert "NO_ANSWER" not in answer.text
+
+
+# Qwen3.8-27 answers a non-answer with the bare sentinel and nothing else, so
+# stripping the token leaves an empty string. A refusal that renders as blank
+# is worse than no refusal at all — the user sees an empty reply.
+
+def test_a_bare_sentinel_stream_still_shows_something():
+    stream = AnswerStream(iter(["NO_", "ANSWER"]))
+    assert "".join(stream) == NO_ANSWER_MESSAGE
+    assert stream.refused is True
+
+
+def test_answer_never_returns_a_blank_refusal():
+    answer = Answerer(StubLLM(reply="NO_ANSWER")).answer(
+        "q", [_result("a.pdf", 1, "x")])
+    assert answer.refused is True
+    assert answer.citations == []
+    assert answer.text == NO_ANSWER_MESSAGE
+
+
+def test_a_sentinel_with_its_own_explanation_keeps_that_explanation():
+    answer = Answerer(StubLLM(reply="NO_ANSWER The excerpts stop at 2019.")).answer(
+        "q", [_result("a.pdf", 1, "x")])
+    assert answer.text == "The excerpts stop at 2019."

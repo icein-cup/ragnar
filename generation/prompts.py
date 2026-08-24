@@ -1,11 +1,35 @@
-SYSTEM_PROMPT = """\
+from generation.guards import NO_ANSWER
+
+# The NO_ANSWER rule below is a contract with generation.guards.is_refusal,
+# which drives the refused flag, whether the UI attaches citations, and the
+# refusal_accuracy metric. Before it existed, that decision rested on regex
+# matching whatever phrases the model happened to reach for - so swapping
+# models silently moved the metric. Keep the two in step.
+#
+# The "answer whenever you can" rule is not padding; it is load-bearing, and
+# was measured on qwen2.5:7b over 40 in-corpus cases and 20 probes
+# (eval/replay_answer.py):
+#
+#   no sentinel, "say so plainly"          accuracy 0.60   refusal 0.85
+#   sentinel + "explain briefly why"       accuracy 0.50   refusal 0.95
+#   sentinel + this pro-answer rule        accuracy 0.62   refusal 0.95
+#
+# Giving the model a token for declining makes declining easier to reach for.
+# Asking it to justify a refusal made that worse still - four correct answers
+# lost to buy two correct refusals. Saying outright that answering is
+# preferred is what pays for the token. Re-measure before loosening it.
+SYSTEM_PROMPT = f"""\
 You answer questions strictly from the provided document excerpts.
 
 Rules:
 - Use ONLY information in the excerpts. Never use outside knowledge.
-- If the excerpts do not contain the answer, say so plainly. Do not guess.
+- Answer whenever the excerpts contain the answer — including when it takes \
+combining two excerpts, or when their wording differs from the question's. \
+Do not decline a question the excerpts can answer.
+- Only when the excerpts genuinely do not contain the answer, say so plainly, \
+starting your reply with {NO_ANSWER}. Do not guess.
 - Answer in the SAME LANGUAGE as the question, even when the excerpts are \
-in a different language.
+in a different language. The {NO_ANSWER} token itself is never translated.
 - Be concise and factual. Do not speculate or embellish.
 - Citations are added separately after your answer — do not include your \
 own citations or source references in the response text.
@@ -103,6 +127,19 @@ def build_user_prompt(
     return "\n\n".join(parts)
 
 
+# Measured with eval/replay_gate.py against eval/reports/20260824-132940.json
+# (qwen2.5:7b judging its own answers):
+#
+#                          bad answers caught   correct answers lost
+#   without the accept rule       9/10                 16/25
+#   with it (below)               9/20                  7/25
+#
+# Stating when to ACCEPT more than halved the false rejections — the prompt
+# used to list three ways to fail and no way to pass, so the model rejected by
+# default. It is still not good enough to gate on: losing 28% of correct
+# answers to catch 45% of bad ones is a bad trade while over-refusal is
+# already the pipeline's biggest problem (28 of 90 in-corpus questions refused
+# in that same run). _grounded therefore stays advisory — see its docstring.
 GROUNDING_PROMPT = """\
 You are a fact-checker. Decide whether an answer is fully supported by the \
 provided document excerpts.
@@ -113,8 +150,13 @@ The answer is UNSUPPORTED if it states any fact that is:
 - about the wrong entity, year, or field (a number that belongs to a \
 different city, a different year, or a different column).
 
-Ignore wording differences; judge the facts, not the phrasing. If the answer \
-correctly says the excerpts lack the information, that is SUPPORTED.
+The answer is SUPPORTED if every fact it states appears in the excerpts. \
+Partial answers are SUPPORTED — judge only what the answer claims, not what \
+it leaves out. An answer that correctly says the excerpts lack the \
+information is SUPPORTED. When in doubt, prefer SUPPORTED: a wrongly \
+rejected answer costs the user a correct reply.
+
+Ignore wording differences; judge the facts, not the phrasing.
 
 Output exactly one word: SUPPORTED or UNSUPPORTED.
 """

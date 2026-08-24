@@ -29,7 +29,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from core.config import Config
 from core.models import Chunk, SearchResult
 from eval.metrics import _words
-from generation.guards import is_refusal
+from generation.guards import NO_ANSWER, is_refusal
 from generation.llm import OllamaLLM
 from generation.prompts import SYSTEM_PROMPT, build_user_prompt
 
@@ -121,6 +121,12 @@ def main() -> None:
     parser.add_argument("--probes", type=int, default=20,
                         help="out-of-corpus cases to score")
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--think", choices=("off", "on", "default"),
+                        default="off",
+                        help="off (default) sends think:false; on sends "
+                             "think:true; default omits the field. A thinking "
+                             "model forced not to think may answer far worse "
+                             "than it can — this is how that gets measured")
     args = parser.parse_args()
 
     report = args.report or latest_report()
@@ -135,32 +141,46 @@ def main() -> None:
     rng.shuffle(probes)
     in_corpus, probes = in_corpus[:args.sample], probes[:args.probes]
 
-    print(f"report: {report.name}   model: {model}   prompt: {args.prompt}")
+    print(f"report: {report.name}   model: {model}   prompt: {args.prompt}"
+          f"   think: {args.think}")
     print(f"scoring {len(in_corpus)} in-corpus, {len(probes)} probes\n")
 
-    llm = OllamaLLM(cfg.ollama_url, model, think=False)
-    system = PROMPTS[args.prompt]
-    started = time.monotonic()
+    think = {"off": False, "on": True, "default": None}[args.think]
+    llm = OllamaLLM(cfg.ollama_url, model, think=think)
+    try:
+        system = PROMPTS[args.prompt]
+        started = time.monotonic()
 
-    correct = 0
-    for n, case in enumerate(in_corpus, 1):
-        text = answer_with(llm, system, case, model)
-        ok = _words(case["expected_answer"]) in _words(text)
-        correct += ok
-        print(f"[{n}/{len(in_corpus)}] {'ok  ' if ok else 'WRONG'} "
-              f"want={case['expected_answer'][:28]!r} got={text[:52]!r}", flush=True)
+        correct = 0
+        for n, case in enumerate(in_corpus, 1):
+            text = answer_with(llm, system, case, model)
+            # A refusal is never correct here — these questions are answerable.
+            # Without the is_refusal guard, a refusal whose explanation happens to
+            # repeat a word from the expected answer scored as a hit.
+            ok = (not is_refusal(text)
+                  and _words(case["expected_answer"]) in _words(text))
+            correct += ok
+            print(f"[{n}/{len(in_corpus)}] {'ok  ' if ok else 'WRONG'} "
+                  f"want={case['expected_answer'][:28]!r} got={text[:52]!r}", flush=True)
 
-    refused = 0
-    for n, case in enumerate(probes, 1):
-        text = answer_with(llm, system, case, model)
-        r = is_refusal(text)
-        refused += r
-        print(f"[probe {n}/{len(probes)}] {'refused' if r else 'ANSWERED'} "
-              f"{case['question'][:44]} -> {text[:46]!r}", flush=True)
+        refused = 0
+        for n, case in enumerate(probes, 1):
+            text = answer_with(llm, system, case, model)
+            r = is_refusal(text)
+            refused += r
+            print(f"[probe {n}/{len(probes)}] {'refused' if r else 'ANSWERED'} "
+                  f"{case['question'][:44]} -> {text[:46]!r}", flush=True)
 
-    print(f"\n{time.monotonic() - started:.0f}s   prompt={args.prompt} model={model}")
-    print(f"answer_accuracy : {correct}/{len(in_corpus)} = {correct / len(in_corpus):.2f}")
-    print(f"refusal_rate    : {refused}/{len(probes)} = {refused / len(probes):.2f}")
+        print(f"\n{time.monotonic() - started:.0f}s   prompt={args.prompt} model={model}")
+        print(f"answer_accuracy : {correct}/{len(in_corpus)} = {correct / len(in_corpus):.2f}")
+        print(f"refusal_rate    : {refused}/{len(probes)} = {refused / len(probes):.2f}")
+
+    finally:
+        # A finished replay has no reason to hold the weights.
+        # keep_alive would keep them for ten more minutes, and
+        # Ollama only evicts an idle model under memory pressure —
+        # which a 31 GB model on a 48 GB host reaches too late.
+        llm.unload()
 
 
 if __name__ == "__main__":

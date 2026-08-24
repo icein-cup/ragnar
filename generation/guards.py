@@ -2,42 +2,67 @@ import re
 
 from core.models import SearchResult
 
-# English and Polish aggregation intent markers. Complete words only —
-# anything that needs to match inflected endings belongs in
-# AGGREGATION_STEMS below instead.
+# Words that mean the question ranges over a SET of rows, not one cell.
+# That distinction is the whole job here. This list used to also hold
+# "how many", "how much", "count", "rank", "ranking" and the superlatives,
+# which matched 29 of the 125 benchmark questions while only about one of
+# them was a real aggregation: "how many stores does Netto have" is a single
+# cell, and refusing it costs a correct answer for nothing.
+#
+# Scored against eval/golden_aggregation.yaml (8 real aggregations, 8
+# single-cell lookups, all phrased with aggregation vocabulary): 8/8 caught,
+# 0/8 lookups wrongly caught. The old list caught 16/16.
 AGGREGATION_TERMS = {
     # English
-    "total", "sum", "average", "mean", "count", "how many", "how much",
-    "highest", "lowest", "largest", "smallest", "top", "rank", "ranking",
-    "aggregate", "overall", "combined", "altogether",
+    "total", "sum", "average", "mean", "aggregate", "overall", "combined",
+    "altogether", "all",
     # Polish
-    "suma", "sumy", "razem", "łącznie", "lacznie", "ile", "średnia",
-    "srednia", "ranking", "łączna", "laczna", "ogółem", "ogolem",
+    "suma", "sumy", "razem", "łącznie", "lacznie", "średnia", "srednia",
+    "łączna", "laczna", "ogółem", "ogolem", "wszystkie", "wszystkich",
 }
 
-# Polish superlatives inflect for gender and case ("największa kwota",
-# "najwyższy przychód"), so only the stem is stable. These must NOT get a
-# trailing word boundary — `\bnajwiększ\b` cannot match "największa", since
-# the following letter is itself a word character. That is precisely the bug
-# these were split out to fix.
-AGGREGATION_STEMS = {
-    "największ", "najwieksz", "najmniejsz", "najwyższ", "najwyzsz",
-}
+# Partitive phrasings: "how many OF the listed airports", "how many DIFFERENT
+# chains". The "of"/"different" is what turns a count into a count over a
+# set — "how many stores does Netto have" has neither.
+AGGREGATION_PATTERNS = (
+    r"how man(?:y|ies) (?:of|different)\b",
+    r"how much of\b",
+    r"ile (?:z|spośród|sposrod)\b",
+)
+
+# DELIBERATELY NOT HERE: the superlatives (highest, lowest, largest,
+# smallest, top, most, and the Polish największ-/najwyższ- stems).
+#
+# They are genuinely ambiguous and the evidence does not settle them. Over a
+# table split across many chunks, "which airport has the most movements" is
+# unsafe for the same reason a sum is — the model sees a fragment and reports
+# the maximum of that fragment. Over a rank-sorted table it is a plain lookup
+# of row 1.
+#
+# Including them costs 3 of the 8 lookups in the probe set, which is measured;
+# the benefit is hypothetical, because the guard only runs at all when
+# retrieval is table-majority. Left out for now, with the trade-off written
+# down rather than decided silently. The sharper rule, if this ever needs
+# settling: fire on a superlative only when several chunks of the SAME table
+# were retrieved, which is exactly the fragment case.
+#
+# If they are ever restored, the Polish ones must go back as STEMS with a
+# leading boundary only — "największ" and not r"\bnajwiększ\b" — because
+# those superlatives inflect for gender and case ("największa kwota",
+# "najwyższy przychód") and a trailing \b cannot match when the next
+# character is itself a word character. That was a real bug once.
 
 TABLE_MAJORITY = 0.5
 
 # Single-word terms match on both boundaries ("total" but not "totally");
-# stems match on the leading boundary only, so inflected endings still hit;
-# multi-word terms are plain substrings. All three are derived from the sets
-# above, which stay the one place to edit the vocabulary.
+# multi-word terms are plain substrings. Both derive from the set above,
+# which stays the one place to edit the vocabulary.
 _WORD_RE = re.compile(
     r"\b(?:%s)\b" % "|".join(
         re.escape(t) for t in sorted(AGGREGATION_TERMS) if " " not in t
     )
 )
-_STEM_RE = re.compile(
-    r"\b(?:%s)" % "|".join(re.escape(t) for t in sorted(AGGREGATION_STEMS))
-)
+_PATTERN_RE = re.compile("|".join(AGGREGATION_PATTERNS))
 _PHRASES = tuple(sorted(t for t in AGGREGATION_TERMS if " " in t))
 
 
@@ -45,7 +70,7 @@ def _has_aggregation_intent(question: str) -> bool:
     lowered = question.lower()
     return (
         bool(_WORD_RE.search(lowered))
-        or bool(_STEM_RE.search(lowered))
+        or bool(_PATTERN_RE.search(lowered))
         or any(p in lowered for p in _PHRASES)
     )
 
@@ -92,11 +117,16 @@ def aggregation_refusal(results: list[SearchResult]) -> str:
     )
 
 
+# The sentinel SYSTEM_PROMPT tells the model to lead a non-answer with. This
+# is the primary refusal signal: it is a contract we set, so it does not
+# change when the model does. REFUSAL_PATTERNS below stays as a fallback for
+# a model that ignores the instruction.
+NO_ANSWER = "NO_ANSWER"
+
 # Phrases a model reaches for when the excerpts do not cover the question.
-# English and Polish, matching AGGREGATION_TERMS' bilingual scope.
-# ponytail: phrase list in two languages. If a third language shows up, swap
-# this for a sentinel token the SYSTEM_PROMPT emits (needs stream buffering
-# in the UI so the token never flashes mid-answer).
+# English and Polish, matching AGGREGATION_TERMS' bilingual scope. These were
+# harvested from qwen2.5's output, so they describe one model's habits rather
+# than refusal in general - which is exactly why NO_ANSWER above exists.
 REFUSAL_PATTERNS = (
     # English
     r"do(?:es)? not (?:contain|provide|specify|mention|state|include)",
@@ -131,9 +161,46 @@ def is_refusal(text: str) -> bool:
     model writes "the excerpts do not contain that" and the app still marks
     it an answer and staples five citations to it.
 
-    Only the FIRST sentence is examined. An answer that states a fact and
-    then caveats a missing detail ("Larry McMurtry wrote it. The excerpts do
-    not give the year.") is an answer, not a refusal, and matching the whole
-    text would throw it away along with its citations.
+    The NO_ANSWER sentinel is checked first. It is the reliable signal,
+    because SYSTEM_PROMPT dictates it; the phrase regex is a fallback for a
+    model that ignores the instruction, and it only recognises the two
+    languages someone thought to list.
+
+    For that fallback, only the FIRST sentence is examined. An answer that
+    states a fact and then caveats a missing detail ("Larry McMurtry wrote
+    it. The excerpts do not give the year.") is an answer, not a refusal, and
+    matching the whole text would throw it away along with its citations.
     """
+    if text.lstrip().startswith(NO_ANSWER):
+        return True
     return bool(_REFUSAL_RE.search(_first_sentence(text)))
+
+
+# What to show when the model gives the sentinel and nothing else.
+# Qwen3.8-27 does exactly that: its whole reply is "NO_ANSWER", so stripping
+# the token leaves an empty string and the answer renders as blank.
+NO_ANSWER_MESSAGE = (
+    "The retrieved excerpts do not contain the answer to that question."
+)
+
+
+def refusal_text(text: str) -> str:
+    """Reader-facing text for a refusal: token removed, never empty.
+
+    Use this wherever a refusal is shown or stored. strip_no_answer alone is
+    not enough — a model that replies with the bare sentinel would leave
+    nothing on screen.
+    """
+    return strip_no_answer(text).strip() or NO_ANSWER_MESSAGE
+
+
+def strip_no_answer(text: str) -> str:
+    """Remove a leading NO_ANSWER sentinel, leaving the explanation.
+
+    The token is machinery, not prose. Call ``is_refusal`` before this, not
+    after — stripping is what makes the sentinel invisible to it.
+    """
+    stripped = text.lstrip()
+    if not stripped.startswith(NO_ANSWER):
+        return text
+    return stripped[len(NO_ANSWER):].lstrip()

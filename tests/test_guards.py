@@ -2,9 +2,11 @@ from core.models import Chunk, SearchResult
 import pytest
 
 from generation.guards import (
+    NO_ANSWER,
     aggregation_refusal,
     is_refusal,
     should_refuse_aggregation,
+    strip_no_answer,
 )
 
 
@@ -87,17 +89,34 @@ def test_aggregation_defers_to_precomputed_summary():
     assert not should_refuse_aggregation("What is the total revenue?", results)
 
 
-def test_polish_superlative_stems_match_their_inflected_forms():
-    """The stems are prefixes; wrapping them in a trailing \\b made every
-    inflected form miss, which is how Polish actually writes them."""
+def test_superlatives_no_longer_fire_the_guard_in_either_language():
+    """Deliberate narrowing, symmetric across languages.
+
+    "Which supplier has the largest share" is a lookup over a sorted table as
+    often as it is a scan of an unsorted one, and the guard cannot tell which.
+    Measured cost of keeping them: 3 of the 8 single-cell lookups in
+    eval/golden_aggregation.yaml refused. See the note in guards.py, which
+    also records how to restore the Polish stems correctly.
+    """
     results = [_result("| a | 1 |", True), _result("| b | 2 |", True)]
 
     for question in (
         "Jaka jest największa kwota?",
         "Jaka jest najwyższa pensja?",
-        "Kto ma najmniejszy przychód?",
-        "Jaki jest najwyzszy koszt?",
-        "Ktory dostawca ma najwiekszy udzial?",
+        "Which supplier has the largest share?",
+        "Which airport has the highest number of movements?",
+    ):
+        assert not should_refuse_aggregation(question, results), question
+
+
+def test_polish_collective_terms_still_fire():
+    """The narrowing dropped Polish superlatives, not Polish support."""
+    results = [_result("| a | 1 |", True), _result("| b | 2 |", True)]
+
+    for question in (
+        "Jaka jest suma wszystkich kwot?",
+        "Ile wynosi łącznie przychód?",
+        "Jaka jest średnia pensja?",
     ):
         assert should_refuse_aggregation(question, results), question
 
@@ -138,3 +157,31 @@ def test_is_refusal_reads_a_bare_value_then_a_denial_as_a_refusal():
     first sentence, so the denial wins. That is the safe reading: the model
     disowned the value it just emitted."""
     assert is_refusal("0\n\nThe excerpts do not provide this number.")
+
+
+# The NO_ANSWER sentinel — the refusal signal that does not depend on which
+# model is answering, unlike REFUSAL_PATTERNS above.
+
+def test_no_answer_sentinel_is_a_refusal_whatever_follows_it():
+    # The point of the token: the explanation can be in any language, or use
+    # wording no one thought to add to REFUSAL_PATTERNS, and it still counts.
+    assert is_refusal(f"{NO_ANSWER} I could not locate that in the material.")
+    assert is_refusal(f"{NO_ANSWER} Az információ nem szerepel a részletekben.")
+    assert is_refusal(f"  {NO_ANSWER}\nNothing here covers the question.")
+
+
+def test_strip_no_answer_removes_the_token_and_leaves_the_reason():
+    assert strip_no_answer(
+        f"{NO_ANSWER} The excerpts cover 2019, not 2020."
+    ) == "The excerpts cover 2019, not 2020."
+
+
+def test_strip_no_answer_leaves_a_real_answer_untouched():
+    text = "Multan sits on the banks of the Chenab River."
+    assert strip_no_answer(text) == text
+
+
+def test_a_mid_answer_mention_of_the_token_is_not_a_refusal():
+    # Only a leading token counts, so an answer that happens to quote the
+    # word keeps its citations.
+    assert not is_refusal(f"The build flag is called {NO_ANSWER} in the config.")

@@ -178,31 +178,39 @@ def main() -> None:
 
     gate = evidence_gate if args.gate == "evidence" else grounded
     llm = OllamaLLM(cfg.ollama_url, model, think=False)
-    started = time.monotonic()
+    try:
+        started = time.monotonic()
 
-    caught = []
-    for case in fabrications:
-        if not gate(llm, case, model, args.contexts):
-            caught.append(case)
-        print(f"bad answer   {'CAUGHT ' if case in caught else 'missed '} "
-              f"{case['question'][:58]}", flush=True)
+        caught = []
+        for case in fabrications:
+            if not gate(llm, case, model, args.contexts):
+                caught.append(case)
+            print(f"bad answer   {'CAUGHT ' if case in caught else 'missed '} "
+                  f"{case['question'][:58]}", flush=True)
 
-    lost = []
-    for case in sample:
-        if not gate(llm, case, model, args.contexts):
-            lost.append(case)
-        print(f"correct      {'LOST   ' if case in lost else 'kept   '} "
-              f"{case['question'][:58]}", flush=True)
+        lost = []
+        for case in sample:
+            if not gate(llm, case, model, args.contexts):
+                lost.append(case)
+            print(f"correct      {'LOST   ' if case in lost else 'kept   '} "
+                  f"{case['question'][:58]}", flush=True)
 
-    print(f"\n{time.monotonic() - started:.0f}s")
-    print(f"bad answers caught:     {len(caught)}/{len(fabrications)}")
-    print(f"correct answers lost:   {len(lost)}/{len(sample)}")
-    if len(lost) == len(sample):
-        print("\nThis gate refuses everything — catching every fabrication "
-              "here means nothing.")
-    for case in lost:
-        print(f"  lost: {case['question'][:60]}\n"
-              f"        {case['answer'][:70]!r}")
+        print(f"\n{time.monotonic() - started:.0f}s")
+        print(f"bad answers caught:     {len(caught)}/{len(fabrications)}")
+        print(f"correct answers lost:   {len(lost)}/{len(sample)}")
+        if len(lost) == len(sample):
+            print("\nThis gate refuses everything — catching every fabrication "
+                  "here means nothing.")
+        for case in lost:
+            print(f"  lost: {case['question'][:60]}\n"
+                  f"        {case['answer'][:70]!r}")
+
+    finally:
+        # A finished replay has no reason to hold the weights.
+        # keep_alive would keep them for ten more minutes, and
+        # Ollama only evicts an idle model under memory pressure —
+        # which a 31 GB model on a 48 GB host reaches too late.
+        llm.unload()
 
 
 if __name__ == "__main__":

@@ -25,6 +25,11 @@ logger = logging.getLogger(__name__)
 
 FAST_PATH_MIN_RESULTS = 3         # Need at least N results clearing the floor
 
+# Temperature for the two calls that emit a retrieval query (_rewrite and
+# _generate_multi_queries). Everything else in this file stays at the
+# caller's temperature — see the note where the partials are built.
+QUERY_TEMPERATURE = 0.7
+
 # Strips leading bullets/numbering ("1.", "-", "*", "1)") that a model adds
 # despite being told not to.
 _BULLET_RE = re.compile(r"^\s*(?:[-*•]|\d+[.)])\s*")
@@ -87,6 +92,7 @@ class AgenticSearch:
         enable_multi_hop: bool = True,
         enable_self_correction: bool = True,
         fast_path_min_results: int = FAST_PATH_MIN_RESULTS,
+        query_temperature: float = QUERY_TEMPERATURE,
     ):
         self._base_search = base_search
         self._llm = llm
@@ -97,6 +103,7 @@ class AgenticSearch:
         self._enable_multi_hop = enable_multi_hop
         self._enable_self_correction = enable_self_correction
         self._fast_path_min_results = fast_path_min_results
+        self._query_temperature = query_temperature
 
     # ------------------------------------------------------------------
     # Public API
@@ -149,11 +156,29 @@ class AgenticSearch:
             else enable_self_correction
         )
 
-        gen = functools.partial(self._llm.generate, model=model, temperature=temperature)
+        # Two generators, split by what the call produces rather than by
+        # where it sits in the pipeline.
+        #
+        # gen_query drives the two calls whose entire output is a retrieval
+        # query. Those want lexical variety — the point of asking for three
+        # phrasings is that they differ, and greedy decoding gives three
+        # near-identical ones. Published RAG setups run query rewriting warm
+        # (CQC-RAG at 0.7) and synthesis cold, splitting on call type, not on
+        # hop number; nothing supports varying by hop, so nothing here does.
+        #
+        # gen keeps the caller's temperature (0.0 by default) for everything
+        # else: the self-correction draft, because it can be shipped verbatim
+        # as the answer, and the multi-hop / self-correction evaluations,
+        # because _parse_tag reads them against an exact "Sufficient:" /
+        # "Complete:" format that sampling would put at risk.
+        gen = functools.partial(self._llm.generate, model=model,
+                                temperature=temperature)
+        gen_query = functools.partial(self._llm.generate, model=model,
+                                      temperature=self._query_temperature)
         outcome = AgenticSearchOutcome()
 
         # 1. Query rewriting
-        query = self._rewrite(question, context_summary, gen) \
+        query = self._rewrite(question, context_summary, gen_query) \
                 if enable_rewrite else question
         outcome.rewritten_query = query if enable_rewrite else None
 
@@ -177,7 +202,7 @@ class AgenticSearch:
                 all_results, score_floor, vector_floor, use_reranker):
             extra = self._retrieve_multi_query(
                 query, doc_ids, score_floor, vector_floor, use_reranker,
-                context_summary, outcome, gen,
+                context_summary, outcome, gen_query,
             )
             all_results.extend(extra)
 

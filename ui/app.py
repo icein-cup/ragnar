@@ -11,9 +11,11 @@ import streamlit as st
 # only ever reached stderr at WARNING+. INFO surfaces both.
 logging.basicConfig(level=logging.INFO)
 
-from generation.guards import aggregation_refusal, is_refusal
+from generation.guards import (aggregation_refusal, is_refusal,
+                               refusal_text, strip_no_answer)
 from generation.answerer import (
     AnswerMode,
+    AnswerStream,
     classify,
     NO_RESULTS_MESSAGE,
     citation_labels,
@@ -374,9 +376,17 @@ if question := st.chat_input("Ask about your documents"):
             # LLM call without any quality drift.
             if getattr(outcome, "draft_answer", None):
                 text = outcome.draft_answer
+                # Read the sentinel before removing it — see AnswerStream.
+                refused = is_refusal(text)
+                text = refusal_text(text) if refused else strip_no_answer(text)
                 st.markdown(text)
             else:
-                text = st.write_stream(
+                # AnswerStream keeps the NO_ANSWER sentinel off the screen.
+                # st.write_stream paints deltas as they arrive, so the token
+                # cannot be stripped from the finished text — by then it has
+                # already been shown — and once stripped is_refusal can no
+                # longer see it. The wrapper carries that verdict out.
+                answer_stream = AnswerStream(
                     svc["answerer"].stream(
                         question,
                         outcome.results,
@@ -386,11 +396,13 @@ if question := st.chat_input("Ask about your documents"):
                         context_summary=context_summary,
                     )
                 )
+                text = st.write_stream(answer_stream)
+                refused = answer_stream.refused or is_refusal(text)
 
             # Citations are chosen AFTER the answer exists: a model that says
             # the excerpts do not cover the question gets none. Covers the
             # streamed answer and the reused draft alike.
-            rich_citations = [] if is_refusal(text) else build_citations(outcome.results)
+            rich_citations = [] if refused else build_citations(outcome.results)
             citations = [c.label for c in rich_citations]
 
             # Kick off the fabrication check in the background. It never blocks
@@ -399,7 +411,7 @@ if question := st.chat_input("Ask about your documents"):
             # block above). Refusals are skipped — a "the excerpts do not
             # cover this" sentence would be judged UNSUPPORTED against the
             # excerpts, which is noise, not a fabrication.
-            if not is_refusal(text):
+            if not refused:
                 grounded_answer = svc["answerer"].ground_async(
                     text, outcome.results, model=query["model"]
                 )

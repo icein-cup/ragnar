@@ -89,6 +89,29 @@ def answer_accuracy(cases: list[dict]) -> float:
     return correct / len(scored)
 
 
+def answer_coverage(cases: list[dict]) -> float:
+    """Of every answerable question, how many got the right answer?
+
+    The companion answer_accuracy needs, and must always be read beside it.
+    answer_accuracy drops refusals from its denominator, so it measures
+    "when it answers, is it right" — and a model that refuses almost
+    everything scores near 1.00 on it. That is not hypothetical:
+    Qwen3.8-27 with thinking disabled refused 38 of 40 in-corpus questions
+    and got the other 2 right, which is answer_accuracy 1.00 and
+    answer_coverage 0.05.
+
+    Here a refusal is simply wrong, because these questions are answerable
+    from the corpus. Precision is the other number; this is recall.
+    """
+    scored = [c for c in cases if not c["out_of_corpus"]]
+    if not scored:
+        return 0.0
+    correct = sum(1 for c in scored
+                  if not c["refused"]
+                  and _words(c["expected_answer"]) in _words(c["answer"]))
+    return correct / len(scored)
+
+
 def citation_precision(cases: list[dict]) -> float:
     """Of the sources cited, what fraction were ones the question needed?
 

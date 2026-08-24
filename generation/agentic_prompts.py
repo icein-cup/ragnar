@@ -9,7 +9,9 @@ Your task: rewrite the user's question into a more precise, retrieval-friendly q
 Rules:
 - Expand abbreviations and resolve ambiguous references using conversation context.
 - Break down complex questions into explicit sub-questions if needed.
-- Use keywords and phrases likely to appear in technical/legal documents.
+- Keep EVERY named entity, number, date and proper noun from the original. \
+Those are what makes the question findable; dropping one loses the document.
+- Do not add vocabulary from a subject area the question did not mention.
 - Preserve the original language.
 - Output ONLY the rewritten query — no explanations, no quotes.
 """

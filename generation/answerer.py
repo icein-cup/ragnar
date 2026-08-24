@@ -3,7 +3,9 @@ from dataclasses import dataclass, field
 from enum import Enum
 
 from core.models import SearchResult, Citation
-from generation.guards import is_refusal, should_refuse_aggregation
+from generation.guards import (NO_ANSWER, NO_ANSWER_MESSAGE, is_refusal,
+                              refusal_text, should_refuse_aggregation,
+                              strip_no_answer)
 from generation.prompts import (
     SYSTEM_PROMPT,
     CONVERSATION_SYSTEM_PROMPT,
@@ -98,6 +100,56 @@ class Answer:
     grounded: bool | None = None  # None = grounding check not run
 
 
+class AnswerStream:
+    """Answer deltas with the NO_ANSWER sentinel held back and remembered.
+
+    st.write_stream paints each delta the moment it arrives, so the sentinel
+    has to be removed before display or it flashes on screen. That leaves
+    ``is_refusal`` unable to find it in the finished text, which is what
+    ``refused`` is for — read it once the stream is exhausted.
+
+    Only enough of the opening is buffered to recognise the token; the rest
+    passes straight through, so this costs one delta of latency and nothing
+    else.
+    """
+
+    def __init__(self, deltas):
+        self._deltas = iter(deltas)
+        self.refused = False
+
+    def __iter__(self):
+        head = ""
+        for delta in self._deltas:
+            head += delta
+            if len(head.lstrip()) >= len(NO_ANSWER):
+                break
+        if head.lstrip().startswith(NO_ANSWER):
+            self.refused = True
+            head = strip_no_answer(head)
+            # The buffer stops the moment the token is recognised, so the
+            # space or newline the model put after it is usually still in the
+            # next delta. Pull until there is something real to show, or the
+            # stream ends, so the answer does not open with stray whitespace.
+            while not head.strip():
+                try:
+                    head += next(self._deltas)
+                except StopIteration:
+                    break
+            head = head.lstrip()
+        shown = False
+        if head:
+            shown = True
+            yield head
+        for delta in self._deltas:
+            if delta:
+                shown = True
+            yield delta
+        if self.refused and not shown:
+            # The whole reply was the bare sentinel. Yielding nothing would
+            # render the refusal as an empty answer.
+            yield NO_ANSWER_MESSAGE
+
+
 class Answerer:
     def __init__(self, llm):
         self._llm = llm
@@ -149,16 +201,22 @@ class Answerer:
             question, results, model=model, temperature=temperature,
             history=history, context_summary=context_summary,
         ))
-        if is_refusal(text):
+        # is_refusal reads the raw text — the NO_ANSWER sentinel is the point
+        # — and only then is the token stripped from what callers see.
+        refused = is_refusal(text)
+        if refused:
             # The model said the excerpts do not cover this. Citing sources
             # for a non-answer makes it read as a sourced one.
-            return Answer(text=text, citations=[], refused=True)
-        grounded = self._grounded(text, results, model=model)
-        return Answer(
-            text=text,
-            citations=citation_labels(results),
-            grounded=grounded,
-        )
+            return Answer(text=refusal_text(text), citations=[], refused=True)
+        text = strip_no_answer(text)
+        # No grounding check here, deliberately. This is the path the eval
+        # harness takes (eval/run_eval.py), and _grounded is a second LLM
+        # call per case whose verdict no report or metric records — it
+        # doubled a 55-minute benchmark to populate a field nothing read.
+        # answer_async and ground_async run it off the critical path for the
+        # UI, which is where it belongs until it measures well enough to gate
+        # on. See _grounded's docstring.
+        return Answer(text=text, citations=citation_labels(results))
 
     def answer_async(
         self,
@@ -190,8 +248,10 @@ class Answerer:
             question, results, model=model, temperature=temperature,
             history=history, context_summary=context_summary,
         ))
-        if is_refusal(text):
-            return Answer(text=text, citations=[], refused=True)
+        refused = is_refusal(text)
+        if refused:
+            return Answer(text=refusal_text(text), citations=[], refused=True)
+        text = strip_no_answer(text)
 
         answer = Answer(text=text, citations=citation_labels(results))
 
@@ -243,11 +303,21 @@ class Answerer:
         contain (a helicopter "cruising at Mach 2.2", a tuition figure from a
         different school, a number from the wrong year or column).
 
-        NOT WIRED INTO ``answer()``. On qwen2.5:3b this scored 10/10
-        fabrications caught and 23/25 good answers destroyed — a gate that
-        refuses everything, which would have taken refusal_accuracy from 0.82
-        to ~0.33. eval/replay_gate.py scores it against a saved report in two
-        minutes; re-wire it here only once a model passes that bar.
+        ADVISORY ONLY, and never on the critical path: reached through
+        ``answer_async`` / ``ground_async``, which run it on a daemon thread.
+        ``answer()`` does not call it — that is the eval harness's path, and a
+        second LLM call per case doubles a benchmark run to fill a field no
+        metric reads.
+
+        It does not gate anything, because it cannot yet. Best result so far
+        is qwen2.5:7b with the accept rule added to GROUNDING_PROMPT: 9/20 bad
+        answers caught for 7/25 correct answers destroyed. Before that rule it
+        was 16/25 destroyed, and on qwen2.5:3b 23/25 — a gate that refuses
+        everything. Even the best version would cost more correct answers than
+        the hallucinations it catches are worth, while over-refusal is already
+        the pipeline's largest failure. eval/replay_gate.py scores a candidate
+        against a saved report in about two minutes; let this decide anything
+        only once "correct answers lost" is near zero.
 
         Any failure to run the check (LLM error, malformed reply) resolves to
         True — the answer stands rather than being dropped on a judge outage.

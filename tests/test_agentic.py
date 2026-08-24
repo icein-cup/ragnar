@@ -2,7 +2,8 @@
 import pytest
 
 from core.models import Chunk, SearchResult, Citation
-from retrieval.agentic import AgenticSearch, AgenticSearchOutcome
+from retrieval.agentic import (AgenticSearch, AgenticSearchOutcome,
+                               QUERY_TEMPERATURE)
 from generation.agentic_prompts import (
     build_rewrite_prompt,
     build_multi_query_prompt,
@@ -559,3 +560,58 @@ def test_fast_path_declines_when_the_cosine_floor_is_disabled():
 
     assert agentic._is_fast_path(strong, vector_floor=0.0,
                                  use_reranker=False) is False
+
+
+# Temperature is split by what a call produces, not by where it sits in the
+# pipeline: query generation wants lexical variety, everything else must stay
+# deterministic (the draft can be shipped verbatim, and _parse_tag reads the
+# evaluations against an exact format).
+
+def _temps_by_kind(llm):
+    """(system, user, temperature) for every call, tagged by call kind."""
+    out = []
+    for (system, user), kwargs in zip(llm._calls, llm._call_kwargs):
+        blob = f"{system} {user}"
+        if "rewrite" in blob.lower():
+            kind = "rewrite"
+        elif "different ways" in blob.lower():
+            kind = "multi_query"
+        elif "Sufficient" in blob:
+            kind = "multi_hop"
+        elif "Complete" in blob:
+            kind = "self_correction"
+        else:
+            kind = "draft"
+        out.append((kind, kwargs.get("temperature")))
+    return out
+
+
+class _AnySearch(StubSearch):
+    """Returns the same results for any query, so these tests exercise the
+    temperature routing rather than the fake's query matching."""
+
+    def find(self, question, **kwargs):
+        from retrieval.search import SearchOutcome
+        return SearchOutcome(results=[_result("a"), _result("b")])
+
+
+def test_query_generation_runs_warm_and_everything_else_stays_cold():
+    llm = FakeLLM({"multi_hop": "Sufficient: no\nMissing: x\nFollowUp: more"})
+    search = AgenticSearch(_AnySearch(), llm, query_temperature=0.7)
+    search.find("q?", temperature=0.0)
+
+    by_kind = _temps_by_kind(llm)
+    assert by_kind, "no LLM calls were made"
+    for kind, temp in by_kind:
+        if kind in ("rewrite", "multi_query"):
+            assert temp == 0.7, f"{kind} should sample, got {temp}"
+        else:
+            assert temp == 0.0, f"{kind} must stay deterministic, got {temp}"
+
+
+def test_query_temperature_is_configurable_and_defaults_to_the_module_constant():
+    llm = FakeLLM()
+    AgenticSearch(_AnySearch(), llm).find("q?", temperature=0.0)
+    assert any(t == QUERY_TEMPERATURE
+               for kind, t in _temps_by_kind(llm)
+               if kind in ("rewrite", "multi_query"))

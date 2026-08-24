@@ -46,7 +46,8 @@ def build_services():
     embedder = OllamaEmbedder(cfg.ollama_url, cfg.embedding_model)
     store = QdrantStore(cfg.qdrant_url, cfg.collection, cfg.embedding_dim)
     store.ensure_collection()
-    llm = OllamaLLM(cfg.ollama_url, cfg.llm_model)
+    llm = OllamaLLM(cfg.ollama_url, cfg.llm_model,
+                    think=cfg.llm_think, seed=cfg.llm_seed)
 
     pipeline = Pipeline(
         DoclingParser(), build_chunker(cfg.chunking, embedder=embedder),
@@ -124,6 +125,24 @@ def warm_model(ollama_url: str, model: str) -> bool:
             f"{ollama_url}/api/generate",
             json={"model": model, "prompt": "", "keep_alive": "10m"},
             timeout=300,
+        )
+        return resp.status_code < 400
+    except Exception:
+        return False
+
+
+def unload_model(ollama_url: str, model: str) -> bool:
+    """The inverse of warm_model: drop a model from Ollama's memory now.
+
+    Same call, keep_alive=0 instead of "10m". Ollama evicts only under memory
+    pressure, so models that are merely idle sit there — two of them on a
+    48 GB host is enough to starve the next thing that loads.
+    """
+    try:
+        resp = httpx.post(
+            f"{ollama_url}/api/generate",
+            json={"model": model, "keep_alive": 0},
+            timeout=60,
         )
         return resp.status_code < 400
     except Exception:

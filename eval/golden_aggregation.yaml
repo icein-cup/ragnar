@@ -1,0 +1,171 @@
+# Aggregation probes for generation.guards.should_refuse_aggregation.
+#
+# Why this file exists: the guard fires only when a question has aggregation
+# vocabulary AND most retrieved chunks are tables. Over the 125-case HybridQA
+# set the vocabulary half fires 29 times and the table half fires zero times,
+# so the guard has never once fired and TABLE_MAJORITY = 0.5 has never been
+# tested. That set cannot test it either — its loader filter keeps only
+# questions whose answer-nodes are passages, and table chunks are 3% of the
+# corpus (84 of 2846).
+#
+# All 16 questions below trip _has_aggregation_intent, so all 16 reach the
+# guard. The split is what the guard is supposed to get right:
+#
+#   aggregation: true   needs summing or counting ACROSS rows -> refusing is
+#                       correct, answering risks a wrong number
+#   aggregation: false  a single cell, phrased with aggregation words
+#                       ("how many", "highest", "rank") -> refusing is a
+#                       false positive that costs a correct answer
+#
+# Every expected_answer was COMPUTED from the ingested chunk text (see the
+# derivation in the session log), not recalled — the tables are truncated to
+# 20 rows per chunk, so counts over the full Wikipedia table would be wrong.
+#
+# MEASUREMENTS
+#
+# 1. The guard cannot fire on this corpus, and that is a property of HybridQA,
+#    not of the guard. All 84 of its tables are exactly ONE chunk, so a table
+#    majority in top_k=5 would need three separate tables retrieved at once.
+#    Measured table share here peaked at 1 in 5.
+#
+#    On the real `documents` collection, 11 of 14 table-bearing docs have 3+
+#    table chunks (up to 73), and the guard does fire there — verified on
+#    "What is the combined count of all the options in the command table ?",
+#    which retrieved 3/5 table chunks and was refused. So this file is a
+#    NEGATIVE CONTROL: the guard must stay silent on it. The positive set
+#    belongs on a corpus with multi-chunk tables.
+#
+# 2. The vocabulary half WAS broken, and is now fixed. The old
+#    AGGREGATION_TERMS matched all 16 questions below — it could not tell a
+#    sum from a single cell, because "how many", "rank" and the superlatives
+#    appear in both. Narrowed to collective words ("total", "all",
+#    "combined") plus partitives ("how many OF", "how many DIFFERENT"):
+#
+#      real aggregations caught : 8/8
+#      lookups wrongly caught   : 0/8   (was 8/8)
+#
+#    Superlatives were deliberately left out; guards.py records why, and what
+#    it would cost to put them back.
+#
+# Re-run this file after touching either half.
+
+- question: What is the total number of stores operated by the Dagrofa-owned chains
+    in the Danish supermarket list ?
+  expected_answer: '610'
+  expected_sources:
+  - List of supermarket chains in Denmark
+  out_of_corpus: false
+  multihop: false
+  aggregation: 'true'
+- question: How many different chains does Coop Danmark own in the Danish supermarket
+    list ?
+  expected_answer: '8'
+  expected_sources:
+  - List of supermarket chains in Denmark
+  out_of_corpus: false
+  multihop: false
+  aggregation: 'true'
+- question: What is the combined store count of all the discount chains in the Danish
+    supermarket list ?
+  expected_answer: '1262'
+  expected_sources:
+  - List of supermarket chains in Denmark
+  out_of_corpus: false
+  multihop: false
+  aggregation: 'true'
+- question: How many of the Pakistani cities in the GDP list are in Punjab province
+    ?
+  expected_answer: '7'
+  expected_sources:
+  - List of Pakistani provinces by gross domestic product
+  out_of_corpus: false
+  multihop: false
+  aggregation: 'true'
+- question: What is the combined 2017 nominal GDP of Karachi and Lahore ?
+  expected_answer: 99 billion
+  expected_sources:
+  - List of Pakistani provinces by gross domestic product
+  out_of_corpus: false
+  multihop: false
+  aggregation: 'true'
+- question: What is the total aircraft movements of the two busiest airports in Canada
+    combined ?
+  expected_answer: 715,598
+  expected_sources:
+  - List of the busiest airports in Canada
+  out_of_corpus: false
+  multihop: false
+  aggregation: 'true'
+- question: How many of the busiest Canadian airports listed had a negative annual
+    change ?
+  expected_answer: '10'
+  expected_sources:
+  - List of the busiest airports in Canada
+  out_of_corpus: false
+  multihop: false
+  aggregation: 'true'
+- question: What is the combined population of the two cities in the canton of Bern
+    in the Swiss municipality list ?
+  expected_answer: 177,316
+  expected_sources:
+  - Municipalities of Switzerland
+  out_of_corpus: false
+  multihop: false
+  aggregation: 'true'
+- question: How many stores does Netto have in the Danish supermarket list ?
+  expected_answer: '500'
+  expected_sources:
+  - List of supermarket chains in Denmark
+  out_of_corpus: false
+  multihop: false
+  aggregation: 'false'
+- question: How many stores does Aldi operate in the Danish supermarket list ?
+  expected_answer: '244'
+  expected_sources:
+  - List of supermarket chains in Denmark
+  out_of_corpus: false
+  multihop: false
+  aggregation: 'false'
+- question: What rank does Multan hold by 2017 nominal GDP among Pakistani cities
+    ?
+  expected_answer: '6'
+  expected_sources:
+  - List of Pakistani provinces by gross domestic product
+  out_of_corpus: false
+  multihop: false
+  aggregation: 'false'
+- question: Which Pakistani city has the highest 2017 nominal GDP ?
+  expected_answer: Karachi
+  expected_sources:
+  - List of Pakistani provinces by gross domestic product
+  out_of_corpus: false
+  multihop: false
+  aggregation: 'false'
+- question: How many aircraft movements did Calgary International Airport record ?
+  expected_answer: 234,306
+  expected_sources:
+  - List of the busiest airports in Canada
+  out_of_corpus: false
+  multihop: false
+  aggregation: 'false'
+- question: Which Canadian airport has the highest number of aircraft movements ?
+  expected_answer: Toronto Pearson International Airport
+  expected_sources:
+  - List of the busiest airports in Canada
+  out_of_corpus: false
+  multihop: false
+  aggregation: 'false'
+- question: What rank does Lucerne hold among Swiss municipalities by population ?
+  expected_answer: '7'
+  expected_sources:
+  - Municipalities of Switzerland
+  out_of_corpus: false
+  multihop: false
+  aggregation: 'false'
+- question: Which Swiss municipality has the highest population ?
+  expected_answer: Zürich
+  expected_sources:
+  - Municipalities of Switzerland
+  out_of_corpus: false
+  multihop: false
+  aggregation: 'false'

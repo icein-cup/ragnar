@@ -1,8 +1,52 @@
 models:
-  # 3b measured 0.50 answer_accuracy on the HybridQA benchmark — retrieval
-  # found the right document 96% of the time and the model then misread it
-  # half the time. 7b is the re-baseline; see eval/README.md.
+  # Measured on 20-40 in-corpus HybridQA questions replayed over identical
+  # retrieved contexts (eval/replay_answer.py), scored by answer_coverage —
+  # correct answers over ALL answerable questions, so refusing counts against
+  # the model. See eval/metrics.py for why answer_accuracy alone misleads.
+  #
+  # Head to head on the SAME 20 questions and 10 probes (seed 42), which is
+  # the only fair comparison — earlier numbers used different denominators:
+  #
+  #                                   coverage   probe refusal   sec/call
+  #   qwen2.5:7b                        0.60         0.90           3
+  #   Qwen3.8-27 (thinking, native)     0.70         0.90          20
+  #   Qwen3.8-27 (think: false)         0.05          -             8
+  #
+  # Over the wider 40-question sample: qwen2.5:3b 0.42, qwen2.5:7b 0.47.
+  #
+  # So the 27b buys +10 points of coverage at identical refusal quality, for
+  # ~6x the latency and about 32 GB resident (NOT the 18.2 GB on-disk size).
+  # It needs a 48 GB machine and will not load on 32 GB — a real constraint
+  # on the "runs on a normal laptop" goal. qwen2.5:7b is the fallback for
+  # smaller hosts and gives up roughly a seventh of the answers.
+  #
+  # Retrieval is not the ceiling here: 96% of answered questions cited a
+  # document the question needed. Reading the retrieved text correctly is.
   llm: qwen2.5:7b
+  # null omits the "think" field from /api/chat; true and false force a
+  # thinking model's reasoning pass on or off.
+  #
+  # DO NOT set this to false for a thinking model. The reasoning is not
+  # decoration this pipeline can discard — it is how the model reaches an
+  # answer at all. Measured on Qwen3.8-27-mlx-nv4-thinking, 20 in-corpus
+  # HybridQA questions replayed over identical retrieved contexts:
+  #
+  #   think: false   answer_coverage 0.05   refused 38 of 40, with a bare
+  #                                         "NO_ANSWER" and no explanation
+  #   think: null    answer_coverage 0.70   (its native mode)
+  #
+  # The two it answered with thinking off were both correct, so it is not
+  # incapable — forcing content-only output makes it decline instead of
+  # reason. Cost of leaving thinking on: about 16s per answering call.
+  #
+  # false remains right for a NON-thinking model that somehow exposes the
+  # flag, and null is the safe default: it cannot surprise a model we have
+  # not measured.
+  think: null
+  # Pinned so a run is reproducible. Query generation samples at a non-zero
+  # temperature (agentic.query_temperature), so without this two eval runs
+  # over identical inputs would disagree and no comparison would mean much.
+  seed: 42
   embedding: bge-m3
   embedding_dim: 1024
   reranker: BAAI/bge-reranker-v2-m3
@@ -72,3 +116,9 @@ agentic:
   enable_self_correction: true
   max_hops: 3
   multi_query_count: 3
+  # Temperature for the two calls that emit a retrieval query (query rewrite
+  # and multi-query fan-out). Those want lexical variety — three "different
+  # ways to ask the same question" generated greedily come out nearly
+  # identical, which wastes the fan-out. Answer generation is unaffected and
+  # stays deterministic; models.seed keeps runs reproducible regardless.
+  query_temperature: 0.7
