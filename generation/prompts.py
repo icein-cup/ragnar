@@ -123,54 +123,83 @@ def build_history_summary_prompt(history: list[dict]) -> tuple[str, str]:
 def _table_to_sentences(text: str) -> str:
     """Convert markdown table rows to natural-language "Header: Value" sentences.
 
-    Lines starting with ``|`` are treated as markdown table rows. The first
-    such row is the header; subsequent rows are data rows. Separator lines
-    (``|---|---|``) are skipped. Each data row becomes a single line of
-    ``"Header: Value | Header: Value | ..."`` pairs. Non-table lines pass
-    through unchanged.
+    A markdown table is detected only when a header row (pipe-delimited) is
+    immediately followed by a separator row (``|---|---|``). This avoids
+    false positives on pipe-prefixed non-table text (math notation, etc.).
 
-    Example::
+    Each data row becomes ``"Header: Value | Header: Value | ..."``.
+    Non-table lines and malformed tables pass through unchanged.
 
-        | City | Population | Year |
-        |------|-----------|------|
-        | Multan | 1871843 | 2017 |
-
-    becomes::
-
-        City: Multan | Population: 1871843 | Year: 2017
+    Multiple tables in one excerpt are handled correctly — headers reset
+    when a non-table line breaks the table block.
     """
     lines = text.split("\n")
-    headers: list[str] | None = None
     out: list[str] = []
+    headers: list[str] | None = None
 
-    for line in lines:
-        stripped = line.strip()
-        if not stripped.startswith("|"):
-            out.append(line)
-            continue
-
-        # Split on | and discard the leading/trailing empty cells produced by
-        # the leading/trailing pipes.
-        cells = [c.strip() for c in stripped.split("|")]
+    def _split_pipe(line: str) -> list[str]:
+        cells = [c.strip() for c in line.split("|")]
         if cells and cells[0] == "":
             cells = cells[1:]
         if cells and cells[-1] == "":
             cells = cells[:-1]
+        return cells
 
-        # Skip separator rows like |---|---|
-        if all(re.match(r"^:?-+:?$", c) for c in cells if c):
+    def _is_separator(cells: list[str]) -> bool:
+        return bool(cells) and all(
+            re.match(r"^:?-+:?$", c) for c in cells if c
+        ) and any(c for c in cells)
+
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        stripped = line.strip()
+
+        if not stripped.startswith("|"):
+            headers = None
+            out.append(line)
+            i += 1
             continue
 
+        cells = _split_pipe(stripped)
+
+        # Not in a table yet — look for header+separator pattern.
         if headers is None:
-            headers = cells
+            if i + 1 < len(lines):
+                next_stripped = lines[i + 1].strip()
+                if next_stripped.startswith("|"):
+                    next_cells = _split_pipe(next_stripped)
+                    if (_is_separator(next_cells)
+                            and len(next_cells) == len(cells)
+                            and any(c for c in cells)):
+                        headers = cells
+                        i += 2  # skip header + separator
+                        continue
+            # No separator follows — not a table. Pass through.
+            out.append(line)
+            i += 1
             continue
 
-        if headers and len(cells) == len(headers):
-            pairs = [f"{h}: {v}" for h, v in zip(headers, cells)]
+        # In a table — skip separator rows.
+        if _is_separator(cells):
+            continue
+
+        # All-empty row — pass through as-is.
+        if not any(c for c in cells):
+            headers = None
+            out.append(line)
+            i += 1
+            continue
+
+        if len(cells) == len(headers):
+            pairs = [f"{h}: {v}" for h, v in zip(headers, cells) if v]
             out.append(" | ".join(pairs))
         else:
-            # Malformed row — keep the original line.
+            # Column count mismatch — end table, pass through.
+            headers = None
             out.append(line)
+
+        i += 1
 
     return "\n".join(out)
 

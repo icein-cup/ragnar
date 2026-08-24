@@ -556,9 +556,9 @@ class AgenticSearch:
 
         # Score-gap pruning: keep only the top-3 when there's a clear
         # separation (>0.05) between the 3rd and 4th results.  Only fires
-        # when we have more than 4 results, so small result sets are never
-        # cut.
-        if len(fused) > 4:
+        # when we have 6+ results, so small result sets (common in
+        # multi-hop where every chunk may matter) are never cut.
+        if len(fused) >= 6:
             gap = fused[2].score - fused[3].score
             if gap > 0.05:
                 logger.debug(
