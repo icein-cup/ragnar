@@ -115,7 +115,7 @@ agentic:
   enable_multi_hop: true
   enable_self_correction: true
   max_hops: 2
-  multi_query_count: 5
+  multi_query_count: 3
   # Temperature for the two calls that emit a retrieval query (query rewrite
   # and multi-query fan-out). Those want lexical variety — three "different
   # ways to ask the same question" generated greedily come out nearly
