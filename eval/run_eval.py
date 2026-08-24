@@ -327,6 +327,12 @@ def main() -> None:
         "citation_accuracy": citation_accuracy(cases),
         "citation_precision": citation_precision(cases),
         "multi_hop_citation_accuracy": multi_hop_citation_accuracy(cases),
+        "latency": {
+            "mean_s": round(sum(c["stages"]["seconds"] for c in cases) / len(cases), 2),
+            "median_s": round(sorted(c["stages"]["seconds"] for c in cases)[len(cases) // 2], 2),
+            "p90_s": round(sorted(c["stages"]["seconds"] for c in cases)[int(len(cases) * 0.9)], 2),
+            "max_s": round(max(c["stages"]["seconds"] for c in cases), 2),
+        },
         "provenance": provenance(cfg, golden, agentic=args.agentic,
                                  collection=collection, score_floor=floor,
                                  vector_floor=vfloor),
