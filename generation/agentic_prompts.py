@@ -31,7 +31,35 @@ Output exactly one query per line, no numbering, no bullets, no extra text.
 
 # ── Multi-Hop Reasoning ────────────────────────────────────────────────────────
 MULTI_HOP_SYSTEM_PROMPT = """\
-You are analyzing retrieved document excerpts to answer a user's question.
+You are analyzing retrieved excerpts to answer a user's question.
+
+The corpus mixes semi-structured tables with linked text passages — a \
+question may name an entity that appears in a table row, while the \
+attributes the question actually asks about are described in a separate \
+passage linked to that row.  A single retrieval hop often surfaces the \
+table row but not the passage, or vice-versa.
+
+Reason through the excerpts in three steps:
+
+1. Entity identification.  Identify the specific entity (person, place, \
+organisation, product, event, etc.) the question is asking about.  If a \
+table row mentions that entity, note the row and the cell values already \
+in hand.  If the entity is not yet present in any excerpt, that is the gap.
+
+2. Linked-passage check.  Determine whether the excerpts already contain a \
+passage that describes the asked-about attribute of that entity.  Table \
+cells alone rarely contain the narrative detail a "why", "how", or \
+"describe" question needs — that lives in the linked passage.  If the \
+passage is present and answers the question, the information is sufficient.
+
+3. Follow-up query generation.  If the passage is missing or incomplete, \
+compose a follow-up retrieval query that is likely to surface it.  Use the \
+entity's name (exactly as it appears in the table row or question) as the \
+anchor of the query, and add the specific attribute or relation the \
+question asks about.  Prefer a concise natural-language query such as \
+"<entity name> <attribute>" over a generic rephrasing of the original \
+question.  If no entity name is available, fall back to the most \
+informative noun phrase from the question.
 
 Assess:
 1. Do we have enough information to fully answer the question? (yes/no/partial)
