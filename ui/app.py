@@ -298,9 +298,17 @@ if question := st.chat_input("Ask about your documents"):
             history, model=query["model"]
         )
 
-        # st.spinner's context entry triggers a frontend flush so the spinner
-        # reaches the browser before the blocking search call starts.
-        with st.spinner("🪓 RAGnar is running through your documents…"):
+        # st.status, not st.spinner: the agentic pipeline can run 30-120s on
+        # the slow path (see eval/COMPARISONS.md's latency table) with zero
+        # visible output otherwise. on_progress updates the label live at
+        # each stage boundary instead of showing one static string the
+        # whole time.
+        with st.status(
+            "🪓 RAGnar is running through your documents…", expanded=False
+        ) as status:
+            def on_progress(message: str) -> None:
+                status.update(label=f"🪓 {message}")
+
             # Use agentic search if available. Flags are passed per-call, not
             # mutated on the shared (st.cache_resource) instance — see find()'s
             # docstring in retrieval/agentic.py: concurrent sessions would
@@ -320,6 +328,7 @@ if question := st.chat_input("Ask about your documents"):
                     enable_multi_query=query["enable_multi_query"],
                     enable_multi_hop=query["enable_multi_hop"],
                     enable_self_correction=query["enable_self_correction"],
+                    on_progress=on_progress,
                 )
             else:
                 outcome = svc["search"].find(
@@ -330,6 +339,7 @@ if question := st.chat_input("Ask about your documents"):
                     use_reranker=query["use_reranker"],
                     context_summary=context_summary,
                 )
+            status.update(label="🪓 Done — writing the answer…", state="complete")
 
         mode = classify(question, outcome.refused, outcome.results)
 

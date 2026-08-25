@@ -5,6 +5,7 @@ from generation.guards import (
     NO_ANSWER,
     aggregation_refusal,
     is_refusal,
+    refusal_text,
     should_refuse_aggregation,
     strip_no_answer,
 )
@@ -182,6 +183,49 @@ def test_strip_no_answer_leaves_a_real_answer_untouched():
 
 
 def test_a_mid_answer_mention_of_the_token_is_not_a_refusal():
-    # Only a leading token counts, so an answer that happens to quote the
-    # word keeps its citations.
+    # Only a leading or trailing token counts. Real content on both sides of
+    # it within the same sentence means it's being discussed as data, not
+    # emitted as the sentinel, so citations are kept.
     assert not is_refusal(f"The build flag is called {NO_ANSWER} in the config.")
+
+
+# A model that reasons its way to "no answer" sometimes states that
+# conclusion at the END instead of leading with it, per SYSTEM_PROMPT. These
+# four are the actual cases that slipped through before the trailing check
+# was added — measured against eval/reports/20260824-132940.json, where they
+# were scored as wrong answers rather than refusals.
+
+@pytest.mark.parametrize("text", [
+    "Based on the information provided, the politician who took office in "
+    "1934 and left in 1937 is Ernesto Ramos Antonini. The second excerpt "
+    "does not provide his birth date. Therefore, NO_ANSWER.",
+    "The location is named after Mecklenburg-Strelitz. However, the "
+    "excerpts do not provide information on who owns this location. "
+    "Therefore, NO_ANSWER.",
+    "No actress in the excerpts has the same first and last name starting "
+    "with the same letter.\n\nNO_ANSWER",
+])
+def test_a_trailing_sentinel_is_a_refusal(text):
+    assert is_refusal(text)
+
+
+def test_stripping_a_trailing_sentinel_drops_the_bare_declaration_sentence():
+    text = ("The second excerpt does not provide his birth date. "
+            "Therefore, NO_ANSWER.")
+    stripped = strip_no_answer(text)
+    assert stripped == "The second excerpt does not provide his birth date."
+    assert NO_ANSWER not in stripped
+
+
+def test_stripping_a_trailing_sentinel_on_its_own_line():
+    text = "No actress matches that description.\n\nNO_ANSWER"
+    stripped = strip_no_answer(text)
+    assert stripped == "No actress matches that description."
+    assert NO_ANSWER not in stripped
+
+
+def test_refusal_text_never_leaks_a_trailing_sentinel():
+    text = "The excerpt lacks that figure. Therefore, NO_ANSWER."
+    shown = refusal_text(text)
+    assert NO_ANSWER not in shown
+    assert shown == "The excerpt lacks that figure."

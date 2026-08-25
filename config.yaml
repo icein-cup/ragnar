@@ -64,7 +64,7 @@ chunking:
 
 retrieval:
   candidates: 25
-  top_k: 3
+  top_k: 5
   # NOT VALIDLY CALIBRATED. The --calibrate sweep this value came from was
   # broken: eval/run_eval.py left vector_floor at 0.0, and since the floors
   # are OR'd, every result cleared the gate at every swept floor. The sweep
@@ -114,7 +114,7 @@ agentic:
   enable_multi_query: true
   enable_multi_hop: true
   enable_self_correction: true
-  max_hops: 2
+  max_hops: 3
   multi_query_count: 3
   # Temperature for the two calls that emit a retrieval query (query rewrite
   # and multi-query fan-out). Those want lexical variety — three "different

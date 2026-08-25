@@ -145,12 +145,22 @@ REFUSAL_PATTERNS = (
 
 _REFUSAL_RE = re.compile("|".join(REFUSAL_PATTERNS), re.IGNORECASE)
 _SENTENCE_END_RE = re.compile(r"(?<=[.!?])\s")
+# Punctuation/quoting a model wraps the sentinel in at the very end of a
+# reply ("...Therefore, NO_ANSWER.", '..."NO_ANSWER")'). Stripped before the
+# suffix check below, never removed from the middle of the text. Includes a
+# literal space (a model's trailing whitespace before punctuation) — easy to
+# miss reading the string, so spelled out here rather than left implicit.
+_TRAILING_WRAP = ".!?\"')] \n\t"
 
 
 def _first_sentence(text: str) -> str:
     text = text.strip()
     match = _SENTENCE_END_RE.search(text)
     return text[:match.start()] if match else text
+
+
+def _ends_with_no_answer(text: str) -> bool:
+    return text.rstrip(_TRAILING_WRAP).endswith(NO_ANSWER)
 
 
 def is_refusal(text: str) -> bool:
@@ -161,17 +171,32 @@ def is_refusal(text: str) -> bool:
     model writes "the excerpts do not contain that" and the app still marks
     it an answer and staples five citations to it.
 
-    The NO_ANSWER sentinel is checked first. It is the reliable signal,
-    because SYSTEM_PROMPT dictates it; the phrase regex is a fallback for a
-    model that ignores the instruction, and it only recognises the two
-    languages someone thought to list.
+    The NO_ANSWER sentinel is checked first: as a PREFIX (SYSTEM_PROMPT asks
+    for it to lead the reply) or a SUFFIX (a model reasoning its way to "no
+    answer" sometimes states that conclusion at the end instead — "...the
+    second excerpt does not provide his birth date. Therefore, NO_ANSWER.").
+    Measured: 4 of 90 HybridQA answers did exactly this and were scored as
+    wrong answers rather than refusals, because a leading-only check missed
+    them.
 
-    For that fallback, only the FIRST sentence is examined. An answer that
-    states a fact and then caveats a missing detail ("Larry McMurtry wrote
-    it. The excerpts do not give the year.") is an answer, not a refusal, and
-    matching the whole text would throw it away along with its citations.
+    Anchored to prefix/suffix rather than "anywhere" on purpose: an answer
+    that legitimately discusses the token as data ("The build flag is called
+    NO_ANSWER in the config.") has real content on both sides of it within
+    the same sentence, and must not be swept up. The sentinel is trusted
+    wherever it leads or trails because it is machinery we mandate, not
+    prose we are guessing at — that trust does not extend to the middle of
+    an otherwise ordinary sentence.
+
+    The phrase regex is a fallback for a model that ignores the instruction
+    entirely, and it only recognises the two languages someone thought to
+    list. For that fallback ONLY, just the FIRST sentence is examined — an
+    answer that states a fact and then caveats a missing detail ("Larry
+    McMurtry wrote it. The excerpts do not give the year.") is an answer, not
+    a refusal, and matching the whole text would throw it away along with its
+    citations.
     """
-    if text.lstrip().startswith(NO_ANSWER):
+    lstripped = text.lstrip()
+    if lstripped.startswith(NO_ANSWER) or _ends_with_no_answer(text):
         return True
     return bool(_REFUSAL_RE.search(_first_sentence(text)))
 
@@ -195,12 +220,29 @@ def refusal_text(text: str) -> str:
 
 
 def strip_no_answer(text: str) -> str:
-    """Remove a leading NO_ANSWER sentinel, leaving the explanation.
+    """Remove the NO_ANSWER sentinel, leaving the explanation.
 
     The token is machinery, not prose. Call ``is_refusal`` before this, not
     after — stripping is what makes the sentinel invisible to it.
+
+    Leading form: strip the token, keep the rest — the usual case.
+
+    Trailing form ("...does not provide his birth date. Therefore,
+    NO_ANSWER."): the final sentence is dropped whole rather than leaving a
+    dangling connector like "Therefore, ." — everything up to the previous
+    sentence boundary is kept, since that is usually a complete thought on
+    its own. See is_refusal for why this is anchored to prefix/suffix and
+    not a freeform search.
     """
     stripped = text.lstrip()
-    if not stripped.startswith(NO_ANSWER):
-        return text
-    return stripped[len(NO_ANSWER):].lstrip()
+    if stripped.startswith(NO_ANSWER):
+        return stripped[len(NO_ANSWER):].lstrip()
+
+    if _ends_with_no_answer(text):
+        rstripped = text.rstrip()
+        matches = list(_SENTENCE_END_RE.finditer(rstripped))
+        if matches:
+            return rstripped[:matches[-1].end()].rstrip()
+        return ""  # the sentinel was the only sentence
+
+    return text

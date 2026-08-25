@@ -673,3 +673,42 @@ def test_query_temperature_is_configurable_and_defaults_to_the_module_constant()
     assert any(t == QUERY_TEMPERATURE
                for kind, t in _temps_by_kind(llm)
                if kind in ("rewrite", "multi_query"))
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# on_progress — Branch F, visible progress for the 30-120s slow path
+# ──────────────────────────────────────────────────────────────────────────────
+
+def test_on_progress_fires_at_each_stage_boundary_in_order():
+    results = [_result("some info")]
+    base = StubSearch({"rewritten query": results})
+    llm = FakeLLM()
+    agentic = AgenticSearch(
+        base, llm,
+        enable_rewrite=True,
+        enable_multi_query=False,
+        enable_multi_hop=False,
+        enable_self_correction=True,
+    )
+
+    seen = []
+    agentic.find("question", on_progress=seen.append)
+
+    assert seen == [
+        "Rewriting your question…",
+        "Searching…",
+        "Double-checking the answer…",
+    ]
+
+
+def test_on_progress_is_optional():
+    """Every existing call site omits on_progress -- must not require it."""
+    results = [_result("some info")]
+    base = StubSearch({"question": results})
+    agentic = AgenticSearch(base, FakeLLM(), enable_rewrite=False,
+                             enable_multi_query=False, enable_multi_hop=False,
+                             enable_self_correction=False)
+
+    outcome = agentic.find("question")
+
+    assert not outcome.refused

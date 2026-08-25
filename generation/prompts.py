@@ -2,6 +2,38 @@ import re
 
 from generation.guards import NO_ANSWER
 
+# HISTORY, most recent first. Full numbers and every variant tried (9 of
+# them, kept verbatim) live in eval/replay_answer.py's PROMPTS dict and
+# eval/COMPARISONS.md — this comment is the short version.
+#
+# 2026-08-25: REVERTED a no-sentinel, no-CoT variant ("hops_example" in
+# eval/replay_answer.py) that had been shipped here on 2026-08-24. A 40-case
+# replay predicted a clean win (accuracy 0.42->0.62, refusal held at 0.85),
+# but the full 125-case agentic pipeline told a different story
+# (eval/reports/20260825-152139.json vs the baseline this prompt restores):
+#
+#   answer_accuracy    0.759 -> 0.580   (real, large drop)
+#   answer_coverage    0.489 -> 0.522   (+0.033 — inside the scorer's known
+#                                        2-5pt noise band, likely not real)
+#   refusal_accuracy   0.736 -> 0.888   (real improvement)
+#
+# Diagnosed, not guessed: of 90 in-corpus cases, in-corpus refusals dropped
+# 32->9 under the no-sentinel prompt, but only 3 of those 23 newly-attempted
+# cases became correct — 20 became wrong. This prompt's caution (the
+# sentinel contract below, plus "only decide after checking every excerpt")
+# was not just over-refusing easy bridge questions; a lot of what it refused
+# was genuinely hard, and guessing on those cases is worse than declining.
+# Not a self-correction/draft-reuse artifact — draft_reused fired on
+# essentially 0 cases in both runs, ruled out empirically before reverting.
+#
+# LESSON: a replay-only test (one isolated generation call over a frozen,
+# already-correct saved context) cannot see a prompt's effect on refusal
+# calibration under real retrieval variance. Test the full pipeline before
+# calling a prompt change ready, not only at the final confirmation step.
+# The bridge-resolution instruction and worked example this prompt reverts
+# from may still be worth revisiting — layered onto a prompt that keeps a
+# real caution mechanism, not in place of one.
+#
 # The NO_ANSWER rule below is a contract with generation.guards.is_refusal,
 # which drives the refused flag, whether the UI attaches citations, and the
 # refusal_accuracy metric. Before it existed, that decision rested on regex
@@ -28,13 +60,28 @@ from generation.guards import NO_ANSWER
 # addresses multi-hop synthesis. The NO_ANSWER sentinel contract is
 # preserved: when refusing, the model starts its reply with NO_ANSWER; when
 # answering, it outputs the answer directly.
+# CANDIDATE UNDER TEST (2026-08-25): pure addition to the SYSTEM_PROMPT
+# below — every line of the reverted, caution-preserving prompt kept
+# verbatim, plus the bridge-resolution instruction and two entity-precision
+# rules from the reverted "hops_example"/"hops" experiments folded into
+# step 1 and Rules. Nothing removed: sentinel, CoT steps 2-4, "default to
+# answering" framing, all intact. Being validated on a 55-case sampled
+# subset through the FULL agentic pipeline (not a replay) before any
+# decision to ship — see the LESSON above about why replay alone isn't
+# trusted for this anymore. Update this comment with the result.
 SYSTEM_PROMPT = f"""\
 You answer questions strictly from the provided document excerpts.
 
 Before answering, work through these steps internally (do not show them in \
 your output):
 1. Identify exactly what the question asks — the entity, the property, the \
-time frame, and any implicit sub-questions.
+time frame, and any implicit sub-questions. Many questions describe the \
+subject indirectly instead of naming it ("the city where X happened", "the \
+institute that Y founded") — resolve that description to the concrete \
+entity first. The description is how you find the subject; it is not the \
+answer. For example, "What is the population of the city where the 1996 \
+Olympics were held?" first resolves "the city where the 1996 Olympics were \
+held" to Atlanta, then asks for Atlanta's population.
 2. Check EVERY excerpt one by one. Look for the answer even when the wording \
 differs from the question, when the information is indirect, or when it is \
 split across multiple excerpts.
@@ -58,6 +105,9 @@ Rules:
 questions that seem unanswered at first glance CAN be answered by combining \
 or carefully reading the excerpts. Read difficult passages slowly and look \
 for indirect mentions, synonyms, and information that implies the answer.
+- Never answer with a value the question already gave you.
+- Check that the fact you found belongs to the subject the question \
+describes, not to a neighbouring row or a similar entry.
 - When the answer requires synthesizing across excerpts, combine the facts \
 explicitly. Do not give up because no single excerpt contains the full answer.
 - Answer in the SAME LANGUAGE as the question, even when the excerpts are \

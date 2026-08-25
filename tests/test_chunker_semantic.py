@@ -116,6 +116,20 @@ def test_single_sentence_document_does_not_crash():
     assert chunks[0].text == "Only one sentence here."
 
 
+def test_short_embedder_response_raises_instead_of_crashing_on_stopiteration():
+    """A truncated/deduped embed response used to blow up as a bare
+    StopIteration deep inside a list comprehension. Must fail loud and
+    clear instead."""
+    class ShortEmbedder:
+        def embed(self, texts):
+            return [[1.0, 0.0]] * (len(texts) - 1)  # one short
+
+    doc = _doc([Block(text="One. Two. Three.", page=1)])
+
+    with pytest.raises(RuntimeError, match="vectors"):
+        SemanticChunker(ShortEmbedder()).chunk(doc, "d", "f.txt")
+
+
 def test_one_embed_call_per_document():
     sentences = ["Alpha one.", "Alpha two.", "Beta one.", "Beta two."]
     embedder = ScriptedEmbedder({s: [1.0, 0.0] for s in sentences})

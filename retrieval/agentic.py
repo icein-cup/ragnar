@@ -23,7 +23,26 @@ from generation.agentic_prompts import (
 
 logger = logging.getLogger(__name__)
 
-FAST_PATH_MIN_RESULTS = 3         # Need at least N results clearing the floor
+# Need at least N results clearing the floor. Loosely coupled to
+# agentic.multi_query_count in config.yaml (3 by default): fast-path fires
+# on the base search alone, or on base + multi-query fan-out together, so
+# raising multi_query_count without also reconsidering this number changes
+# how often the expensive multi-hop/self-correction stages get skipped.
+FAST_PATH_MIN_RESULTS = 3
+
+# Cap on concurrent Qdrant searches during multi-query fan-out. Currently
+# always <= multi_query_count (3 by default), but stated explicitly rather
+# than left implicit in the min() call below, so a future config bump to
+# multi_query_count doesn't silently raise how many searches hit the store
+# at once.
+MAX_PARALLEL_QUERIES = 4
+
+# Fallback rerank floor for the fast-path strength check, when the caller's
+# score_floor is 0 (accepts everything, so it cannot distinguish strong from
+# weak). Mirrors config.yaml's retrieval.score_floor default — kept as a
+# named constant here rather than a bare literal so the two don't silently
+# drift if one changes without the other.
+FALLBACK_SCORE_FLOOR = 0.55
 
 # Temperature for the two calls that emit a retrieval query (_rewrite and
 # _generate_multi_queries). Everything else in this file stays at the
@@ -124,6 +143,7 @@ class AgenticSearch:
         enable_multi_query: bool | None = None,
         enable_multi_hop: bool | None = None,
         enable_self_correction: bool | None = None,
+        on_progress: Callable[[str], None] | None = None,
     ) -> AgenticSearchOutcome:
         """Agentic retrieval pipeline.
 
@@ -132,6 +152,12 @@ class AgenticSearch:
         this instance is shared (st.cache_resource) across concurrent
         Streamlit sessions, and _retrieve_multi_query also fans out across
         threads on it, so per-call state must never be assigned to self.
+
+        on_progress, when given, is called with a short human-readable
+        string at each stage boundary below — the pipeline can otherwise run
+        30-120s (slow-path, see COMPARISONS.md) with no visible output at
+        all. Called at stage granularity only, not per hop/query — enough
+        for the UI to show it is working, not a full trace.
 
         Pipeline order:
         1. Optional query rewriting.
@@ -144,6 +170,10 @@ class AgenticSearch:
            so a reused draft answer never rests on a chunk that got
            filtered out of the citations shown to the user.
         """
+        def notify(message: str) -> None:
+            if on_progress:
+                on_progress(message)
+
         enable_rewrite = self._enable_rewrite if enable_rewrite is None else enable_rewrite
         enable_multi_query = (
             self._enable_multi_query if enable_multi_query is None else enable_multi_query
@@ -178,11 +208,14 @@ class AgenticSearch:
         outcome = AgenticSearchOutcome()
 
         # 1. Query rewriting
+        if enable_rewrite:
+            notify("Rewriting your question…")
         query = self._rewrite(question, context_summary, gen_query) \
                 if enable_rewrite else question
         outcome.rewritten_query = query if enable_rewrite else None
 
         # 2. Base search (single query first — cheap)
+        notify("Searching…")
         base_result = self._base_search.find(
             query, doc_ids=doc_ids,
             score_floor=score_floor, vector_floor=vector_floor,
@@ -200,6 +233,7 @@ class AgenticSearch:
         # 3. Multi-query retrieval (parallel, only if enabled and base wasn't great)
         if enable_multi_query and not self._is_fast_path(
                 all_results, score_floor, vector_floor, use_reranker):
+            notify("Expanding the search…")
             extra = self._retrieve_multi_query(
                 query, doc_ids, score_floor, vector_floor, use_reranker,
                 context_summary, outcome, gen_query,
@@ -217,6 +251,7 @@ class AgenticSearch:
 
         # 5. Multi-hop retrieval (expensive — only if needed)
         if enable_multi_hop:
+            notify("Looking deeper…")
             all_results = self._multi_hop(
                 question, all_results, doc_ids, score_floor, vector_floor,
                 use_reranker, context_summary, outcome, gen,
@@ -237,6 +272,7 @@ class AgenticSearch:
         # already run), evaluated against outcome.results — the floored
         # set the user will actually see cited.
         if enable_self_correction and outcome.hops_performed == 0 and outcome.results:
+            notify("Double-checking the answer…")
             correction = self._self_correct(
                 question, outcome.results, gen,
                 context_summary=context_summary, history=history,
@@ -305,7 +341,7 @@ class AgenticSearch:
             # A floor of 0 accepts everything and so cannot separate strong
             # from weak; fall back to the calibrated default for this test.
             if floor <= 0:
-                floor = 0.55
+                floor = FALLBACK_SCORE_FLOOR
         else:
             floor = (self._base_search.vector_floor if vector_floor is None
                      else vector_floor)
@@ -404,7 +440,9 @@ class AgenticSearch:
         all_results: list[SearchResult] = []
 
         # Run all base searches concurrently
-        with ThreadPoolExecutor(max_workers=min(len(queries), 4)) as executor:
+        with ThreadPoolExecutor(
+            max_workers=min(len(queries), MAX_PARALLEL_QUERIES)
+        ) as executor:
             future_to_query: dict = {}
             for q in queries:
                 # Skip the original query if it was already searched

@@ -109,11 +109,16 @@ class SemanticChunker:
                 group_sentences.append(None)
                 continue
             text = "\n\n".join(b.text.strip() for b in group)
-            sentences = _split_sentences(text) or [text]
+            sentences = _split_sentences(text)
             group_sentences.append(sentences)
             all_sentences.extend(sentences)
 
         vectors = self.embedder.embed(all_sentences) if all_sentences else []
+        if len(vectors) != len(all_sentences):
+            raise RuntimeError(
+                f"embedder returned {len(vectors)} vectors for "
+                f"{len(all_sentences)} sentences -- cannot align them"
+            )
         vector_iter = iter(vectors)
 
         # Distances per group, plus the document-wide pool the percentile

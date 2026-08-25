@@ -18,11 +18,13 @@ import sys
 from pathlib import Path
 
 import httpx
+import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from core.config import Config
 from core.models import Chunk
+from ingestion.chunkers.semantic import _cosine_distances, _split_prose, _split_sentences
 from ingestion.tables import chunk_table_markdown
 from retrieval.embedder import OllamaEmbedder
 from retrieval.store import QdrantStore
@@ -59,12 +61,68 @@ def split_prose(text: str, max_chars: int) -> list[str]:
     return [text[i:i + max_chars] for i in range(0, len(text), max_chars)]
 
 
+def split_prose_semantic(passages: dict[str, str], embedder,
+                         max_chars: int,
+                         breakpoint_percentile: float) -> dict[str, list[str]]:
+    """Sentence-boundary splitting with topic-boundary cuts.
+
+    Mirrors SemanticChunker: sentence-split each passage, batch-embed all
+    sentences in one call, compute cosine distances between consecutive
+    sentences, derive a percentile threshold from the pooled distances, then
+    cut where divergence exceeds it (or where the size ceiling hits).
+    Pooling distances across passages keeps the percentile stable even for
+    short passages with only a handful of sentences.
+    """
+    per_passage: dict[str, list[str]] = {}
+    all_sentences: list[str] = []
+    for path, text in passages.items():
+        sentences = _split_sentences(text)
+        per_passage[path] = sentences
+        all_sentences.extend(sentences)
+
+    vectors = embedder.embed(all_sentences) if all_sentences else []
+    if len(vectors) != len(all_sentences):
+        raise RuntimeError(
+            f"embedder returned {len(vectors)} vectors for "
+            f"{len(all_sentences)} sentences -- cannot align them"
+        )
+    vector_iter = iter(vectors)
+
+    per_passage_distances: dict[str, list[float]] = {}
+    all_distances: list[float] = []
+    for path, sentences in per_passage.items():
+        vecs = [next(vector_iter) for _ in sentences]
+        distances = _cosine_distances(vecs) if len(vecs) > 1 else []
+        per_passage_distances[path] = distances
+        all_distances.extend(distances)
+
+    threshold = (
+        float(np.percentile(all_distances, breakpoint_percentile))
+        if all_distances else None
+    )
+
+    return {
+        path: _split_prose(sentences, per_passage_distances[path],
+                           threshold, max_chars)
+        for path, sentences in per_passage.items()
+    }
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--golden", type=Path,
                         default=Path("eval/golden_hybridqa_draft.yaml"))
-    parser.add_argument("--collection", default="hybridqa")
+    parser.add_argument("--collection", default=None,
+                        help="Qdrant collection name. Defaults to 'hybridqa', "
+                             "or 'hybridqa_semantic' with --semantic.")
+    parser.add_argument("--semantic", action="store_true",
+                        help="Use semantic chunking for prose (topic-boundary cuts)")
+    parser.add_argument("--breakpoint-percentile", type=float, default=95.0,
+                        help="Cosine-distance percentile for semantic topic "
+                             "boundaries (only with --semantic).")
     args = parser.parse_args()
+    if args.collection is None:
+        args.collection = "hybridqa_semantic" if args.semantic else "hybridqa"
 
     import yaml
     entries = yaml.safe_load(args.golden.read_text())
@@ -109,13 +167,25 @@ def main() -> None:
                 doc_id=table_id, filename=table["title"], text=piece,
                 chunk_index=i, is_table=True,
             ))
-        for path, text in data["passages"].items():
-            title = path.removeprefix("/wiki/").replace("_", " ")
-            for i, piece in enumerate(split_prose(text, int(CHARS_PER_CHUNK))):
-                chunks.append(Chunk(
-                    doc_id=path, filename=title, text=piece,
-                    chunk_index=i, is_table=False,
-                ))
+        if args.semantic:
+            prose_pieces = split_prose_semantic(
+                data["passages"], embedder, int(CHARS_PER_CHUNK),
+                args.breakpoint_percentile)
+            for path, title in ((p, p.removeprefix("/wiki/").replace("_", " "))
+                                for p in data["passages"]):
+                for i, piece in enumerate(prose_pieces[path]):
+                    chunks.append(Chunk(
+                        doc_id=path, filename=title, text=piece,
+                        chunk_index=i, is_table=False,
+                    ))
+        else:
+            for path, text in data["passages"].items():
+                title = path.removeprefix("/wiki/").replace("_", " ")
+                for i, piece in enumerate(split_prose(text, int(CHARS_PER_CHUNK))):
+                    chunks.append(Chunk(
+                        doc_id=path, filename=title, text=piece,
+                        chunk_index=i, is_table=False,
+                    ))
 
     # Embed + upsert in batches so a single large table doesn't blow the
     # embedding request.

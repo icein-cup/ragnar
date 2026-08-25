@@ -1,0 +1,355 @@
+# Model & prompt comparisons
+
+Head-to-head tests run via `eval/replay_answer.py` / `eval/replay_gate.py` — one LLM call per case
+over a saved report's already-retrieved contexts, not a full pipeline run. Cheap (minutes, not the
+~30-80 min a full `run_eval.py --agentic` costs) because retrieval isn't repeated, only the stage
+under test. Complements [report_table.py](report_table.py), which tracks full end-to-end runs; this
+file tracks the cheaper A/B tests that never produce a `reports/*.json` of their own.
+
+Every entry names its exact command so it can be re-run. When a change ships, log the result here
+*before* moving on — this file exists because the alternative is these numbers living only in a chat
+transcript.
+
+---
+
+## Model comparison (answering stage)
+
+Same 20 in-corpus + 10 probes, same saved report, seed 42 — directly comparable across rows.
+
+```
+eval/replay_answer.py --report eval/reports/20260823-165853.json --prompt baseline \
+  --model <model> --sample 20 --probes 10 --think <off|on|default>
+```
+
+| model | think | coverage | probe refusal | sec/call | resident |
+|---|---|---|---|---|---|
+| qwen2.5:3b | default | 0.42 *(40-case sample, not this 20-case one — not directly comparable)* | 0.55 | ~1s | 1.9 GB |
+| qwen2.5:7b | default | **0.60** | 0.90 | ~3s | 6.6 GB |
+| qwen2.5:14b | default | **0.60** | 0.90 | ~5s | 9.0 GB |
+| Qwen3.8-27 (thinking) | default (native) | **0.70** | 0.90 | ~20s | 32 GB resident |
+| Qwen3.8-27 | **false** | 0.05 | — | ~8s | 32 GB resident |
+
+**Finding — forcing a thinking model not to think destroys it.** Qwen3.8-27 with `think: false`
+refused 38 of 40 in-corpus questions with a bare `NO_ANSWER`; the 2 it did answer were both correct,
+so it isn't incapable, it declines instead of reasoning. `config.yaml`'s `models.think` comment
+carries this in full. Never set `think: false` on a model whose native mode is thinking.
+
+**Finding — the 27B's real cost is 32 GB resident, not its 18.2 GB on-disk size.** Won't load on a
+32 GB machine at all. `qwen2.5:7b` is the fallback for smaller hosts.
+
+**Finding — 27B latency (~20s/call) already exceeds the production latency budget** established
+2026-08-24 (see below) on its own, before any agentic multi-call overhead. Parking the 27B question
+until the cheaper branches are exhausted.
+
+**Finding — doubling parameters (7b→14b) bought nothing.** Identical coverage (0.60) and probe
+refusal (0.90) to `qwen2.5:7b`, for ~1.7x the latency (~5s vs ~3s/call) and ~1.4x the resident memory
+(9.0 GB vs 6.6 GB). Whatever the bottleneck is in this range, it isn't raw model capacity — the
+sentinel prompt rewrite alone moved coverage more (0.60→0.62 on the 40-case sample) than doubling
+parameters did. Reinforces the plan's prompt/retrieval-first ordering over a bigger-model default.
+
+---
+
+## Prompt comparison — the refusal sentinel (`SYSTEM_PROMPT`)
+
+40 in-corpus + 20 probes, qwen2.5:7b, `eval/reports/20260823-165853.json`.
+
+| prompt | answer_coverage | refusal_rate | note |
+|---|---|---|---|
+| original (regex-only refusal detection, no sentinel) | 0.60 | 0.85 | pre-sentinel baseline |
+| sentinel v1 ("explain briefly why" on refusal) | 0.50 | 0.95 | **regression** — see below |
+| **sentinel v2 (shipped)** — "answer whenever the excerpts contain the answer... only when they genuinely do not, say so plainly" | **0.62** | 0.95 | shipped in `SYSTEM_PROMPT` |
+
+**Finding — giving a model a token for declining makes declining easier to reach for.** v1 asked the
+model to justify a refusal ("explain briefly why"), which reads as an invitation to find a reason.
+v2's explicit "answer whenever you can" bias is what pays for the sentinel — it isn't padding, it's
+load-bearing. Full rationale is a comment above `SYSTEM_PROMPT` in
+[generation/prompts.py](generation/prompts.py).
+
+---
+
+## Prompt comparison — bridge-question resolution (`hops` variant)
+
+**Status: MEASURED (2026-08-24), post-fix.** Both blocking bugs (trailing-sentinel miss, the
+refusal-counted-as-correct numerator bug) are fixed; report is the current post-Branch-C baseline
+(`eval/reports/20260824-132940.json`). Same seed (42) so `baseline` and `hops` score the identical
+40-case + 20-probe sample.
+
+```
+eval/replay_answer.py --prompt baseline --sample 40 --probes 20
+eval/replay_answer.py --prompt hops     --sample 40 --probes 20
+```
+
+| prompt | answer_accuracy (40 in-corpus) | refusal_rate (20 probes) |
+|---|---|---|
+| baseline (shipped `SYSTEM_PROMPT`) | 0.42 | 0.85 |
+| **hops** (bridge-resolution rule, no sentinel) | **0.65** | 0.80 |
+
+**Deictic-only slice** — the population this prompt targets (regex: `\b(this\|that\|these\|those)\b`
+or `the <1-5 words> (that\|which\|who\|whose)`; 40/89 in-corpus cases hit it, close to the 45/90
+counted in the original finding). Same report, same two prompts, this slice only:
+
+```
+# ad hoc script, not checked in — reuses eval/replay_answer.py's PROMPTS/answer_with directly:
+# filter report cases to the deictic regex, run "baseline" then "hops" over just those
+```
+
+| prompt | accuracy on 40 deictic cases |
+|---|---|
+| baseline | 0.33 |
+| **hops** | **0.55** |
+
+**Finding — a plain prompt swap recovers most of the deictic gap, at zero added latency.** 0.33→0.55
+closes 22 of the 31-point gap to plain-phrasing questions (64% from the original finding), using the
+exact same single generation call the pipeline already makes — no extra LLM call, no re-retrieval.
+This makes Branch A's originally-designed conditional retry (detect deictic, fire a second generation
+call) unnecessary: the win comes from the instruction itself, not from asking twice. **Simpler
+design available:** swap the prompt outright rather than gating it by question type.
+
+**Cost — refusal_rate slipped 0.85→0.80 (one more probe wrongly answered instead of refused).** n=20
+probes, so that is one case; noisy, but real, and `hops` **drops the NO_ANSWER sentinel entirely** —
+it falls back to the regex-only refusal check that worked here only because this model's phrasing
+happened to match `REFUSAL_PATTERNS`.
+
+**Merge attempt — the sentinel itself, not just the CoT scaffolding, eats most of the gain.** Tried
+folding the bridge-resolution rule into the sentinel-carrying prompt two ways, same report/sample/
+seed throughout:
+
+| prompt | shape | accuracy (40 in-corpus) | deictic-only (40) | refusal (20 probes) |
+|---|---|---|---|---|
+| baseline (shipped) | sentinel + 4-step CoT | 0.42 | 0.33 | 0.85 |
+| **hops** | short, no sentinel, no CoT | **0.65** | **0.55** | 0.80 |
+| hops_sentinel | hops content + sentinel + 4-step CoT | 0.40 | 0.30 | 0.85 |
+| hops_sentinel_minimal | hops content + sentinel, no CoT | 0.47 | — | 0.85 |
+
+Adding the 4-step CoT block back costs ~7 points on its own (0.47→0.40) — consistent with the
+`SYSTEM_PROMPT` comment's existing finding that a refusal token invites refusal, now showing the same
+effect from the *reasoning scaffold* independently of the token. But even the **minimal** sentinel
+addition — one line, no CoT — gives up 18 points versus `hops` outright (0.65→0.47) for a refusal
+gain that is 1 case out of 20. The sentinel mechanism's cost on this model/task is larger than
+previously measured on the older sentinel v1-vs-v2 test (COMPARISONS.md above), which never compared
+against a no-sentinel baseline this strong.
+
+**Follow-up — rewording (not just relocating) the sentinel instruction recovers most of the loss.**
+`hops_sentinel_minimal` stated the refusal instruction as a flat, co-equal rule. `hops_sentinel_v2`
+instead borrows two things the ORIGINAL sentinel v1-vs-v2 test already proved work
+(`generation/prompts.py`'s `SYSTEM_PROMPT` comment): an explicit "default to answering, refusing is
+the last resort" rule, and stating the NO_ANSWER instruction LAST, gated on "only if you have
+genuinely checked" rather than offered as one option among several near the top.
+
+| prompt | accuracy (40 in-corpus) | deictic-only (40) | refusal (20 probes) |
+|---|---|---|---|
+| baseline (shipped) | 0.42 | 0.33 | 0.85 |
+| hops (no sentinel) | 0.65 | 0.55 | 0.80 |
+| hops_sentinel (+ CoT) | 0.40 | 0.30 | 0.85 |
+| hops_sentinel_minimal | 0.47 | — | 0.85 |
+| **hops_sentinel_v2** | **0.55** | **0.42** | **0.85** |
+
+`hops_sentinel_v2` dominates the shipped baseline on every measured axis — +13 points full accuracy,
++9 points deictic, refusal rate unchanged (still 17/20, sentinel contract fully intact). It recovers
+9 of `hops`'s 13-point full-sample lead and 9 of its 22-point deictic lead over baseline, while
+keeping the model-agnostic NO_ANSWER contract `hops` gives up.
+
+**Two more rewording attempts, isolating just the refusal-instruction wording (position and
+"default to answering" framing held constant at v2's):**
+
+| variant | change from v2 | accuracy (40 in-corpus) | refusal (20 probes) |
+|---|---|---|---|
+| v3 | drops "briefly state what is missing" (hypothesis: asking to justify invites refusal, per the original v1 finding) | 0.45 | 0.85 |
+| v4 | reframes NO_ANSWER as a parsing/formatting requirement rather than a content choice | 0.50 | 0.85 |
+
+Both **underperform v2's 0.55** — the explanation request v3 removed turns out to help here (the
+opposite of the original v1 finding, which tested a different instruction — "explain briefly why" —
+in a different prompt shape; not the same lever). Two tries moving away from v2 both lost ground, so
+**v2 stands as the best sentinel-preserving candidate found.**
+
+**Further rounds, per explicit instruction to keep searching and also amend the general
+(bridge-resolution) instruction, not just the sentinel wording:**
+
+- `hops_sentinel_v5` (v2 + one light "read every excerpt carefully" line, no full CoT): **0.55/0.85**
+  — identical to v2, the added line changed nothing measurable.
+- `hops_example` (adds a worked example resolving a description to an entity; **no sentinel** — tests
+  the general-prompt axis in isolation): **0.62/0.85** — nearly matches `hops`'s accuracy (0.65) while
+  *beating* its refusal rate (0.85 vs 0.80), on the regex-only fallback alone.
+- `hops_sentinel_v6` (hops_example's worked example + v2's sentinel wording, testing whether the two
+  axes stack): **0.55/0.85** — identical to v2 and v5. **The example's gain evaporates once the
+  sentinel is added back.**
+
+**Three sentinel-preserving variants (v2, v5, v6) now land on the exact same 0.55/0.85** despite
+different content changes — strong evidence of a real plateau for "hops-shaped content + this
+sentinel-instruction shape" on this model, not sampling noise. Whatever the sentinel mechanism
+suppresses, it caps accuracy around 0.55 regardless of what else is added. `hops_example` (no
+sentinel) is now the best-performing candidate overall on this sample: higher accuracy than every
+sentinel variant (0.62 vs 0.55) at the identical 0.85 refusal rate — the regex fallback matched the
+sentinel's own rate exactly on this run.
+
+**Every variant tried stays as a named, exact-text entry in
+[eval/replay_answer.py](eval/replay_answer.py)'s `PROMPTS` dict — nothing is deleted, so any of them
+can be re-run or promoted to `generation/prompts.py` at any time.** Full ranking:
+
+| variant | accuracy | deictic | refusal | sentinel? | status |
+|---|---|---|---|---|---|
+| baseline (shipped) | 0.42 | 0.33 | 0.85 | yes | current production |
+| hops | 0.65 | 0.55 | 0.80 | no | highest accuracy, no contract |
+| hops_sentinel (+CoT) | 0.40 | 0.30 | 0.85 | yes | worst — CoT scaffold actively hurts |
+| hops_sentinel_minimal | 0.47 | — | 0.85 | yes | baseline sentinel wording, no CoT |
+| hops_sentinel_v2 | 0.55 | 0.42 | 0.85 | yes | plateau candidate 1 |
+| hops_sentinel_v3 | 0.45 | — | 0.85 | yes | worse — dropping the explanation ask hurt |
+| hops_sentinel_v4 | 0.50 | — | 0.85 | yes | worse — "parsing requirement" framing hurt |
+| hops_sentinel_v5 | 0.55 | — | 0.85 | yes | plateau candidate 2 — ties v2 exactly |
+| **hops_example** | **0.62** | — | **0.85** | **no** | **best overall — no sentinel** |
+| hops_sentinel_v6 | 0.55 | — | 0.85 | yes | plateau candidate 3 — example + v2 combined, still ties |
+
+**SHIPPED, then CONFIRMED to diverge sharply from the replay prediction (2026-08-25).**
+`hops_example` was promoted to `SYSTEM_PROMPT` and run through the full 125-case agentic pipeline
+(`eval/reports/20260825-152139.json`, same floors/collection/seed as the canonical baseline):
+
+| metric | old baseline | new (full pipeline) | delta |
+|---|---|---|---|
+| answer_accuracy | 0.759 | 0.580 | **-0.178** |
+| answer_coverage | 0.489 | 0.522 | +0.033 |
+| refusal_accuracy | 0.736 | 0.888 | +0.152 |
+| citation_accuracy | 0.622 | 0.811 | +0.189 |
+| p90 latency | 53.5s | 43.6s | better |
+
+**The 40-case replay's clean win (0.42→0.62 accuracy, no refusal cost) did not hold up on the full
+pipeline.** `answer_coverage` — the honest headline metric, chosen specifically because it can't be
+gamed by refusing more — moved only +3.3 points, inside the scorer's own documented 2-5 point slack
+(see the plan file's "Do we have proper benchmarks?" section). That could be noise. Meanwhile
+`answer_accuracy` (correct ÷ answered) dropped hard: the model answers more often and cites the right
+source far more often (+18.9 points), but a much bigger share of those extra answers are wrong.
+
+**Likely cause: the replay never touched the self-correction stage.** `eval/replay_answer.py` scores
+one isolated generation call over a frozen, already-correct saved context. The full agentic pipeline
+also uses `SYSTEM_PROMPT` to generate `_self_correct`'s draft answer
+([retrieval/agentic.py](../retrieval/agentic.py)), which can get reused as the final answer
+(`outcome.draft_answer`) without ever going through the replay's code path. The "resolve the bridge,
+default to answering" instruction may be pushing confident-but-wrong bridge resolutions when
+retrieval didn't actually surface the right entity — a failure mode a single-call replay over
+guaranteed-correct contexts structurally cannot surface.
+
+**Diagnosed (2026-08-25): NOT a self-correction/draft-reuse artifact.** `draft_reused` fired on
+essentially 0 cases in the new run (1 in the old) — the hypothesis that `_self_correct`'s draft
+generation was the mechanism is ruled out empirically.
+
+The real mechanism, from the raw correct/wrong/refused counts (90 in-corpus cases each):
+
+| | refused | correct | wrong |
+|---|---|---|---|
+| old | 32 | 44 | 14 |
+| new | 9 | 47 | 34 |
+
+Of the 23 cases that stopped being refused, only 3 became correct — 20 became wrong (a 13%/87%
+conversion, not the reverse). Not concentrated on the slow/multi-hop path either — wrong answers land
+mostly on fast-path in both runs (13/14 old, 30/34 new), so this isn't specifically about multi-hop
+retrieval noise.
+
+**Conclusion: the old prompt's caution wasn't just over-refusing easy bridge questions.** A
+substantial share of its 32 refusals were on genuinely hard cases where declining was the safer,
+more honest call than guessing. `hops_example` has no comparable caution mechanism (no sentinel, no
+"only decide after checking every excerpt" discipline) — it now attempts those cases too, and gets
+most of the attempts wrong. This is not a narrowly fixable bug in one code path; it is the prompt's
+fundamental risk posture. Combined with `answer_coverage`'s barely-there +3.3 point move (inside the
+scorer's known noise band) against a real, large `answer_accuracy` drop, **the honest read is that
+this prompt is a net loss for a system where a wrong answer costs more than an honest refusal.**
+
+**REVERTED (2026-08-25).** `generation/prompts.py`'s `SYSTEM_PROMPT` restored to the sentinel + 4-step
+CoT version that produced the 0.759/0.489/0.736 baseline. `hops_example` and all other tested variants
+remain in `eval/replay_answer.py`'s `PROMPTS` dict for any future attempt — the bridge-resolution
+instruction and the worked example may still be worth revisiting, but layered onto a prompt that keeps
+a real caution mechanism, not in place of one. **Lesson for next time: a replay-only test cannot see a
+prompt's effect on refusal calibration under real retrieval variance — test the full pipeline before
+declaring a prompt change ready, not only at the final confirmation step.**
+
+---
+
+## Gate comparison — `GROUNDING_PROMPT` accept rule
+
+```
+eval/replay_gate.py --report eval/reports/20260824-132940.json --model qwen2.5:7b --sample 25
+```
+
+| gate | bad answers caught | correct answers lost |
+|---|---|---|
+| qwen2.5:3b, no accept rule | 10/10 | 23/25 |
+| qwen2.5:7b, no accept rule | 9/10 | 16/25 |
+| **qwen2.5:7b, with accept rule (shipped in `GROUNDING_PROMPT`)** | 9/20 | **7/25** |
+
+**Finding — stating the accept rule more than halved false rejections**, but not enough to gate on.
+Losing 28% of correct answers to catch 45% of bad ones is a bad trade while over-refusal is already
+the pipeline's largest failure. `_grounded` stays advisory (`answer_async`/`ground_async` only, off
+the critical path) — see its docstring in [generation/answerer.py](generation/answerer.py).
+
+---
+
+## Findings that aren't A/B tests but inform the above
+
+**Latency reality (2026-08-24, full 125-case run, `eval/reports/20260824-132940.json`):**
+
+| | mean | median | p90 | max |
+|---|---|---|---|---|
+| all cases | 23.2s | 15.9s | 53.5s | 144.9s |
+| fast path (82%) | 19.0s | — | — | — |
+| slow path (18%, multi-hop) | 42.8s | — | — | 127.1s |
+
+And it's fully blocking — the whole agentic pipeline runs inside a static `st.spinner()`
+([ui/app.py:303](ui/app.py#L303)) with zero visible output until it returns. Production target
+agreed 2026-08-24: p50 under ~6-8s, p90 under ~15-20s, nothing silent for more than a few seconds.
+**Current p90 already fails that, before any accuracy change.** Any future comparison in this file
+must report latency alongside accuracy — a coverage win that pushes p90 past target is not a win.
+
+**Deictic phrasing predicts difficulty better than the system's own confidence signal** (same
+report): questions using "this X" / "the X that..." phrasing score 33% (15/45) vs 64% (29/45) for
+plain phrasing — a bigger gap than fast-path-vs-slow-path (47% vs 62%). Detectable for free from the
+question text, before retrieval. 17 of 25 reading-failure cases are deictic. Basis for the targeted
+retry design in the main plan (cheap, one extra LLM call over existing chunks, vs. a full multi-hop
+re-run for every deictic question, which would blow the latency budget above).
+
+**Aggregation guard (`TABLE_MAJORITY`, `_has_aggregation_intent`):** measured against
+[golden_aggregation.yaml](golden_aggregation.yaml) (8 real aggregations, 8 same-vocabulary lookups).
+Vocabulary narrowed from "any aggregation word" (16/16 false-positive rate) to collective terms +
+partitives (8/8 caught, 0/8 false positives). The guard cannot fire at all on the `hybridqa`
+collection — every table there is exactly one chunk, so a 3-of-5 table majority is structurally
+unreachable; it does fire on the real `documents` collection (11/14 table docs have 3+ chunks).
+`golden_aggregation.yaml`'s header carries the full derivation.
+
+**Semantic chunking — MEASURED, closed (2026-08-24).** First pass wrongly concluded "not worth
+testing" from checking presence/absence in the existing structural chunks only, without ever running
+semantic chunking — caught as an unsupported claim, corrected, and actually run.
+
+```
+# ingest: eval/ingest_hybridqa.py --collection hybridqa_semantic --semantic
+# compare: retrieval-only (embed + rerank, no generation) over both collections,
+#          89 in-corpus cases, top_k=5/candidates=25 (config.yaml defaults)
+```
+
+| | structural (`hybridqa`) | semantic (`hybridqa_semantic`) |
+|---|---|---|
+| answer recall | 67/89 (0.75) | 68/89 (0.76) |
+| source recall | 78/89 (0.88) | 77/89 (0.87) |
+| retrieval refused | 0/89 | 0/89 |
+
+**Finding — a 1-point wash, not a win.** Semantic gained 3 cases and lost 2 relative to structural —
+different individual questions, not a net improvement large enough to matter on n=89. Re-ingesting a
+whole corpus into topic-boundary chunks to move one point (inside noise) is not worth the switch.
+Confirms, with a real measurement this time, what the first (invalid) pass guessed: chunking strategy
+is not where this benchmark's points are. **Branch G closed, no change shipped.**
+
+Found and fixed along the way: `split_prose_semantic`'s `_split_sentences(text) or [text]` fallback
+turned an empty passage into a single empty-string "sentence", which Ollama's embed endpoint 400s on
+— fixed by dropping the fallback (an empty passage now yields zero chunks, correctly). Separately,
+`OllamaEmbedder.embed` also hit a transient `400` from Ollama's own embed runner ("...tokenize: EOF")
+that succeeded on an unmodified retry — added a 3-attempt retry in
+[retrieval/embedder.py](retrieval/embedder.py), which benefits every caller, not just this script.
+
+**Retrieval floors do not separate answerable from unanswerable — on HybridQA specifically.**
+(uncensored scores, floors at 0.0, `eval/reports/20260824-132940.json`): in-corpus best-rerank-score
+spans 0.512-0.731, out-of-corpus 0.501-0.731 — full overlap, `vector_floor` is actually
+anti-correlated with answerability on this corpus (probe median cosine 0.618 vs in-corpus 0.558).
+No floor setting beats `is_refusal` at this job — **on HybridQA.**
+
+**CORRECTED (2026-08-24): this does not license deleting the floors.** `config.yaml`'s
+`score_floor`/`vector_floor` comments say they were calibrated against the real `documents`
+production collection, described there as having a *clean* separation (out-of-corpus 0.50-0.503 vs
+in-corpus 0.578+; table rows at 0.4494-0.4718 cosine). HybridQA has no golden set covering
+`documents`, so the finding above was never actually tested on the corpus the floors exist for — see
+Branch E in the main plan file, reconsidered rather than executed. The floors stay.

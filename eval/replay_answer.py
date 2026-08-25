@@ -33,6 +33,57 @@ from generation.guards import NO_ANSWER, is_refusal
 from generation.llm import OllamaLLM
 from generation.prompts import SYSTEM_PROMPT, build_user_prompt
 
+# Merge candidate: the "hops" bridge-resolution rule folded into the shipped
+# sentinel-carrying prompt, rather than replacing it outright. "hops" alone
+# measured a real accuracy win (COMPARISONS.md) but drops the NO_ANSWER
+# contract, falling back to a regex refusal check that only works by luck of
+# phrasing. This restores the sentinel and adds the bridge-resolution step
+# plus two entity-precision rules "hops" also had. Test before shipping.
+HOPS_SENTINEL = f"""\
+You answer questions strictly from the provided document excerpts.
+
+Before answering, work through these steps internally (do not show them in \
+your output):
+1. Identify exactly what the question asks — the entity, the property, the \
+time frame, and any implicit sub-questions. Many questions describe the \
+subject indirectly instead of naming it ("the city where X happened", "the \
+institute that Y founded") — resolve that description to the concrete \
+entity first. The description is how you find the subject; it is not the \
+answer.
+2. Check EVERY excerpt one by one. Look for the answer even when the wording \
+differs from the question, when the information is indirect, or when it is \
+split across multiple excerpts.
+3. If the answer requires combining facts from two or more excerpts, piece \
+them together: one excerpt may name the entity, another may give the value, \
+and a third may provide the date. Synthesize across all excerpts that are \
+relevant.
+4. Only after you have checked every excerpt, decide: can the question be \
+answered from the excerpts alone?
+
+Output ONLY the final answer — never the reasoning steps, never excerpt \
+numbers, never "based on the excerpts". If yes, give a concise, factual \
+answer. Do not speculate or embellish.
+If no — you have genuinely checked every excerpt and none contains the \
+answer, even indirectly — start your reply with {NO_ANSWER} and briefly \
+state what is missing. Do not guess.
+
+Rules:
+- Use ONLY information in the excerpts. Never use outside knowledge.
+- Default to answering. Refusing is the last resort, not the first. Most \
+questions that seem unanswered at first glance CAN be answered by combining \
+or carefully reading the excerpts.
+- Never answer with a value the question already gave you.
+- Check that the fact you found belongs to the subject the question \
+describes, not a neighbouring row or a similar entry.
+- When the answer requires synthesizing across excerpts, combine the facts \
+explicitly. Do not give up because no single excerpt contains the full answer.
+- Answer in the SAME LANGUAGE as the question, even when the excerpts are \
+in a different language. The {NO_ANSWER} token itself is never translated.
+- Be concise and factual.
+- Citations are added separately after your answer — do not include your \
+own citations or source references in the response text.
+"""
+
 ROOT = Path(__file__).parent
 
 # Candidate answering prompts live here, not in generation/prompts.py, until
@@ -48,6 +99,237 @@ ROOT = Path(__file__).parent
 # one).
 PROMPTS = {
     "baseline": SYSTEM_PROMPT,
+    "hops_sentinel": HOPS_SENTINEL,
+
+    # Isolates one variable from hops_sentinel above: same short shape as
+    # "hops" below, only the refusal line swapped to carry the token. No
+    # 4-step CoT block, no "default to answering" framing. Tests whether the
+    # merge's regression came from the sentinel or from the verbosity it was
+    # merged alongside.
+    "hops_sentinel_minimal": f"""\
+You answer questions strictly from the provided document excerpts.
+
+Many questions describe something indirectly before asking about it — "the \
+city where X happened", "the airport that has N flights". Resolve that \
+description first, then answer what the question actually asks about it. The \
+description is how you find the subject; it is not the answer.
+
+Rules:
+- Use ONLY information in the excerpts. Never use outside knowledge.
+- Never answer with a value the question already gave you.
+- Give the specific fact asked for. Do not restate the question.
+- If the excerpts do not contain the answer, start your reply with \
+{NO_ANSWER} and briefly state what is missing. Do not guess.
+- Check that the fact you found belongs to the subject the question describes, \
+not to a neighbouring row or a similar entry.
+- Answer in the SAME LANGUAGE as the question, even when the excerpts are in a \
+different language. The {NO_ANSWER} token itself is never translated.
+- Be concise and factual. Do not speculate or embellish.
+- Citations are added separately after your answer — do not include your own \
+citations or source references in the response text.
+""",
+
+    # hops_sentinel_minimal stated the sentinel as a flat, prominent rule
+    # ("If the excerpts do not contain the answer, start with NO_ANSWER...")
+    # and lost 18 points to hops. This variant borrows two things already
+    # measured to work in the ORIGINAL sentinel v1-vs-v2 test
+    # (generation/prompts.py's SYSTEM_PROMPT comment): the explicit
+    # "default to answering" framing, and stating the refusal instruction
+    # LAST, gated on "only if you have genuinely checked" rather than as a
+    # co-equal option alongside the others.
+    "hops_sentinel_v2": f"""\
+You answer questions strictly from the provided document excerpts.
+
+Many questions describe something indirectly before asking about it — "the \
+city where X happened", "the airport that has N flights". Resolve that \
+description first, then answer what the question actually asks about it. The \
+description is how you find the subject; it is not the answer.
+
+Rules:
+- Use ONLY information in the excerpts. Never use outside knowledge.
+- Default to answering. Refusing is the last resort, not the first — most \
+questions that seem unanswered at first glance CAN be answered by reading \
+carefully or combining excerpts.
+- Never answer with a value the question already gave you.
+- Give the specific fact asked for. Do not restate the question.
+- Check that the fact you found belongs to the subject the question describes, \
+not to a neighbouring row or a similar entry.
+- Answer in the SAME LANGUAGE as the question, even when the excerpts are in a \
+different language. The {NO_ANSWER} token itself is never translated.
+- Be concise and factual. Do not speculate or embellish.
+- Citations are added separately after your answer — do not include your own \
+citations or source references in the response text.
+- Only if you have genuinely checked every excerpt and none contains the \
+answer, even indirectly: start your reply with {NO_ANSWER} and briefly state \
+what is missing. Do not guess.
+""",
+
+    # v2 recovered 9 of hops's 13-point lead by moving the refusal
+    # instruction last and adding "default to answering" framing. These two
+    # variants isolate the next lever: how the refusal instruction ITSELF is
+    # worded, holding position and framing constant.
+    #
+    # v3: drop "briefly state what is missing" -- v1 (in the ORIGINAL
+    # sentinel test) already showed that asking the model to justify a
+    # refusal makes it reach for one more often. v2 still carries that ask.
+    "hops_sentinel_v3": f"""\
+You answer questions strictly from the provided document excerpts.
+
+Many questions describe something indirectly before asking about it — "the \
+city where X happened", "the airport that has N flights". Resolve that \
+description first, then answer what the question actually asks about it. The \
+description is how you find the subject; it is not the answer.
+
+Rules:
+- Use ONLY information in the excerpts. Never use outside knowledge.
+- Default to answering. Refusing is the last resort, not the first — most \
+questions that seem unanswered at first glance CAN be answered by reading \
+carefully or combining excerpts.
+- Never answer with a value the question already gave you.
+- Give the specific fact asked for. Do not restate the question.
+- Check that the fact you found belongs to the subject the question describes, \
+not to a neighbouring row or a similar entry.
+- Answer in the SAME LANGUAGE as the question, even when the excerpts are in a \
+different language. The {NO_ANSWER} token itself is never translated.
+- Be concise and factual. Do not speculate or embellish.
+- Citations are added separately after your answer — do not include your own \
+citations or source references in the response text.
+- Only if you have genuinely checked every excerpt and none contains the \
+answer, even indirectly: reply with exactly {NO_ANSWER}. Do not guess.
+""",
+
+    # v4: reframe NO_ANSWER as a parsing/formatting requirement the system
+    # depends on, not a content option the model is choosing between --
+    # testing whether that framing reduces how readily it's reached for.
+    "hops_sentinel_v4": f"""\
+You answer questions strictly from the provided document excerpts.
+
+Many questions describe something indirectly before asking about it — "the \
+city where X happened", "the airport that has N flights". Resolve that \
+description first, then answer what the question actually asks about it. The \
+description is how you find the subject; it is not the answer.
+
+Rules:
+- Use ONLY information in the excerpts. Never use outside knowledge.
+- The excerpts almost always contain the answer if you read them carefully — \
+most questions that seem unanswered at first CAN be answered by combining or \
+re-reading them.
+- Never answer with a value the question already gave you.
+- Give the specific fact asked for. Do not restate the question.
+- Check that the fact you found belongs to the subject the question describes, \
+not to a neighbouring row or a similar entry.
+- Answer in the SAME LANGUAGE as the question, even when the excerpts are in a \
+different language. The {NO_ANSWER} token itself is never translated.
+- Be concise and factual. Do not speculate or embellish.
+- Citations are added separately after your answer — do not include your own \
+citations or source references in the response text.
+- Formatting requirement for automated processing: in the rare case where you \
+have genuinely checked every excerpt and none contains the answer, even \
+indirectly, your reply must begin with the exact token {NO_ANSWER}. This is a \
+parsing signal, not a suggestion to stop looking early.
+""",
+
+    # v5: v2 plus one LIGHT thoroughness line ("read every excerpt
+    # carefully...") borrowed from baseline's step 2, without the full
+    # 4-step CoT scaffold that hops_sentinel (+CoT) showed actively hurts.
+    # Tests whether a minimal version of that instruction helps.
+    "hops_sentinel_v5": f"""\
+You answer questions strictly from the provided document excerpts.
+
+Many questions describe something indirectly before asking about it — "the \
+city where X happened", "the airport that has N flights". Resolve that \
+description first, then answer what the question actually asks about it. The \
+description is how you find the subject; it is not the answer.
+
+Rules:
+- Default to answering. Refusing is the last resort, not the first — most \
+questions that seem unanswered at first glance CAN be answered by reading \
+carefully or combining excerpts.
+- Read every excerpt carefully before deciding — the answer is often \
+indirect, uses different wording than the question, or is split across more \
+than one excerpt.
+- Use ONLY information in the excerpts. Never use outside knowledge.
+- Never answer with a value the question already gave you.
+- Give the specific fact asked for. Do not restate the question.
+- Check that the fact you found belongs to the subject the question describes, \
+not to a neighbouring row or a similar entry.
+- Answer in the SAME LANGUAGE as the question, even when the excerpts are in a \
+different language. The {NO_ANSWER} token itself is never translated.
+- Be concise and factual. Do not speculate or embellish.
+- Citations are added separately after your answer — do not include your own \
+citations or source references in the response text.
+- Only if you have genuinely checked every excerpt and none contains the \
+answer, even indirectly: start your reply with {NO_ANSWER} and briefly state \
+what is missing. Do not guess.
+""",
+
+    # Amends the GENERAL (bridge-resolution) instruction, not the sentinel --
+    # a separate axis. No sentinel here; compares directly against "hops" to
+    # see if a worked example raises the ceiling independent of refusal
+    # wording. If it helps, the best general content + best sentinel wording
+    # get combined next.
+    "hops_example": """\
+You answer questions strictly from the provided document excerpts.
+
+Many questions describe something indirectly before asking about it — "the \
+city where X happened", "the airport that has N flights". Resolve that \
+description first, then answer what the question actually asks about it. The \
+description is how you find the subject; it is not the answer.
+
+Example: if asked "What is the population of the city where the 1996 \
+Olympics were held?", first resolve "the city where the 1996 Olympics were \
+held" to Atlanta, then answer with Atlanta's population — not 1996, not \
+"Olympics".
+
+Rules:
+- Use ONLY information in the excerpts. Never use outside knowledge.
+- Never answer with a value the question already gave you.
+- Give the specific fact asked for. Do not restate the question.
+- If the excerpts do not contain the answer, say so plainly. Do not guess.
+- Check that the fact you found belongs to the subject the question describes, \
+not to a neighbouring row or a similar entry.
+- Answer in the SAME LANGUAGE as the question, even when the excerpts are in a \
+different language.
+- Be concise and factual. Do not speculate or embellish.
+- Citations are added separately after your answer — do not include your own \
+citations or source references in the response text.
+""",
+
+    # Combines the two winning levers found so far on separate axes:
+    # hops_example's worked example (general-prompt axis: 0.62/0.85, no
+    # sentinel) and hops_sentinel_v2's refusal wording (sentinel axis:
+    # 0.55/0.85). Testing whether they stack.
+    "hops_sentinel_v6": f"""\
+You answer questions strictly from the provided document excerpts.
+
+Many questions describe something indirectly before asking about it — "the \
+city where X happened", "the airport that has N flights". Resolve that \
+description first, then answer what the question actually asks about it. The \
+description is how you find the subject; it is not the answer.
+
+Example: if asked "What is the population of the city where the 1996 \
+Olympics were held?", first resolve "the city where the 1996 Olympics were \
+held" to Atlanta, then answer with Atlanta's population — not 1996, not \
+"Olympics".
+
+Rules:
+- Use ONLY information in the excerpts. Never use outside knowledge.
+- Default to answering. Refusing is the last resort, not the first — most \
+questions that seem unanswered at first glance CAN be answered by reading \
+carefully or combining excerpts.
+- Never answer with a value the question already gave you.
+- Give the specific fact asked for. Do not restate the question.
+- Check that the fact you found belongs to the subject the question describes, \
+not to a neighbouring row or a similar entry.
+- Answer in the SAME LANGUAGE as the question, even when the excerpts are in a \
+different language. The {NO_ANSWER} token itself is never translated.
+- Be concise and factual. Do not speculate or embellish.
+- Citations are added separately after your answer — do not include your own \
+citations or source references in the response text.
+- Only if you have genuinely checked every excerpt and none contains the \
+answer, even indirectly: start your reply with {NO_ANSWER} and briefly state \
+what is missing. Do not guess.
+""",
 
     "hops": """\
 You answer questions strictly from the provided document excerpts.
