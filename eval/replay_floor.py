@@ -35,7 +35,9 @@ from eval.metrics import (answer_coverage, refusal_accuracy,
 ROOT = Path(__file__).parent
 
 SCORE_GRID = [0.45, 0.50, 0.55, 0.60, 0.65]
-VECTOR_GRID = [0.35, 0.40, 0.45, 0.50]
+# 0.42 is config.yaml's shipped default — included so the grid can directly
+# compare "does anything beat 0.55/0.42" instead of only bracketing it.
+VECTOR_GRID = [0.35, 0.40, 0.42, 0.45, 0.50]
 
 
 def latest_report() -> Path:

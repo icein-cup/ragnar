@@ -2,6 +2,84 @@
 
 Running log of discoveries, patterns, and decisions. Updated each iteration.
 
+## 2026-08-25 — Tuning runbook fixed: harness bugs, phase order, and agentic grid cut from 16 combos to 5
+
+Reviewing `eval/docs/tuning-runbook.md` against `eval/tune_params.py` and prior eval results before
+running any of the four tuning phases turned up problems serious enough that the retrieval and
+agentic phases had never actually run:
+
+- `tune_params.py` never passed `--golden` to `run_eval.py`, so any `--collection hybridqa` sweep
+  silently scored the wrong golden set (`eval/golden_set.yaml`, the default) against the hybridqa
+  collection. Fixed: `--golden` threaded through `_run_eval`/`_run_grid`/`main`.
+- `_run_eval` parsed the *entire* stdout of `run_eval.py` as JSON, but `run_eval.py` prints the
+  report object and then a trailing `wrote eval/reports/<stamp>.json` line — `json.loads` raised
+  `Extra data` on that, killing the whole sweep at combo 1. Fixed: parse only up to the report's
+  closing brace, with a `try/except` so one bad combo degrades instead of aborting the sweep.
+- Deleted the dead `--phase floors` path (`_run_floors`, `FLOOR_GRID`) — Phase 3 (floors) has always
+  called `eval/replay_floor.py --grid` directly; the `tune_params.py` copy was never invoked and
+  parsed replay output by column position, which would silently break on any header change.
+
+**Phase order was wrong.** The runbook called the four phases independent. They are not:
+`score_floor`/`vector_floor` filter the score population that `candidates`/`top_k` produce, so a
+floor result measured before retrieval is tuned is invalidated the moment retrieval changes.
+Reordered to retrieval → agentic → floors → chunking; floors last because they're the cheapest to
+redo.
+
+**Agentic grid cut from 16 combos (~20h) to 5 new runs (~4.5h).** Two results already in this repo,
+never stated together: the current default `max_hops=3, multi_query_count=3` measures p90 **53.5s**
+against an agreed p90 target of 15-20s (`eval/reports/20260824-132940.json`, see
+experiment-results.md "Latency reality"), and `multi_query_count=5` was separately measured at
+**+47s/case** and reverted (`256c051`). Together those disqualify `multi_query_count` 5/7 (latency)
+and `max_hops=4` (baseline already 3x over budget) — 12 of the planned 16 combos were never viable to
+ship regardless of coverage. Also reframes the phase: the open question is how far *down*
+`max_hops`/`multi_query_count` can go before coverage breaks, not how much further up buys — more is
+already unaffordable. See experiment-results.md Phase 2 for the full reasoning and the disqualified-
+combo grid.
+
+**Retrieval grid narrowed:** dropped `top_k=12` from the sweep — adds context to a generation call
+already over the latency budget above, and Branch D's own recall numbers already flatten past
+`top_k=10`. Both phases now use coordinate descent (hold one axis at default, sweep the other, sweep
+the winner) instead of the full grid: ~11 runs total across both phases, ~10h serial, down from ~35h.
+
+**Parallel execution ruled out for the agentic phase, viable but not recommended for retrieval.**
+The agentic phase's whole output is a latency measurement; sharding combos across one Ollama makes
+per-request latency a function of contention rather than the config, which would distort the ranking
+(contention scales with call count, not just rescale it by a constant) — not just add noise. Retrieval
+could shard safely (`answer_coverage` doesn't move under contention) after fixing two harness bugs —
+`run_cases`' `llm.unload()` is a *global* Ollama eviction, not per-client, and the report stamp is
+second-resolution so concurrent shards collide on one output file — but coordinate descent already
+gets retrieval down to ~6-7 runs, making the fix-and-shard path not worth it.
+
+**Added a RAGAS finalist check.** `decisions-log`'s own "Eval comparison tracking" table already
+listed `faithfulness`/`answer_correctness`/`context_precision` as pending, but the tuning runbook
+never called `eval/run_ragas.py` anywhere — a phase could pick a winner on `answer_coverage` alone
+while faithfulness quietly dropped, since `answer_coverage` only checks whether expected words appear
+in the answer. Running RAGAS's judged, paid metrics on the full ~11-run sweep isn't worth the cost;
+instead each phase's finalist (not every grid row) gets one RAGAS pass, recorded alongside the
+deterministic metrics, with a faithfulness regression against the 0.70 baseline treated as a reason to
+keep the previous default even if `answer_coverage` improved.
+
+**Correction, same day:** the RAGAS finalist check as first written had two real problems, caught in
+review before any run happened. `run_ragas.py:86` called `run_cases(...)` directly — it does not read
+a saved report — so "score the finalist with RAGAS" was actually a *second* full ~55-min pipeline run
+per phase, not the cheap post-process the runbook implied. And `run_ragas.py` had no floor flags, so
+that second run always used whatever `config.yaml` held at the time — meaning the Phase 1/2 finalist
+checks would have been scored against the untuned 0.55/0.42 stopgap, since floors aren't tuned until
+Phase 3. Fixed by adding `--report` to `run_ragas.py`: `build_samples()` now accepts a saved report
+path and reads its `question`/`answer`/`expected_answer`/`contexts` fields directly (already saved by
+`run_eval.py` on every run) instead of calling `run_cases()` again. This makes the finalist check a
+true post-process — no extra pipeline run, and it's inherently scored against whatever config produced
+that report, so the floor-mismatch problem doesn't arise. Also added `0.42` (the shipped
+`vector_floor` default) to `replay_floor.py`'s `VECTOR_GRID`, which previously only bracketed it —
+`0.55/0.42` is now a directly comparable row in the Phase 3 grid, not an interpolation. Also corrected
+the runbook's Phase 3 header, which quoted "~55 min" for what is actually two full runs (uncensored +
+confirm) — see the total-budget table now at the top of `tuning-runbook.md`.
+
+`eval/run_eval.py`, `eval/metrics.py`, and `config.yaml` are still untouched — this remains a
+harness-and-runbook fix, not a new measurement. `eval/run_ragas.py` and `eval/replay_floor.py` did
+change (see above). See [`eval/docs/tuning-runbook.md`](tuning-runbook.md) for the corrected procedure
+and [`eval/docs/experiment-results.md`](experiment-results.md) for the updated phase tables.
+
 ## 2026-08-25 — Systematic hyperparameter tuning begins
 
 **Problem:** every retrieval/chunking/agentic default is an untested stopgap:

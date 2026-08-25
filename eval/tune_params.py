@@ -1,11 +1,13 @@
 """Hyperparameter tuning harness for RAGnar.
 
-Orchestrates the four tuning phases in cheapest-first order. Each phase
-produces a CSV + JSON under eval/reports/ and prints a ranked summary.
+Orchestrates the retrieval and agentic tuning phases (run AFTER floors —
+floors filter the score population these two phases change, so tuning them
+first would invalidate a floor result; see eval/docs/tuning-runbook.md).
+Floors is offline arithmetic over a saved report and belongs to
+eval/replay_floor.py directly, not here. Each phase produces a CSV + JSON
+under eval/reports/ and prints a ranked summary.
 
 Phases:
-    floors     — offline. Replays score_floor × vector_floor over a saved
-                 uncensored report (see eval/replay_floor.py). No LLM calls.
     retrieval  — candidates × top_k. Requires re-running the pipeline per
                  combo (these params change what is retrieved, so there is no
                  offline shortcut).
@@ -19,10 +21,15 @@ codebase's documented primary metric and constraint (see eval/metrics.py).
 citation_precision and latency are reported as secondary columns, never
 folded into a composite score.
 
+--golden must match the --collection (e.g. hybridqa's collection needs
+eval/golden_hybridqa_draft.yaml) — the two are independent flags here for the
+same reason they are on run_eval.py, but nothing checks they agree.
+
 Usage:
-    python eval/tune_params.py --phase floors
-    python eval/tune_params.py --phase retrieval
-    python eval/tune_params.py --phase agentic
+    python eval/tune_params.py --phase retrieval \\
+        --collection hybridqa --golden eval/golden_hybridqa_draft.yaml
+    python eval/tune_params.py --phase agentic \\
+        --collection hybridqa --golden eval/golden_hybridqa_draft.yaml
 """
 import argparse
 import csv
@@ -39,11 +46,6 @@ ROOT = Path(__file__).parent
 # ~0.85 target the codebase treats as the production bar (config.yaml's
 # model comments cite 0.90 probe refusal as the shipped quality).
 MIN_REFUSAL = 0.85
-
-FLOOR_GRID = {
-    "score_floor": [0.45, 0.50, 0.55, 0.60, 0.65],
-    "vector_floor": [0.35, 0.40, 0.45, 0.50],
-}
 
 RETRIEVAL_GRID = {
     "candidates": [20, 25, 30, 40],
@@ -65,12 +67,15 @@ METRICS = [
 ]
 
 
-def _run_eval(overrides: dict[str, str], collection: str | None) -> dict | None:
+def _run_eval(overrides: dict[str, str], collection: str | None,
+              golden: Path | None) -> dict | None:
     """Run eval/run_eval.py --agentic with the given overrides, parse the
     summary. Returns None on failure so a partial sweep can still be saved."""
     cmd = [sys.executable, "eval/run_eval.py", "--agentic"]
     if collection:
         cmd += ["--collection", collection]
+    if golden:
+        cmd += ["--golden", str(golden)]
     for key, val in overrides.items():
         cmd += [f"--{key.replace('_', '-')}", str(val)]
 
@@ -79,7 +84,16 @@ def _run_eval(overrides: dict[str, str], collection: str | None) -> dict | None:
         print(f"eval failed: {result.stderr[-500:]}", file=sys.stderr)
         return None
 
-    summary = json.loads(result.stdout)
+    # run_eval.py prints the report JSON to stdout, then a trailing
+    # "wrote eval/reports/<stamp>.json" line — json.loads on the raw stdout
+    # raises "Extra data" on that line. The report is the first (and only)
+    # top-level JSON object, so slice to its closing brace.
+    try:
+        summary = json.loads(result.stdout[:result.stdout.rindex("}") + 1])
+    except (ValueError, json.JSONDecodeError):
+        print(f"could not parse eval output: {result.stdout[-500:]}",
+              file=sys.stderr)
+        return None
     row = {k: summary.get(k) for k in METRICS}
     row["latency_mean_s"] = summary.get("latency", {}).get("mean_s")
     row["latency_p90_s"] = summary.get("latency", {}).get("p90_s")
@@ -87,35 +101,8 @@ def _run_eval(overrides: dict[str, str], collection: str | None) -> dict | None:
     return row
 
 
-def _run_floors(report: Path | None) -> list[dict]:
-    """Offline floor sweep via replay_floor.py — no LLM calls."""
-    cmd = [sys.executable, "eval/replay_floor.py", "--grid"]
-    if report:
-        cmd += ["--report", str(report)]
-    result = subprocess.run(cmd, capture_output=True, text=True)
-    if result.returncode != 0:
-        print(result.stderr, file=sys.stderr)
-        return []
-
-    rows = []
-    lines = result.stdout.splitlines()
-    # Skip the "report:" header line and the column header line.
-    for line in lines[2:]:
-        parts = line.split()
-        if len(parts) < 6:
-            continue
-        rows.append({
-            "score_floor": float(parts[0]),
-            "vector_floor": float(parts[1]),
-            "answer_coverage": float(parts[2]),
-            "refusal_accuracy": float(parts[3]),
-            "citation_accuracy": float(parts[4]),
-            "citation_precision": float(parts[5]),
-        })
-    return rows
-
-
-def _run_grid(phase: str, collection: str | None) -> list[dict]:
+def _run_grid(phase: str, collection: str | None,
+              golden: Path | None) -> list[dict]:
     grid = {"retrieval": RETRIEVAL_GRID, "agentic": AGENTIC_GRID}[phase]
     keys = list(grid.keys())
     combos = list(product(*grid.values()))
@@ -123,7 +110,7 @@ def _run_grid(phase: str, collection: str | None) -> list[dict]:
     for i, combo in enumerate(combos, 1):
         overrides = dict(zip(keys, combo))
         print(f"[{i}/{len(combos)}] {phase}: {overrides}", file=sys.stderr)
-        row = _run_eval(overrides, collection)
+        row = _run_eval(overrides, collection, golden)
         if row:
             rows.append(row)
     return rows
@@ -166,18 +153,17 @@ def _summarize(rows: list[dict], phase: str) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--phase", choices=["floors", "retrieval", "agentic"],
+    parser.add_argument("--phase", choices=["retrieval", "agentic"],
                         required=True)
     parser.add_argument("--collection", default=None,
                         help="Qdrant collection override")
-    parser.add_argument("--report", type=Path, default=None,
-                        help="for --phase floors: uncensored report to replay")
+    parser.add_argument("--golden", type=Path, default=None,
+                        help="golden set YAML matching --collection "
+                             "(e.g. eval/golden_hybridqa_draft.yaml for "
+                             "--collection hybridqa)")
     args = parser.parse_args()
 
-    if args.phase == "floors":
-        rows = _run_floors(args.report)
-    else:
-        rows = _run_grid(args.phase, args.collection)
+    rows = _run_grid(args.phase, args.collection, args.golden)
 
     _save(rows, args.phase)
     _summarize(rows, args.phase)

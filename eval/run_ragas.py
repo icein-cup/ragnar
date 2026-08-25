@@ -1,12 +1,17 @@
 """Ragas judged-metric harness.
 
-Eval-only. Reuses `run_eval.run_cases()` so the exact same retrieval and
-answer pipeline is exercised, then scores the in-corpus cases with Ragas
-metrics using an external LLM judge (OpenAI-compatible, e.g. Ollama Cloud)
-and the same local embedding model via Ollama.
+Eval-only. By default reuses `run_eval.run_cases()` so the exact same
+retrieval and answer pipeline is exercised, then scores the in-corpus cases
+with Ragas metrics using an external LLM judge (OpenAI-compatible, e.g.
+Ollama Cloud) and the same local embedding model via Ollama. Pass --report
+to score a saved eval/run_eval.py report instead — a post-process of a run
+already paid for, with no retrieval/generation re-run.
 
 Usage:
-    python eval/run_ragas.py
+    python eval/run_ragas.py --agentic --collection hybridqa \\
+        --golden eval/golden_hybridqa_draft.yaml
+    python eval/run_ragas.py --report eval/reports/<stamp>.json
+    python eval/run_ragas.py --report   # scores the newest report
 """
 import argparse
 import json
@@ -67,9 +72,23 @@ def build_judge() -> ChatOpenAI:
     )
 
 
+def latest_report() -> Path:
+    """Newest eval/run_eval.py report, for a bare --report with no path.
+
+    Same glob as eval/replay_floor.py:latest_report() — kept in sync rather
+    than imported, since replay_floor.py deliberately never imports the app
+    stack and this module already does.
+    """
+    reports = sorted((ROOT / "reports").glob("2*.json"))
+    if not reports:
+        sys.exit("no eval report found — run eval/run_eval.py first")
+    return reports[-1]
+
+
 def build_samples(agentic: bool = False,
                   collection: str | None = None,
-                  golden: Path | None = None) -> list[SingleTurnSample]:
+                  golden: Path | None = None,
+                  report: Path | None = None) -> list[SingleTurnSample]:
     """In-corpus, answered cases mapped to Ragas field names.
 
     Mapping to the golden set:
@@ -81,10 +100,24 @@ def build_samples(agentic: bool = False,
     Out-of-corpus cases are refused by design and have no meaningful answer
     or contexts to score, so they are skipped here. refusal_accuracy in
     run_eval.py already covers those.
+
+    report, when given, reads a saved eval/run_eval.py report's "cases"
+    instead of calling run_cases() again. A report already carries every
+    field this needs (question, answer, expected_answer, contexts) plus the
+    two filter fields below (out_of_corpus, refused) — see the per-case dict
+    built in run_eval.py's run_cases(). Scoring a saved report is a
+    post-process of a run already paid for, not a second ~55-minute pipeline
+    run; agentic/collection/golden are ignored in this mode since the report
+    already encodes what produced it.
     """
+    if report:
+        cases = json.loads(report.read_text())["cases"]
+    else:
+        cases = run_cases(agentic=agentic, collection=collection,
+                          golden=golden)
+
     samples = []
-    for case in run_cases(agentic=agentic, collection=collection,
-                          golden=golden):
+    for case in cases:
         if case["out_of_corpus"] or case["refused"]:
             continue
         if not case["contexts"] or not case["answer"]:
@@ -140,11 +173,22 @@ def main() -> None:
                         help="override the Qdrant collection (e.g. hybridqa)")
     parser.add_argument("--golden", type=Path, default=None,
                         help="override the golden set YAML")
+    parser.add_argument("--report", nargs="?", const="latest", default=None,
+                        help="score a saved eval/run_eval.py report instead "
+                             "of re-running the pipeline (--agentic/"
+                             "--collection/--golden are ignored in this "
+                             "mode). Pass a path, or bare --report for the "
+                             "newest eval/reports/*.json")
     args = parser.parse_args()
 
+    report_path = None
+    if args.report is not None:
+        report_path = latest_report() if args.report == "latest" \
+            else Path(args.report)
+
     cfg = Config()
-    samples = build_samples(agentic=args.agentic,
-                            collection=args.collection, golden=args.golden)
+    samples = build_samples(agentic=args.agentic, collection=args.collection,
+                            golden=args.golden, report=report_path)
     if not samples:
         raise SystemExit(
             "No in-corpus answered cases to score. Ingest the corpus and "

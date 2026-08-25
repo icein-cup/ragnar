@@ -2,6 +2,12 @@
 
 Development-time only. Never runs in the app, never runs in CI automatically.
 
+## Docs
+
+- [`docs/tuning-runbook.md`](docs/tuning-runbook.md) — how to run the tuning phases
+- [`docs/experiment-results.md`](docs/experiment-results.md) — A/B results and findings
+- [`docs/decisions-log.md`](docs/decisions-log.md) — dated decision log
+
 ## Quickstart
 
 ### 1. Set up the judge
@@ -303,7 +309,12 @@ and retrieval may rank either. Both are the correct evidence, so
 
 ## Comparing configurations
 
-    # edit config.yaml: chunking.strategy: semantic (or back to structural)
+Chunking *strategy* (semantic vs structural) is settled — measured as a
+1-point wash, no change shipped (see `eval/docs/experiment-results.md`).
+Only the token budget within structural chunking is still open; that sweep
+and the other tuning phases are documented in `eval/docs/tuning-runbook.md`.
+
+    # edit config.yaml: chunking.target_tokens / overlap_tokens / table_rows_per_group
     docker compose restart app
     # re-ingest the corpus via the UI or a script
     docker compose exec app python eval/run_eval.py

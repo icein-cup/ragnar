@@ -468,32 +468,106 @@ live in [`eval/docs/tuning-runbook.md`](tuning-runbook.md); this section records
 by `answer_coverage` subject to `refusal_accuracy >= 0.85` — the codebase's documented primary
 metric and constraint, never a composite score.
 
-### Phase 1: Floor calibration (`score_floor` × `vector_floor`)
+Phases run in dependency order — **retrieval → agentic → floors → chunking**
+— not the numeric order the phases were first drafted in, because floors
+filter the score population that retrieval changes (see tuning-runbook.md).
+Numbering below follows execution order.
 
-| score_floor | vector_floor | answer_coverage | refusal_accuracy | citation_precision | note |
-|---|---|---|---|---|---|
-| 0.55 | 0.42 | TBD | TBD | TBD | current default (untested stopgap) |
-| ... | ... | ... | ... | ... | ... |
+Each phase's finalist (not every grid row) also gets a RAGAS judged pass —
+`faithfulness` / `answer_correctness` / `context_precision` — since
+`answer_coverage` alone cannot see a hallucinated answer that happens to
+contain the right words (see tuning-runbook.md "RAGAS finalist check").
+
+### Phase 1: Retrieval volume (`candidates` × `top_k`)
+
+| candidates | top_k | answer_coverage | citation_precision | latency_p90 | ragas_faithfulness | ragas_answer_correctness | ragas_context_precision | note |
+|---|---|---|---|---|---|---|---|---|
+| 30 | 10 | TBD | TBD | TBD | — | — | — | current default (Branch D, pending full confirmation) |
+| ... | ... | ... | ... | ... | | | | |
+
+`top_k=12` dropped from the swept range — see Finding below. `ragas_*`
+columns filled only for the finalist row, per the RAGAS finalist check.
+
+**Finding —** `top_k=12` excluded from this sweep rather than measured: it
+adds context on a generation call already over the latency budget the
+agentic phase measures (see Phase 2 below), and Branch D's own recall numbers
+already show the gain flattening past `top_k=10`. Coordinate descent used
+instead of the full `candidates × top_k` grid — see tuning-runbook.md Phase 1.
+[remainder pending measurement]
+
+### Phase 2: Agentic parameters (`max_hops` × `multi_query_count`)
+
+**Finding — 12 of the originally-planned 16 combos are disqualified on
+latency before any new run, and the phase's real question is inverted.** Not
+a new measurement — a conclusion that follows from two results already in
+this file and in git history, but never stated together until now.
+
+1. The current default `max_hops=3, multi_query_count=3` measures p90
+   **53.5s** against the agreed target of p90 15-20s (see "Latency reality"
+   below, `eval/reports/20260824-132940.json`). The baseline is already ~3x
+   over budget before any tuning change.
+2. `multi_query_count=5` was separately measured at **+47s/case** and
+   reverted (commit `256c051`) against a "<25s per question" requirement.
+
+Together those close most of the grid:
+
+| | mq=2 | mq=3 | mq=5 | mq=7 |
+|---|---|---|---|---|
+| **max_hops=1** | open | open | dead (+47s) | dead |
+| **max_hops=2** | open | open | dead (+47s) | dead |
+| **max_hops=3** | open | baseline | dead (+47s) | dead |
+| **max_hops=4** | dead | dead | dead | dead |
+
+`max_hops=4` is dead because `max_hops=3` already misses the p90 target 3x;
+`multi_query_count` 5 and 7 are dead on the +47s measurement. Six combos
+remain, one of which (`3, 3`) is the already-measured baseline — **5 new
+runs, ~4.5h**, not 16 runs and ~20h.
+
+**The question inverts.** The runbook originally framed this phase as
+"marginal gain per hop / query variant vs latency" — but more of either is
+unaffordable at the current baseline. What's actually open is how far *down*
+these parameters can go before coverage breaks: `max_hops=2` or
+`multi_query_count=2` is a latency *win* against a budget already being
+missed, not a tradeoff against a coverage gain. Latency is this phase's
+objective, not its constraint.
+
+**This phase cannot be run in parallel.** Sharding combos across one Ollama
+makes per-request latency a function of contention, and contention scales
+with how many LLM calls a combo makes — so it would distort the *ranking*,
+not just rescale every number by a constant. Moot at 5 runs; recorded so
+parallelism isn't re-proposed here later.
+
+| max_hops | multi_query_count | answer_coverage | multi_hop_citation_accuracy | latency_mean | ragas_faithfulness | ragas_answer_correctness | ragas_context_precision | note |
+|---|---|---|---|---|---|---|---|---|
+| 3 | 3 | TBD | TBD | 23.2s (p90 53.5s) | — | — | — | current default, over budget |
+| 3 | 2 | TBD | TBD | TBD | | | | cheaper fan-out |
+| 2 | 3 | TBD | TBD | TBD | | | | cheaper hops |
+| 2 | 2 | TBD | TBD | TBD | | | | both cheaper |
+| 1 | 3 | TBD | TBD | TBD | | | | single hop |
+| 1 | 2 | TBD | TBD | TBD | | | | floor of the shippable region |
+
+### Phase 3: Floor calibration (`score_floor` × `vector_floor`)
+
+| score_floor | vector_floor | answer_coverage | refusal_accuracy | citation_precision | ragas_faithfulness | ragas_answer_correctness | ragas_context_precision | note |
+|---|---|---|---|---|---|---|---|---|
+| 0.55 | 0.42 | TBD | TBD | TBD | — | — | — | current default (untested stopgap) |
+| ... | ... | ... | ... | ... | | | | |
+
+**Read before trusting this table.** `replay_floor.py`'s grid re-derives
+`refused` purely from whether a chunk clears the candidate floor, discarding
+whatever the model itself decided, and never re-runs generation. So
+`refusal_accuracy` here is a lower bound (a correctly-refused probe can be
+re-scored as answered), `answer_coverage` is an upper bound (a case can stay
+credited even after the chunk carrying the answer is filtered out), and
+`citation_accuracy`/`citation_precision` are not meaningful — citations are
+never re-derived. Both biases push toward floors that look better than they
+are. **The winning combo must be confirmed with one real
+`run_eval.py --agentic` run before `config.yaml` changes** — see
+tuning-runbook.md Phase 3. `VECTOR_GRID` now includes `0.42`
+(`replay_floor.py:38-40`), so the shipped `0.55/0.42` default is a directly
+comparable row in this table rather than something the grid only brackets.
 
 **Finding —** [pending measurement]
-
-### Phase 2: Retrieval volume (`candidates` × `top_k`)
-
-| candidates | top_k | answer_coverage | citation_precision | latency_p90 | note |
-|---|---|---|---|---|---|
-| 30 | 10 | TBD | TBD | TBD | current default (Branch D, pending full confirmation) |
-| ... | ... | ... | ... | ... | ... |
-
-**Finding —** [pending]
-
-### Phase 3: Agentic parameters (`max_hops` × `multi_query_count`)
-
-| max_hops | multi_query_count | answer_coverage | multi_hop_citation_accuracy | latency_mean | note |
-|---|---|---|---|---|---|
-| 3 | 3 | TBD | TBD | TBD | current default |
-| ... | ... | ... | ... | ... | ... |
-
-**Finding —** [pending]
 
 ### Phase 4: Chunking token budget (structural only)
 
@@ -501,10 +575,14 @@ Chunking *strategy* is settled — semantic vs structural was measured and close
 (see "Semantic chunking" above, Branch G). Only the token budget within structural chunking is
 untested.
 
-| config | answer_coverage | citation_precision | multi_hop_citation_accuracy | note |
-|---|---|---|---|---|
-| 350/50/10 | TBD | TBD | TBD | current default |
-| 250/75/5 | TBD | TBD | TBD | tight |
-| 500/30/20 | TBD | TBD | TBD | loose |
+Unlike Phases 1-3, this phase re-ingests and so **mutates the `hybridqa`
+collection** — don't run it concurrently with anything else querying that
+collection.
+
+| config | answer_coverage | citation_precision | multi_hop_citation_accuracy | ragas_faithfulness | ragas_answer_correctness | ragas_context_precision | note |
+|---|---|---|---|---|---|---|---|
+| 350/50/10 | TBD | TBD | TBD | — | — | — | current default |
+| 250/75/5 | TBD | TBD | TBD | | | | tight |
+| 500/30/20 | TBD | TBD | TBD | | | | loose |
 
 **Finding —** [pending]
