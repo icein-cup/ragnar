@@ -155,7 +155,7 @@ class AgenticSearch:
 
         on_progress, when given, is called with a short human-readable
         string at each stage boundary below — the pipeline can otherwise run
-        30-120s (slow-path, see COMPARISONS.md) with no visible output at
+        30-120s (slow-path, see eval/docs/experiment-results.md) with no visible output at
         all. Called at stage granularity only, not per hop/query — enough
         for the UI to show it is working, not a full trace.
 

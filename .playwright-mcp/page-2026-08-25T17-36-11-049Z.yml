@@ -1,0 +1,370 @@
+- generic [ref=e2]:
+  - banner [ref=e3]:
+    - generic [ref=e4]: Ragnar System · Parameter Evaluation
+    - heading "Prompt and Retrieval Configuration Evaluation" [level=1] [ref=e5]
+    - paragraph [ref=e6]: A record of every prompt, retrieval, and model configuration evaluated against the 125-case HybridQA benchmark, 2026‑08‑24 to 2026‑08‑25. States which configurations were adopted, which were reverted following full-benchmark disconfirmation, and the methodological finding governing minimum evaluation sample size for a change expected to alter refusal frequency.
+    - paragraph [ref=e7]:
+      - strong [ref=e8]: "Test conditions, unless stated otherwise:"
+      - text: HybridQA benchmark, 125 cases (90 in‑corpus, 35 out‑of‑corpus probes) · model qwen2.5:7b · embedding bge‑m3 · reranker BAAI/bge‑reranker‑v2‑m3 · seed 42.
+    - generic [ref=e9]:
+      - generic [ref=e10]:
+        - generic [ref=e11]: Model, adopted
+        - generic [ref=e12]: qwen2.5:7b
+        - generic [ref=e13]: selected over 14b and 27B variants (Section 01)
+      - generic [ref=e14]:
+        - generic [ref=e15]: System prompt, adopted
+        - generic [ref=e16]: sentinel + CoT
+        - generic [ref=e17]: 2 candidates evaluated, both reverted
+      - generic [ref=e18]:
+        - generic [ref=e19]: top_k / candidates
+        - generic [ref=e20]: 10 / 30
+        - generic [ref=e21]: staged; full‑benchmark confirmation pending
+      - generic [ref=e22]:
+        - generic [ref=e23]: Chunking strategy
+        - generic [ref=e24]: structural
+        - generic [ref=e25]: semantic strategy evaluated, no measurable gain
+  - navigation [ref=e26]:
+    - generic [ref=e27]: Contents
+    - link "01 · Model size" [ref=e28] [cursor=pointer]:
+      - /url: "#models"
+    - link "02 · Refusal sentinel" [ref=e29] [cursor=pointer]:
+      - /url: "#sentinel"
+    - link "03 · Trial 1 — full replacement" [ref=e30] [cursor=pointer]:
+      - /url: "#round1"
+    - link "04 · Trial 2 — additive merge" [ref=e31] [cursor=pointer]:
+      - /url: "#round2"
+    - link "05 · Sampling validity" [ref=e32] [cursor=pointer]:
+      - /url: "#lesson"
+    - link "06 · Retrieval width" [ref=e33] [cursor=pointer]:
+      - /url: "#topk"
+    - link "07 · Chunking strategy" [ref=e34] [cursor=pointer]:
+      - /url: "#chunking"
+    - link "08 · Latency" [ref=e35] [cursor=pointer]:
+      - /url: "#latency"
+  - main [ref=e36]:
+    - generic [ref=e37]:
+      - generic [ref=e38]: "01"
+      - heading "Model Size Comparison" [level=2] [ref=e39]
+      - paragraph [ref=e40]: Four model configurations were evaluated on an identical set of 20 in‑corpus questions and 10 out‑of‑corpus probes, replayed over identical retrieved contexts (single generation call per case; retrieval not repeated). Coverage is defined as the proportion of correct answers over all answerable questions. Probe refusal is the proportion of out‑of‑corpus questions correctly declined.
+      - generic [ref=e41]:
+        - generic [ref=e42]: Coverage and probe-refusal rate by model configuration
+        - generic [ref=e43]: "eval/replay_answer.py · n=20 in-corpus + n=10 probes · seed 42 · think: default (native mode per model)"
+        - generic [ref=e44]:
+          - generic [ref=e45]: coverage
+          - generic [ref=e47]: probe refusal
+        - generic [ref=e49]:
+          - generic [ref=e50]:
+            - generic [ref=e51]: qwen2.5:7b
+            - generic [ref=e53]: "0.60"
+            - generic [ref=e57]: "0.90"
+          - generic [ref=e61]:
+            - generic [ref=e62]: qwen2.5:14b
+            - generic [ref=e64]: "0.60"
+            - generic [ref=e68]: "0.90"
+          - generic [ref=e72]:
+            - generic [ref=e73]: Qwen3.8-27 (thinking)
+            - generic [ref=e75]: "0.70"
+            - generic [ref=e79]: "0.90"
+          - generic [ref=e83]:
+            - generic [ref=e84]:
+              - generic [ref=e85]: "Qwen3.8-27 (think: false)"
+              - generic [ref=e86]: forced not to think
+            - generic [ref=e87]: "0.05"
+            - generic [ref=e91]: n/a
+      - generic [ref=e95]:
+        - generic [ref=e96]: Latency & resident memory per call
+        - generic [ref=e97]:
+          - generic [ref=e98]:
+            - generic [ref=e99]: 7b · 6.6 GB resident
+            - generic [ref=e101]: 3s/call
+          - generic [ref=e105]:
+            - generic [ref=e106]: 14b · 9.0 GB resident
+            - generic [ref=e108]: 5s/call
+          - generic [ref=e112]:
+            - generic [ref=e113]: 27B thinking · 32 GB resident
+            - generic [ref=e115]: 20s/call
+          - generic [ref=e119]:
+            - generic [ref=e120]: 27B think:false · 32 GB resident
+            - generic [ref=e122]: 8s/call
+      - generic [ref=e128]:
+        - generic [ref=e129]: Confirmed
+        - paragraph [ref=e130]: "Increasing parameter count from 7B to 14B produced no measurable change in coverage (0.60 for both) or probe refusal (0.90 for both), at 1.7× the latency and 1.4× the resident memory. The 27B model, evaluated in its native thinking mode, gained 10 coverage points over the 7B baseline but required 32 GB resident memory and approximately 20 seconds per call before any agentic overhead — exceeding the latency budget independent of pipeline cost. Disabling the 27B model's reasoning pass (think: false) reduced coverage to 0.05."
+        - paragraph [ref=e131]: qwen2.5:7b was retained as the production model. The prompt-wording change in Section 02 produced a larger coverage gain than doubling parameter count.
+    - generic [ref=e132]:
+      - generic [ref=e133]: "02"
+      - heading "Refusal Sentinel Instruction" [level=2] [ref=e134]
+      - paragraph [ref=e135]:
+        - text: Evaluated whether instructing the model to prefix a genuine non-answer with a literal token (
+        - code [ref=e136]: NO_ANSWER
+        - text: ) improves refusal-detection reliability independent of a given model's phrasing habits. n=40 in-corpus, n=20 probes, qwen2.5:7b.
+      - generic [ref=e137]:
+        - generic [ref=e138]: Coverage and refusal rate by instruction wording
+        - generic [ref=e139]:
+          - generic [ref=e140]: coverage
+          - generic [ref=e142]: refusal rate
+        - generic [ref=e144]:
+          - generic [ref=e145]:
+            - generic [ref=e146]: original (no sentinel)
+            - generic [ref=e148]: "0.60"
+            - generic [ref=e152]: "0.85"
+          - generic [ref=e156]:
+            - generic [ref=e157]: sentinel v1 ("explain why")
+            - generic [ref=e159]: "0.50"
+            - generic [ref=e163]: "0.95"
+          - generic [ref=e167]:
+            - generic [ref=e168]: sentinel v2 (shipped)
+            - generic [ref=e170]: "0.62"
+            - generic [ref=e174]: "0.95"
+      - generic [ref=e180]:
+        - generic [ref=e181]: Adopted
+        - paragraph [ref=e182]: A sentinel instruction that also required the model to justify a refusal (v1) reduced coverage by 10 points relative to no sentinel, trading 4 correct answers for 2 correct refusals. A sentinel instruction stating an explicit answer-preference bias (v2) recovered the loss and additionally improved refusal rate by 10 points over the no-sentinel condition.
+        - paragraph [ref=e183]: The answer-preference instruction is necessary to the sentinel's function on this model, not incidental to it.
+    - generic [ref=e184]:
+      - generic [ref=e185]: "03"
+      - 'heading "Trial 1: Full Prompt Replacement" [level=2] [ref=e186]'
+      - paragraph [ref=e187]:
+        - text: Candidate prompt
+        - code [ref=e188]: hops_example
+        - text: removes the sentinel instruction and the 4-step reasoning instruction, and adds a bridge-resolution rule with a worked example. A 40-case single-call replay (retrieved contexts held fixed; n=40 in-corpus, n=20 probes) indicated a coverage improvement. The candidate was subsequently evaluated on the complete 125-case agentic benchmark, in which retrieval is executed fresh per case.
+      - generic [ref=e189]:
+        - generic [ref=e190]:
+          - text: "Full 125-case benchmark: production baseline vs."
+          - code [ref=e191]: hops_example
+        - generic [ref=e192]: eval/reports/20260824-132940.json → 20260825-152139.json · n=125 (90 in-corpus + 35 probes)
+        - generic [ref=e193]:
+          - generic [ref=e194]: baseline (production)
+          - generic [ref=e196]: improved
+          - generic [ref=e198]: regressed
+        - generic [ref=e200]:
+          - generic [ref=e201]:
+            - generic [ref=e202]: answer_accuracy
+            - generic [ref=e204]: "0.759"
+            - generic [ref=e208]: "0.580"
+          - generic [ref=e212]:
+            - generic [ref=e213]: answer_coverage
+            - generic [ref=e215]: "0.489"
+            - generic [ref=e219]: "0.522"
+          - generic [ref=e223]:
+            - generic [ref=e224]: refusal_accuracy
+            - generic [ref=e226]: "0.736"
+            - generic [ref=e230]: "0.888"
+          - generic [ref=e234]:
+            - generic [ref=e235]: citation_accuracy
+            - generic [ref=e237]: "0.622"
+            - generic [ref=e241]: "0.811"
+      - generic [ref=e245]:
+        - generic [ref=e246]: Case outcome by disposition
+        - generic [ref=e247]: n=90 in-corpus · refusal frequency decreased from 32/90 to 9/90
+        - generic [ref=e248]:
+          - generic [ref=e249]:
+            - generic [ref=e250]: old prompt (90 in-corpus)
+            - generic [ref=e251]:
+              - generic [ref=e252]: "44"
+              - generic [ref=e254]: "14"
+              - generic [ref=e256]: "32"
+          - generic [ref=e258]:
+            - generic [ref=e259]: hops_example
+            - generic [ref=e260]:
+              - generic [ref=e261]: "47"
+              - generic [ref=e263]: "34"
+              - generic [ref=e265]: "9"
+      - generic [ref=e269]:
+        - generic [ref=e270]: Reverted
+        - paragraph [ref=e271]:
+          - code [ref=e272]: answer_coverage
+          - text: — the primary outcome measure, which does not exclude refused cases from its denominator — increased by 3.3 points, within the scorer's documented uncertainty band of 2–5 points and not distinguishable from no effect.
+          - code [ref=e273]: answer_accuracy
+          - text: (proportion correct among non-refused cases) decreased by 17.8 points. Of 23 cases for which the model ceased to refuse, 3 (13%) produced a correct answer and 20 (87%) produced an incorrect answer.
+        - paragraph [ref=e274]: "This indicates the production prompt's sentinel-and-reasoning instructions do not primarily suppress correct answers to tractable questions: a substantial share of its refusals occur on questions for which no reliable answer is resolvable from the retrieved context, where refusal carries lower cost than an incorrect answer."
+    - generic [ref=e275]:
+      - generic [ref=e276]: "04"
+      - 'heading "Trial 2: Additive Instruction Integration" [level=2] [ref=e277]'
+      - paragraph [ref=e278]: The bridge-resolution rule from Trial 1 was added to the production prompt without removing the sentinel instruction or the reasoning steps. Prior to full-benchmark evaluation, the candidate was evaluated on a stratified subsample of 55 cases (40 in-corpus, 15 probes) run through the complete agentic pipeline — fresh retrieval and generation, not a replay.
+      - generic [ref=e279]:
+        - generic [ref=e280]:
+          - code [ref=e281]: answer_coverage
+          - text: under two evaluation sample sizes
+        - generic [ref=e282]: Same metric, same candidate; the 55-case and 125-case evaluations report opposite conclusions
+        - generic [ref=e283]:
+          - generic [ref=e284]:
+            - generic [ref=e285]: 55-case subset (full pipeline)
+            - generic [ref=e287]: 0.325 baseline
+            - generic [ref=e291]: 0.325 candidate (delta 0.000)
+          - generic [ref=e295]:
+            - generic [ref=e296]: 125-case full benchmark
+            - generic [ref=e298]: 0.489 baseline
+            - generic [ref=e302]: 0.311 candidate (delta -0.178)
+      - generic [ref=e306]:
+        - generic [ref=e307]: "Full 125-case benchmark: production baseline vs. Trial 2 candidate"
+        - generic [ref=e308]: eval/reports/20260824-132940.json → 20260825-165051.json · n=125 (90 in-corpus + 35 probes)
+        - generic [ref=e309]:
+          - generic [ref=e310]: baseline (production)
+          - generic [ref=e312]: improved
+          - generic [ref=e314]: regressed
+        - generic [ref=e316]:
+          - generic [ref=e317]:
+            - generic [ref=e318]: answer_accuracy
+            - generic [ref=e320]: "0.759"
+            - generic [ref=e324]: "0.560"
+          - generic [ref=e328]:
+            - generic [ref=e329]: answer_coverage
+            - generic [ref=e331]: "0.489"
+            - generic [ref=e335]: "0.311"
+          - generic [ref=e339]:
+            - generic [ref=e340]: refusal_accuracy
+            - generic [ref=e342]: "0.736"
+            - generic [ref=e346]: "0.656"
+          - generic [ref=e350]:
+            - generic [ref=e351]: citation_accuracy
+            - generic [ref=e353]: "0.622"
+            - generic [ref=e357]: "0.522"
+          - generic [ref=e361]:
+            - generic [ref=e362]: citation_precision
+            - generic [ref=e364]: "0.265"
+            - generic [ref=e368]: "0.503"
+      - generic [ref=e374]:
+        - generic [ref=e375]: Reverted — exceeds Trial 1 regression
+        - paragraph [ref=e376]:
+          - text: "On the 55-case subsample, the candidate showed no measurable difference from baseline on accuracy, coverage, or refusal rate, and a measurable improvement in citation precision. On the full 125-case benchmark:"
+          - code [ref=e377]: answer_coverage
+          - text: decreased by 17.8 points (0.489→0.311) and
+          - code [ref=e378]: answer_accuracy
+          - text: decreased by 19.9 points (0.759→0.560) — a larger regression than Trial 1.
+        - paragraph [ref=e379]: The subsample's baseline score (0.325 coverage) was itself substantially below the baseline's full-benchmark score (0.489), indicating the subsample was not representative of the full case distribution. A null difference measured on an unrepresentative sample provides no evidence about the full population.
+    - generic [ref=e380]:
+      - generic [ref=e381]: "05"
+      - generic [ref=e382]:
+        - generic [ref=e383]: Methodological finding
+        - heading "Evaluation sample size and composition determine whether a pipeline-level regression is detectable." [level=3] [ref=e384]
+        - paragraph [ref=e385]: Two independent evaluation tiers each produced a false negative for a regression that the complete benchmark subsequently confirmed — each one tier more computationally expensive to run than the last.
+        - generic [ref=e386]:
+          - generic [ref=e387]:
+            - generic [ref=e388]: Tier 1
+            - generic [ref=e389]: Single-call replay
+            - generic [ref=e390]: One generation call per case, over a fixed, previously-retrieved context (n=40–60, minutes to run). Does not exercise the self-correction stage and cannot measure a prompt's effect on refusal calibration under retrieval variance.
+            - generic [ref=e391]: Regression not detected (Trial 1)
+          - generic [ref=e393]:
+            - generic [ref=e394]: Tier 2
+            - generic [ref=e395]: Full pipeline, partial sample
+            - generic [ref=e396]: Complete retrieval, self-correction, and generation stages, evaluated on a subsample matched in size class to the replay (n=55, ~20 min). An unrepresentative subsample can depress both conditions equally and mask a regression concentrated outside the sampled cases.
+            - generic [ref=e397]: Regression not detected (Trial 2)
+          - generic [ref=e399]:
+            - generic [ref=e400]: Tier 3
+            - generic [ref=e401]: Full 125-case benchmark
+            - generic [ref=e402]: The only evaluation tier at which both regressions were detected (30–50 min per run). Required for any candidate expected to alter refusal frequency.
+            - generic [ref=e403]: Regression detected, both trials
+    - generic [ref=e405]:
+      - generic [ref=e406]: "06"
+      - heading [level=2] [ref=e407]:
+        - text: Retrieval Width Parameter (
+        - code [ref=e408]: top_k
+        - text: ","
+        - code [ref=e409]: candidates
+        - text: )
+      - paragraph [ref=e410]:
+        - code [ref=e411]: top_k
+        - text: and
+        - code [ref=e412]: candidates
+        - text: control the number of chunks passed to the reranker and, subsequently, to the generation call. Unlike the two prompt trials above, this parameter does not alter refusal-instruction wording. Evaluated in two stages prior to full-benchmark confirmation.
+      - generic [ref=e413]:
+        - generic [ref=e414]: "Stage 1: retrieval recall, no generation"
+        - generic [ref=e415]: n=89 in-corpus · embedding and reranking only
+        - generic [ref=e416]:
+          - generic [ref=e417]: answer recall
+          - generic [ref=e419]: source recall
+        - generic [ref=e421]:
+          - generic [ref=e422]:
+            - generic [ref=e423]: top_k=5 / candidates=25 (shipped)
+            - generic [ref=e425]: "0.75"
+            - generic [ref=e429]: "0.88"
+          - generic [ref=e433]:
+            - generic [ref=e434]: top_k=8 / candidates=25
+            - generic [ref=e436]: "0.78"
+            - generic [ref=e440]: "0.89"
+          - generic [ref=e444]:
+            - generic [ref=e445]: top_k=10 / candidates=30
+            - generic [ref=e447]: "0.80"
+            - generic [ref=e451]: "0.90"
+      - generic [ref=e455]:
+        - generic [ref=e456]: "Stage 2: single generation call per case, base retrieval (no agentic stages)"
+        - generic [ref=e457]: n=89 in-corpus + n=35 probes · production system prompt · outcome composition
+        - generic [ref=e458]:
+          - generic [ref=e459]: correct
+          - generic [ref=e461]: wrong
+          - generic [ref=e463]: refused
+        - generic [ref=e465]:
+          - generic [ref=e466]:
+            - generic [ref=e467]: top_k=5 (shipped)
+            - generic [ref=e468]:
+              - generic [ref=e469]: "24"
+              - generic [ref=e471]: "23"
+              - generic [ref=e473]: "42"
+          - generic [ref=e475]:
+            - generic [ref=e476]: top_k=10 (staged)
+            - generic [ref=e477]:
+              - generic [ref=e478]: "32"
+              - generic [ref=e480]: "22"
+              - generic [ref=e482]: "35"
+      - generic [ref=e486]:
+        - generic [ref=e487]: Staged · full-benchmark confirmation pending
+        - paragraph [ref=e488]:
+          - text: Answer recall increased monotonically with
+          - code [ref=e489]: top_k
+          - text: (0.75 at k=5, 0.80 at k=10); no case present in a lower-k result set was absent from a higher-k result set. At the generation stage, correct-answer count increased by 9 points with no increase in wrong-answer count; probe refusal decreased by 8.5 points (3 of 35 additional probes answered rather than declined).
+        - paragraph [ref=e490]: Consistent with the finding in Section 05, this configuration is not treated as confirmed pending a completed full 125-case agentic evaluation; the corresponding run was initiated and terminated before completion.
+    - generic [ref=e491]:
+      - generic [ref=e492]: "07"
+      - heading "Chunking Strategy Comparison" [level=2] [ref=e493]
+      - paragraph [ref=e494]: Topic-boundary (semantic) chunking — sentence segmentation, embedding, cosine-distance breakpoint detection — evaluated against the production structural chunker. Retrieval only, n=89 in-corpus, no generation.
+      - generic [ref=e495]:
+        - generic [ref=e496]: Answer and source recall by chunking strategy
+        - generic [ref=e497]:
+          - generic [ref=e498]: answer recall
+          - generic [ref=e500]: source recall
+        - generic [ref=e502]:
+          - generic [ref=e503]:
+            - generic [ref=e504]: structural (shipped)
+            - generic [ref=e506]: "0.75"
+            - generic [ref=e510]: "0.88"
+          - generic [ref=e514]:
+            - generic [ref=e515]: semantic
+            - generic [ref=e517]: "0.76"
+            - generic [ref=e521]: "0.87"
+      - generic [ref=e527]:
+        - generic [ref=e528]: No change adopted
+        - paragraph [ref=e529]: Semantic chunking produced a 1-point difference in answer recall relative to structural chunking (3 cases gained, 2 lost), not distinguishable from sampling variation at n=89. Re-ingesting the corpus under an alternative chunking strategy is not justified by this result.
+    - generic [ref=e530]:
+      - generic [ref=e531]: "08"
+      - heading "Latency Characterization" [level=2] [ref=e532]
+      - paragraph [ref=e533]: Measured on the full 125-case production-baseline run. This is the constraint every configuration above was evaluated against in addition to accuracy.
+      - generic [ref=e534]:
+        - generic [ref=e535]: Mean latency by retrieval path
+        - generic [ref=e536]:
+          - generic [ref=e537]:
+            - generic [ref=e538]: all cases
+            - generic [ref=e540]: 23.2s
+          - generic [ref=e544]:
+            - generic [ref=e545]: fast path (82%)
+            - generic [ref=e547]: 19.0s
+          - generic [ref=e551]:
+            - generic [ref=e552]: slow path (18%, multi-hop)
+            - generic [ref=e554]: 42.8s
+      - generic [ref=e558]:
+        - generic [ref=e559]:
+          - generic [ref=e560]: Median
+          - generic [ref=e561]: 15.9s
+        - generic [ref=e562]:
+          - generic [ref=e563]: p90
+          - generic [ref=e564]: 53.5s
+        - generic [ref=e565]:
+          - generic [ref=e566]: Max
+          - generic [ref=e567]: 144.9s
+        - generic [ref=e568]:
+          - generic [ref=e569]: Slow path share
+          - generic [ref=e570]: 18%
+      - generic [ref=e573]:
+        - generic [ref=e574]: Exceeds stated target
+        - paragraph [ref=e575]: "The agentic pipeline previously executed within a single blocking UI element with no intermediate output. Specified target: p50 ≤ 6–8s, p90 ≤ 15–20s. Measured p90 (53.5s) exceeds this target independent of any accuracy-affecting change. An accuracy improvement that further increases p90 does not constitute a net improvement under this constraint."
+  - contentinfo [ref=e576]:
+    - generic [ref=e577]: eval/COMPARISONS.md · generation/prompts.py · config.yaml
+    - generic [ref=e578]: 2026‑08‑24 → 2026‑08‑25

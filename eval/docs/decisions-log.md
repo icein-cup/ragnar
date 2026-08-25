@@ -2,6 +2,40 @@
 
 Running log of discoveries, patterns, and decisions. Updated each iteration.
 
+## 2026-08-25 — Systematic hyperparameter tuning begins
+
+**Problem:** every retrieval/chunking/agentic default is an untested stopgap:
+- `score_floor` 0.55 / `vector_floor` 0.42 — calibrated on a broken sweep (vector_floor left at 0.0,
+  so the OR'd floors passed everything), never re-derived. `config.yaml` flags this itself.
+- `target_tokens` 350 / `overlap_tokens` 50 / `table_rows_per_group` 10 — cavecrew recommendations,
+  never measured.
+- `max_hops` 3 / `multi_query_count` 3 — arbitrary defaults.
+
+**Plan:** four phases, cheapest first. Full execution instructions and runtime budget live in
+[`eval/docs/tuning-runbook.md`](tuning-runbook.md); results go in `eval/docs/experiment-results.md`.
+
+**Tooling added:** `eval/replay_floor.py` (offline floor replay, refuses censored reports),
+`eval/tune_params.py` (orchestrator, ranks by `answer_coverage` subject to `refusal_accuracy >= 0.85`).
+
+**Key correction to the first draft of this plan:** the floor sweep was originally proposed as 25
+full `--agentic` runs (~23 hours). `calibrate_floor()`'s own docstring already documents the offline
+route — one run at floors 0.0 saves every score, and any floor is then arithmetic over that report.
+`replay_floor.py` implements it. Also dropped: a made-up composite score (no precedent in the
+codebase — `answer_coverage` is primary, `refusal_accuracy` the constraint), and a re-test of
+semantic chunking (already measured and closed as a 1-point wash).
+
+**Risks:**
+- Golden-set quality: if probes are too easy/hard, `refusal_accuracy` is meaningless.
+- Interaction effects: optimal floors may depend on chunking strategy (deferred to Phase 4).
+- Runtime: Phases 2-3 are ~15h serial each; the runbook documents a parallel path (~7-8h).
+
+**Success criteria:**
+- Documented floor heatmap (coverage vs refusal) in `eval/docs/experiment-results.md`.
+- A defensible production `config.yaml` recommendation.
+- Parameters identified as negligible (freeze their defaults).
+
+**Next:** run Phase 1 (uncensored run + `replay_floor.py --grid`), log results in experiment-results.md.
+
 ## 2026-08-24 — Baseline analysis (125-case HybridQA, qwen2.5:7b, floors 0.0)
 
 ### Failure category breakdown (90 in-corpus cases)
@@ -76,7 +110,7 @@ Using config.yaml floors (0.55/0.42). Model weights loaded, processing started. 
 **Next steps after eval completes**:
 1. Parse results JSON, compute metrics
 2. Compare against baseline (answer_coverage 0.49, citation_precision 0.26, etc.)
-3. Update IMPROVEMENT_LOG.md and FINDINGS_LOG.md with results
+3. Update decisions-log.md with results
 4. If scores improved, consider running RAGAS on full 125-case set
 5. If not improved, dispatch subagents for next iteration tracks
 

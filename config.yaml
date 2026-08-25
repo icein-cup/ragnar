@@ -63,8 +63,19 @@ chunking:
   semantic_breakpoint_percentile: 95
 
 retrieval:
-  candidates: 25
-  top_k: 5
+  # UNDER TEST (2026-08-25, Branch D): was candidates=25/top_k=5. Retrieval-
+  # only recall (embed+rerank, no generation, 89 HybridQA in-corpus cases):
+  # top_k=5 found 67/89 answers, top_k=10/candidates=30 found 71/89 (+4,
+  # monotonic — no cases lost at any tier tried). One-generation-call test
+  # (base Search, no agentic overhead) confirmed the gain carries into
+  # actual answers: correct 24/89->32/89 (+9pts), wrong count flat, probe
+  # refusal 0.971->0.886 (a real but modest cost — 3 more of 35 probes
+  # wrongly answered). Full 125-case agentic confirmation pending before
+  # this is considered settled — see eval/docs/experiment-results.md for the numbers
+  # and today's hard-won lesson about not trusting anything short of the
+  # full benchmark for a change that touches what the model sees to answer.
+  candidates: 30
+  top_k: 10
   # NOT VALIDLY CALIBRATED. The --calibrate sweep this value came from was
   # broken: eval/run_eval.py left vector_floor at 0.0, and since the floors
   # are OR'd, every result cleared the gate at every swept floor. The sweep

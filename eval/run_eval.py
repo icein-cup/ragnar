@@ -77,7 +77,10 @@ def run_cases(score_floor: float | None = None,
               agentic: bool = False,
               collection: str | None = None,
               golden: Path | None = None,
-              sink: Path | None = None) -> list[dict]:
+              sink: Path | None = None,
+              candidates: int | None = None,
+              top_k: int | None = None,
+              agentic_overrides: dict | None = None) -> list[dict]:
     """Run the golden set through retrieval + answering.
 
     Both floors must be passed: retrieval.search.clears_floor keeps a result
@@ -99,18 +102,24 @@ def run_cases(score_floor: float | None = None,
     vfloor = cfg.vector_floor if vector_floor is None else vector_floor
     collection = collection or cfg.collection
     golden = golden or (ROOT / "golden_set.yaml")
+    candidates = cfg.candidates if candidates is None else candidates
+    top_k = cfg.top_k if top_k is None else top_k
 
     embedder = OllamaEmbedder(cfg.ollama_url, cfg.embedding_model)
     store = QdrantStore(cfg.qdrant_url, collection, cfg.embedding_dim)
     llm = OllamaLLM(cfg.ollama_url, cfg.llm_model,
                     think=cfg.llm_think, seed=cfg.llm_seed)
     search = Search(embedder, store, reranker=BGEReranker(cfg.reranker_model),
-                    candidates=cfg.candidates, top_k=cfg.top_k,
+                    candidates=candidates, top_k=top_k,
                     score_floor=floor, vector_floor=vfloor)
     if agentic:
         # Same wiring as ui/services.build_services, so the numbers describe
-        # the pipeline the UI takes.
-        search = AgenticSearch(search, llm, **cfg.agentic)
+        # the pipeline the UI takes. agentic_overrides lets a tuning sweep
+        # vary max_hops/multi_query_count without editing config.yaml.
+        agentic_cfg = dict(cfg.agentic)
+        if agentic_overrides:
+            agentic_cfg.update(agentic_overrides)
+        search = AgenticSearch(search, llm, **agentic_cfg)
     answerer = Answerer(llm)
 
     golden_entries = yaml.safe_load(golden.read_text())
@@ -205,7 +214,9 @@ def _git_revision() -> str:
 
 def provenance(cfg: Config, golden: Path, *, agentic: bool,
                collection: str, score_floor: float,
-               vector_floor: float) -> dict:
+               vector_floor: float, candidates: int | None = None,
+               top_k: int | None = None,
+               agentic_overrides: dict | None = None) -> dict:
     """Everything needed to say what produced a set of numbers.
 
     Without this a report is five metrics and a timestamp, and two runs that
@@ -226,10 +237,11 @@ def provenance(cfg: Config, golden: Path, *, agentic: bool,
         "collection": collection,
         "agentic": agentic,
         "agentic_config": cfg.agentic if agentic else None,
+        "agentic_overrides": agentic_overrides or None,
         "score_floor": score_floor,
         "vector_floor": vector_floor,
-        "candidates": cfg.candidates,
-        "top_k": cfg.top_k,
+        "candidates": cfg.candidates if candidates is None else candidates,
+        "top_k": cfg.top_k if top_k is None else top_k,
         "golden": golden.name,
         "golden_sha256": hashlib.sha256(body).hexdigest()[:12],
         "golden_cases": len(yaml.safe_load(body)),
@@ -278,6 +290,21 @@ def calibrate_floor(score_floor: float | None = None,
               f"{citation_accuracy(cases):>13.2f}")
 
 
+def _agentic_overrides(args) -> dict:
+    """Collect the agentic CLI overrides that were actually passed.
+
+    Only non-None values are returned, so a bare run leaves config.yaml's
+    agentic section untouched. Kept as a helper so the provenance block can
+    record exactly what a tuning run varied.
+    """
+    overrides = {}
+    if args.max_hops is not None:
+        overrides["max_hops"] = args.max_hops
+    if args.multi_query_count is not None:
+        overrides["multi_query_count"] = args.multi_query_count
+    return overrides
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--calibrate", action="store_true")
@@ -295,6 +322,14 @@ def main() -> None:
     parser.add_argument("--golden", type=Path, default=None,
                         help="override the golden set YAML "
                              "(default: eval/golden_set.yaml)")
+    parser.add_argument("--candidates", type=int, default=None,
+                        help="override config.yaml's retrieval.candidates")
+    parser.add_argument("--top-k", type=int, default=None,
+                        help="override config.yaml's retrieval.top_k")
+    parser.add_argument("--max-hops", type=int, default=None,
+                        help="override config.yaml's agentic.max_hops")
+    parser.add_argument("--multi-query-count", type=int, default=None,
+                        help="override config.yaml's agentic.multi_query_count")
     args = parser.parse_args()
 
     if args.calibrate:
@@ -317,7 +352,9 @@ def main() -> None:
     cases = run_cases(score_floor=args.score_floor,
                       vector_floor=args.vector_floor, agentic=args.agentic,
                       collection=collection, golden=golden,
-                      sink=reports / f"{stamp}.jsonl")
+                      sink=reports / f"{stamp}.jsonl",
+                      candidates=args.candidates, top_k=args.top_k,
+                      agentic_overrides=_agentic_overrides(args))
     report = {
         "timestamp": datetime.now().isoformat(timespec="seconds"),
         "n_cases": len(cases),
@@ -335,7 +372,9 @@ def main() -> None:
         },
         "provenance": provenance(cfg, golden, agentic=args.agentic,
                                  collection=collection, score_floor=floor,
-                                 vector_floor=vfloor),
+                                 vector_floor=vfloor,
+                                 candidates=args.candidates, top_k=args.top_k,
+                                 agentic_overrides=_agentic_overrides(args)),
     }
 
     print(json.dumps(report, indent=2, ensure_ascii=False))

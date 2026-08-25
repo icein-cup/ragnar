@@ -1,4 +1,5 @@
 import math
+import threading
 
 from core.models import SearchResult
 
@@ -16,11 +17,18 @@ class BGEReranker:
     def __init__(self, model_name: str = MODEL_NAME, model=None):
         self._model_name = model_name
         self._model = model
+        self._lock = threading.Lock()
 
     def _ensure_model(self):
+        # Double-checked locking: this instance is shared (st.cache_resource)
+        # across Streamlit sessions, and multi-query fan-out hits it from a
+        # ThreadPoolExecutor, so two threads can both see self._model is None
+        # and race to construct the multi-GB CrossEncoder.
         if self._model is None:
-            from sentence_transformers import CrossEncoder
-            self._model = CrossEncoder(self._model_name)
+            with self._lock:
+                if self._model is None:
+                    from sentence_transformers import CrossEncoder
+                    self._model = CrossEncoder(self._model_name)
         return self._model
 
     def rerank(self, query: str, candidates: list[SearchResult],

@@ -307,7 +307,7 @@ if question := st.chat_input("Ask about your documents"):
         )
 
         # st.status, not st.spinner: the agentic pipeline can run 30-120s on
-        # the slow path (see eval/COMPARISONS.md's latency table) with zero
+        # the slow path (see eval/docs/experiment-results.md's latency table) with zero
         # visible output otherwise. on_progress updates the label live at
         # each stage boundary instead of showing one static string the
         # whole time.

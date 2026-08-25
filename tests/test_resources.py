@@ -96,3 +96,12 @@ def test_no_memory_detectable_uses_cpu():
          patch("core.config._cpu_count", return_value=4):
         # mem_based = max_workers (8), cpu = 3, cap = 8 → min(8,3,8) = 3
         assert auto_worker_count(2.0, 8) == 3
+
+
+def test_zero_worker_memory_budget_falls_back_to_cpu_instead_of_raising():
+    """worker_memory_gb: 0 is a plausible typo for 'unlimited', not a divide."""
+    files = {"/sys/fs/cgroup/memory.max": str(16 * 1024**3)}
+    with patch("builtins.open", side_effect=_mock_open_factory(files)), \
+         patch("core.config._cpu_count", return_value=8):
+        # mem_based falls back to max_workers (8), cpu = 7, cap = 8 → 7
+        assert auto_worker_count(0, 8) == 7

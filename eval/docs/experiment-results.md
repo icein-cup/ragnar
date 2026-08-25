@@ -126,7 +126,7 @@ Adding the 4-step CoT block back costs ~7 points on its own (0.47→0.40) — co
 effect from the *reasoning scaffold* independently of the token. But even the **minimal** sentinel
 addition — one line, no CoT — gives up 18 points versus `hops` outright (0.65→0.47) for a refusal
 gain that is 1 case out of 20. The sentinel mechanism's cost on this model/task is larger than
-previously measured on the older sentinel v1-vs-v2 test (COMPARISONS.md above), which never compared
+previously measured on the older sentinel v1-vs-v2 test (experiment-results.md above), which never compared
 against a no-sentinel baseline this strong.
 
 **Follow-up — rewording (not just relocating) the sentinel instruction recovers most of the loss.**
@@ -331,6 +331,41 @@ shortcut.
 
 ---
 
+## Retrieval width — `top_k` / `candidates` (Branch D)
+
+Two cheap steps before committing to a full agentic run, per the lesson learned above (never trust
+anything short of the full 125-case run for a final call, but no reason to pay for one before a
+cheaper signal justifies it).
+
+**Step 1 — retrieval-only recall** (embed + rerank, no generation, 89 in-corpus cases, `hybridqa`):
+
+| config | answer recall | source recall |
+|---|---|---|
+| top_k=5 / candidates=25 (shipped) | 67/89 (0.75) | 78/89 (0.88) |
+| top_k=8 / candidates=25 | 69/89 (0.78) | 79/89 (0.89) |
+| top_k=10 / candidates=30 | 71/89 (0.80) | 80/89 (0.90) |
+
+Monotonic gain, no cases lost at any tier.
+
+**Step 2 — one generation call per case** (base `Search`, no agentic overhead, all 89 in-corpus + 35
+probes, current `SYSTEM_PROMPT`):
+
+| config | correct | wrong | probe refusal |
+|---|---|---|---|
+| top_k=5 | 24/89 (0.270) | 23/89 | 34/35 (0.971) |
+| top_k=10 | 32/89 (0.360) | 22/89 | 31/35 (0.886) |
+
++9 points correct, wrong count flat-to-better, a modest probe-refusal cost (3 more of 35 wrongly
+answered). Unlike the two rejected prompt rounds above, this doesn't touch refusal wording or
+self-correction — it's a pure retrieval-width change, mechanically simpler and less prone to the
+failure mode that burned Round 1/2.
+
+**Staged in `config.yaml`** (`top_k: 5→10`, `candidates: 25→30`) but **not yet confirmed on the full
+125-case agentic benchmark** — that run was started and stopped before completion. Given today's two
+prompt-round lessons, this should not be treated as shipped until that confirmation actually runs.
+
+---
+
 ## Gate comparison — `GROUNDING_PROMPT` accept rule
 
 ```
@@ -422,3 +457,54 @@ production collection, described there as having a *clean* separation (out-of-co
 in-corpus 0.578+; table rows at 0.4494-0.4718 cosine). HybridQA has no golden set covering
 `documents`, so the finding above was never actually tested on the corpus the floors exist for — see
 Branch E in the main plan file, reconsidered rather than executed. The floors stay.
+
+---
+
+## Hyperparameter tuning — floors, retrieval volume, agentic params
+
+**Status: IN PROGRESS (2026-08-25).** Systematic sweeps replacing the stopgap defaults that
+`config.yaml` itself flags as "NOT VALIDLY CALIBRATED". Execution instructions and runtime budget
+live in [`eval/docs/tuning-runbook.md`](tuning-runbook.md); this section records the results. Ranking is
+by `answer_coverage` subject to `refusal_accuracy >= 0.85` — the codebase's documented primary
+metric and constraint, never a composite score.
+
+### Phase 1: Floor calibration (`score_floor` × `vector_floor`)
+
+| score_floor | vector_floor | answer_coverage | refusal_accuracy | citation_precision | note |
+|---|---|---|---|---|---|
+| 0.55 | 0.42 | TBD | TBD | TBD | current default (untested stopgap) |
+| ... | ... | ... | ... | ... | ... |
+
+**Finding —** [pending measurement]
+
+### Phase 2: Retrieval volume (`candidates` × `top_k`)
+
+| candidates | top_k | answer_coverage | citation_precision | latency_p90 | note |
+|---|---|---|---|---|---|
+| 30 | 10 | TBD | TBD | TBD | current default (Branch D, pending full confirmation) |
+| ... | ... | ... | ... | ... | ... |
+
+**Finding —** [pending]
+
+### Phase 3: Agentic parameters (`max_hops` × `multi_query_count`)
+
+| max_hops | multi_query_count | answer_coverage | multi_hop_citation_accuracy | latency_mean | note |
+|---|---|---|---|---|---|
+| 3 | 3 | TBD | TBD | TBD | current default |
+| ... | ... | ... | ... | ... | ... |
+
+**Finding —** [pending]
+
+### Phase 4: Chunking token budget (structural only)
+
+Chunking *strategy* is settled — semantic vs structural was measured and closed as a 1-point wash
+(see "Semantic chunking" above, Branch G). Only the token budget within structural chunking is
+untested.
+
+| config | answer_coverage | citation_precision | multi_hop_citation_accuracy | note |
+|---|---|---|---|---|
+| 350/50/10 | TBD | TBD | TBD | current default |
+| 250/75/5 | TBD | TBD | TBD | tight |
+| 500/30/20 | TBD | TBD | TBD | loose |
+
+**Finding —** [pending]

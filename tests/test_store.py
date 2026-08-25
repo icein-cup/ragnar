@@ -84,3 +84,32 @@ def test_search_with_none_doc_ids_is_unfiltered(store):
     results = store.search([0.1] * 1024, limit=10, doc_ids=None)
 
     assert {r.chunk.doc_id for r in results} == {"d1", "d2"}
+
+
+@pytest.mark.integration
+def test_delete_stale_removes_indices_not_in_keep_set(store):
+    store.upsert(
+        [_chunk("d1", "keep", index=0), _chunk("d1", "stale", index=1),
+         _chunk("d2", "untouched", index=1)],
+        [[0.1] * 1024, [0.2] * 1024, [0.3] * 1024],
+    )
+
+    store.delete_stale("d1", keep_indices={0})
+    results = store.search([0.1] * 1024, limit=10)
+
+    assert sorted((r.chunk.doc_id, r.chunk.chunk_index) for r in results) == [
+        ("d1", 0), ("d2", 1),
+    ]
+
+
+@pytest.mark.integration
+def test_delete_stale_with_empty_keep_indices_removes_whole_doc(store):
+    store.upsert(
+        [_chunk("d1", "gone", index=0), _chunk("d2", "untouched", index=0)],
+        [[0.1] * 1024, [0.2] * 1024],
+    )
+
+    store.delete_stale("d1", keep_indices=set())
+    results = store.search([0.1] * 1024, limit=10)
+
+    assert [r.chunk.doc_id for r in results] == ["d2"]

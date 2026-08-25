@@ -51,7 +51,9 @@ def auto_worker_count(worker_memory_gb: float, max_workers: int) -> int:
     mem_bytes = _cgroup_memory_limit_bytes()
     if mem_bytes is not None:
         mem_gb = mem_bytes / (1024 ** 3)
-        mem_based = int(mem_gb // worker_memory_gb)
+        # A 0 (or negative) budget is a plausible typo for "unlimited" — let
+        # CPU decide rather than raising ZeroDivisionError at app startup.
+        mem_based = max_workers if worker_memory_gb <= 0 else int(mem_gb // worker_memory_gb)
     else:
         mem_based = max_workers  # no limit detectable — let CPU decide
 

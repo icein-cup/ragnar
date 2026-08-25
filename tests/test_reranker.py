@@ -1,3 +1,7 @@
+import threading
+import time
+from unittest.mock import patch
+
 import pytest
 from core.models import Chunk, SearchResult
 from retrieval.reranker import BGEReranker
@@ -65,3 +69,26 @@ def test_rerank_preserves_vector_score_from_candidates():
     )
 
     assert ranked[0].vector_score == 0.47
+
+
+def test_ensure_model_constructs_once_under_concurrent_first_touch():
+    # Regression for the check-then-construct race: two threads hitting a
+    # cold reranker at once used to both pass the `self._model is None`
+    # check before either finished constructing.
+    construct_count = 0
+
+    def _slow_construct(model_name):
+        nonlocal construct_count
+        time.sleep(0.05)  # widen the race window
+        construct_count += 1
+        return FakeCrossEncoder()
+
+    reranker = BGEReranker()
+    with patch("sentence_transformers.CrossEncoder", side_effect=_slow_construct):
+        threads = [threading.Thread(target=reranker._ensure_model) for _ in range(8)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+    assert construct_count == 1

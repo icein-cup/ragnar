@@ -115,21 +115,19 @@ class QdrantStore:
         new chunk set already overwrites any old chunk with the same index.
         This call deletes the old chunks whose indices are no longer present,
         without touching the newly-written points.
+
+        Filtered server-side, not scrolled — a scroll+Python-diff approach
+        caps out at whatever page limit is chosen and silently stops there.
         """
-        points, _next = self._client.scroll(
+        if not keep_indices:
+            self.delete_by_doc(doc_id)
+            return
+        self._client.delete(
             collection_name=self.collection,
-            scroll_filter=Filter(must=[
-                FieldCondition(key="doc_id", match=MatchValue(value=doc_id))
-            ]),
-            limit=10000,
-            with_payload=True,
+            points_selector=Filter(
+                must=[FieldCondition(key="doc_id", match=MatchValue(value=doc_id))],
+                must_not=[FieldCondition(
+                    key="chunk_index", match=MatchAny(any=sorted(keep_indices)),
+                )],
+            ),
         )
-        stale_ids = [
-            p.id for p in points
-            if p.payload.get("chunk_index") not in keep_indices
-        ]
-        if stale_ids:
-            self._client.delete(
-                collection_name=self.collection,
-                points_selector=stale_ids,
-            )

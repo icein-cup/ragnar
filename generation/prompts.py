@@ -4,7 +4,7 @@ from generation.guards import NO_ANSWER
 
 # HISTORY, most recent first. Full numbers and every variant tried (9 of
 # them, kept verbatim) live in eval/replay_answer.py's PROMPTS dict and
-# eval/COMPARISONS.md — this comment is the short version.
+# eval/docs/experiment-results.md — this comment is the short version.
 #
 # 2026-08-25: REVERTED a no-sentinel, no-CoT variant ("hops_example" in
 # eval/replay_answer.py) that had been shipped here on 2026-08-24. A 40-case
@@ -73,7 +73,7 @@ from generation.guards import NO_ANSWER
 # still needs the FULL benchmark, not just any full-pipeline sample size —
 # an ad-hoc subset can be unrepresentative enough to hide a real regression.
 # Reverted to the version below. Exact candidate text preserved in git
-# history / eval/COMPARISONS.md if this is worth trying again with a
+# history / eval/docs/experiment-results.md if this is worth trying again with a
 # different lever.
 SYSTEM_PROMPT = f"""\
 You answer questions strictly from the provided document excerpts.

@@ -35,7 +35,7 @@ from generation.prompts import SYSTEM_PROMPT, build_user_prompt
 
 # Merge candidate: the "hops" bridge-resolution rule folded into the shipped
 # sentinel-carrying prompt, rather than replacing it outright. "hops" alone
-# measured a real accuracy win (COMPARISONS.md) but drops the NO_ANSWER
+# measured a real accuracy win (eval/docs/experiment-results.md) but drops the NO_ANSWER
 # contract, falling back to a regex refusal check that only works by luck of
 # phrasing. This restores the sentinel and adds the bridge-resolution step
 # plus two entity-precision rules "hops" also had. Test before shipping.
