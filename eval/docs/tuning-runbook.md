@@ -22,6 +22,77 @@ cheapest phase to redo (one run + arithmetic). Record every result in
 external judge-call time, not another pipeline run — `run_ragas.py --report`
 scores a report already on disk.
 
+## Before you launch
+
+Four checks, in order, before Phase 1 starts. All were verified live against
+this repo's actual environment (services, models, RAM) on 2026-08-25 — the
+numbers below are measured, not estimated.
+
+**1. Clean git tree — required for provenance.** `run_eval.py`'s
+`_git_revision()` stamps every report `<sha>-dirty` whenever
+`git status --porcelain` is non-empty, and that file's own docstring is blunt
+about why: *"A report that cannot be traced to code is a number without a
+cause."* Commit any pending harness/doc changes before running anything, then
+confirm:
+
+```bash
+git status --short   # must be empty
+```
+
+`eval/reports/` is gitignored (`.gitignore:24`), so the sweep's own output
+never re-dirties the tree mid-run — this is a one-time check before Phase 1,
+not something to repeat between phases.
+
+**2. Smoke test — required, ~4 min, not a measurement.** `tune_params.py` and
+`run_ragas.py` have only run against mocked subprocesses in unit tests; their
+live paths (actually reaching Qdrant and Ollama) have not executed even once.
+Discovering a wiring problem at hour 6 of an unattended sweep is expensive;
+catching it here costs 4 minutes:
+
+```bash
+docker compose exec app python eval/run_eval.py --agentic \
+  --collection hybridqa --golden eval/golden_subset20.yaml
+```
+
+Confirm: the run completes and writes `eval/reports/<stamp>.json`;
+`summary.provenance.git` has **no** `-dirty` suffix (proves check 1 actually
+took effect); `summary.provenance.golden_cases` is 20; the `latency` block is
+present. Then confirm the RAGAS post-process path on that same report:
+
+```bash
+docker compose exec app python eval/run_ragas.py --report eval/reports/<stamp>.json
+```
+
+This makes real (cheap) calls to the `glm-5.2:cloud` judge — an external paid
+API, so it's worth knowing that before running it.
+
+**`golden_subset20.yaml` is a wiring check only.** `decisions-log.md`
+(commit `35a07de`) already documents a subset-vs-full-set false-signal lesson
+— nothing from these 20 cases belongs in `experiment-results.md` or should
+influence a tuning decision. It only proves the pipes connect.
+
+**3. RAM — comfortable for Phases 1-3, tight for Phase 4.** Measured:
+48 GB physical, 33.9 GB free+inactive, swap lightly used (normal for macOS).
+Serial working set for the agentic pipeline (Phases 1-3, no ingestion):
+
+| Component | Approx |
+|---|---|
+| `qwen2.5:7b` (4.7 GB weights + ~1.9 GB KV at num_ctx 32768) | ~6.6 GB |
+| `bge-m3` embedder | 1.2 GB |
+| BGE reranker (app container) | ~2.3 GB |
+| Qdrant | 1.1 GB |
+| **Total** | **~11 GB against 33.9 GB free — ~3x headroom** |
+
+No action needed for Phases 1-3. Phase 4's ingestion has a separate,
+tighter constraint — see its section below.
+
+**4. Services and data — already verified, re-check if time has passed.**
+`docker compose ps` should show `app` and `qdrant` up; the `hybridqa`
+collection should hold 2846 points at 1024 dims (`bge-m3`'s output size).
+`qwen2.5:7b`, `bge-m3`, and the RAGAS judge model must be present in Ollama,
+and `RAGAS_JUDGE_BASE_URL`/`RAGAS_JUDGE_API_KEY`/`RAGAS_JUDGE_MODEL` must be
+set in the app container's environment.
+
 ## Setup
 
 Tune against HybridQA (the only corpus with a full golden set):
@@ -235,6 +306,13 @@ config beats 350/50/10, keep it.
 **This phase mutates the `hybridqa` collection** (re-ingestion overwrites it)
 — unlike Phases 1-3, which only read it. Don't run this concurrently with
 anything else that queries `hybridqa`.
+
+**Ingestion worker count — set `ingestion.workers: 4` before re-ingesting.**
+Verified live in this repo's app container: `auto_worker_count` resolves to
+**8 workers** (17.2 GB cgroup limit ÷ `worker_memory_gb: 2`, capped at
+`max_workers: 8`, 16 CPUs detected). Each Docling converter runs ~1-2 GB, so 8
+workers is 8-16 GB inside a 17.2 GB container limit — close enough to risk an
+OOM mid-re-ingestion. Phases 1-3 do no ingestion and are unaffected by this.
 
 ## Optional: full-grid sweep via tune_params.py
 
