@@ -79,6 +79,12 @@ class FakeStore:
         self.deleted.append(doc_id)
         self.chunks = [c for c in self.chunks if c.doc_id != doc_id]
 
+    def delete_stale(self, doc_id, keep_indices):
+        self.chunks = [
+            c for c in self.chunks
+            if c.doc_id != doc_id or c.chunk_index in keep_indices
+        ]
+
 
 class FakeParser:
     def __init__(self, blocks=None, fail=False):

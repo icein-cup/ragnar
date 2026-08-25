@@ -135,9 +135,9 @@ class ParsedDocument:
             return 0.0
         # Docling emits `<!-- image -->` placeholders into the markdown for
         # image-only regions; counting them as text inflates the density and
-        # masks a near-empty extraction, so strip HTML comments before
-        # measuring. Markdown comments carry no indexed content.
-        text = re.sub(r"<!--.*?-->", "", self.markdown, flags=re.DOTALL)
+        # masks a near-empty extraction, so strip HTML comments and whitespace
+        # before measuring. Markdown comments carry no indexed content.
+        text = re.sub(r"<!--.*?-->", "", self.markdown, flags=re.DOTALL).strip()
         return len(text) / self.page_count
 
 
@@ -182,7 +182,16 @@ class DoclingParser:
     def parse(self, path: Path) -> ParsedDocument:
         parsed = self._parse_with(self._converter, path)
 
-        if parsed.chars_per_page < OCR_TRIGGER_CHARS_PER_PAGE or not parsed.blocks:
+        # Trigger OCR when the first-pass extraction looks empty (no blocks or
+        # zero meaningful text), or when a multi-page document is suspiciously
+        # sparse. A short but valid one-page document (cover sheet, memo) is
+        # allowed to stay below the 50-char/page threshold without being flagged
+        # as low-confidence.
+        if (
+            not parsed.blocks
+            or parsed.chars_per_page == 0
+            or (parsed.page_count > 1 and parsed.chars_per_page < OCR_TRIGGER_CHARS_PER_PAGE)
+        ):
             if self._ocr_converter is None:
                 self._ocr_converter = _ocr_converter()
             parsed = self._parse_with(self._ocr_converter, path)

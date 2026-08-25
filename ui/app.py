@@ -235,21 +235,29 @@ st.session_state.setdefault("current_chat_id", None)
 # write the verdict onto an Answer object; that object outlives the rerun, so
 # we re-read it here and fold any finished verdict into the persisted message.
 _pending = st.session_state.get("pending_grounding", {})
+_current_chat_id = st.session_state.current_chat_id
 if _pending:
     _still_pending = {}
     _dirty = False
-    for _idx, _answer in _pending.items():
-        if _answer.grounded is None:
-            _still_pending[_idx] = _answer
-        else:
-            _dirty = True
-            if _idx < len(st.session_state.messages):
-                st.session_state.messages[_idx]["grounded"] = _answer.grounded
+    for _chat_id, _by_idx in _pending.items():
+        # Only fold verdicts into the chat that was active when the check started.
+        # If the user switched chats in the meantime, leave the entry queued for
+        # its original chat instead of writing onto the wrong conversation.
+        if _chat_id != _current_chat_id:
+            _still_pending[_chat_id] = _by_idx
+            continue
+        for _idx, _answer in _by_idx.items():
+            if _answer.grounded is None:
+                _still_pending.setdefault(_chat_id, {})[_idx] = _answer
+            else:
+                _dirty = True
+                if _idx < len(st.session_state.messages):
+                    st.session_state.messages[_idx]["grounded"] = _answer.grounded
     st.session_state.pending_grounding = _still_pending
-    if _dirty and st.session_state.current_chat_id is not None:
+    if _dirty and _current_chat_id is not None:
         try:
             svc["chats"].save(
-                st.session_state.current_chat_id,
+                _current_chat_id,
                 chat_title(st.session_state.messages),
                 st.session_state.messages,
             )
@@ -455,8 +463,14 @@ if question := st.chat_input("Ask about your documents"):
         # object (not session state), so it survives the rerun and the daemon
         # thread keeps writing to it.
         if grounded_answer is not None:
+            # Ensure the chat has an id before registering the pending verdict,
+            # so the entry is keyed by the same chat it will be folded into.
+            if st.session_state.current_chat_id is None:
+                st.session_state.current_chat_id = uuid.uuid4().hex
             _msg_idx = len(st.session_state.messages) - 1
-            st.session_state.setdefault("pending_grounding", {})[_msg_idx] = grounded_answer
+            st.session_state.setdefault("pending_grounding", {}).setdefault(
+                st.session_state.current_chat_id, {}
+            )[_msg_idx] = grounded_answer
 
         # Persist the conversation. Mint an id on first save so a chat only
         # appears in the list once it actually has content.

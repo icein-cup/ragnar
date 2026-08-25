@@ -254,11 +254,80 @@ this prompt is a net loss for a system where a wrong answer costs more than an h
 
 **REVERTED (2026-08-25).** `generation/prompts.py`'s `SYSTEM_PROMPT` restored to the sentinel + 4-step
 CoT version that produced the 0.759/0.489/0.736 baseline. `hops_example` and all other tested variants
-remain in `eval/replay_answer.py`'s `PROMPTS` dict for any future attempt — the bridge-resolution
-instruction and the worked example may still be worth revisiting, but layered onto a prompt that keeps
-a real caution mechanism, not in place of one. **Lesson for next time: a replay-only test cannot see a
-prompt's effect on refusal calibration under real retrieval variance — test the full pipeline before
-declaring a prompt change ready, not only at the final confirmation step.**
+remain in `eval/replay_answer.py`'s `PROMPTS` dict for any future attempt. **Lesson: a replay-only test
+cannot see a prompt's effect on refusal calibration under real retrieval variance — test the full
+pipeline before declaring a prompt change ready, not only at the final confirmation step.**
+
+---
+
+## Round 2 — bridge-resolution folded ADDITIVELY into the caution-preserving prompt
+
+Applying the lesson: instead of replacing the reverted prompt, added the bridge-resolution instruction
+(step 1) and two entity-precision rules from `hops`/`hops_example` directly into it — nothing removed,
+sentinel/CoT/"default to answering" all intact. Tested on a full-pipeline run (not replay) over a
+seeded 55-case subset (40 in-corpus + 15 probes, `eval/golden_hybridqa_draft.yaml` sampled with the
+same seed as the replay harness) before touching the shipped state, per the lesson above.
+
+```
+# subset built with: rng.shuffle(in_corpus)[:40] + rng.shuffle(probes)[:15], seed 42
+eval/reports/20260825-161533.json   (baseline, reverted prompt, on the subset)
+eval/reports/20260825-163353.json   (candidate, bridge-resolution added, same subset)
+```
+
+| metric | baseline | candidate | delta |
+|---|---|---|---|
+| answer_accuracy | 0.565 | 0.565 | 0.000 |
+| answer_coverage | 0.325 | 0.325 | 0.000 |
+| refusal_accuracy | 0.655 | 0.655 | 0.000 |
+| citation_accuracy | 0.550 | 0.550 | 0.000 |
+| citation_precision | 0.500 | **0.602** | **+0.101** |
+| mean latency | 19.5s | 16.5s | better |
+| max latency | 199.4s | 106.3s | better |
+
+**Not a bug — verified.** Only 13/55 answers are byte-identical text between the two runs (42/55
+genuinely differ), so the prompt change is doing real work; it just landed on the same coarse
+correct/wrong/refused classification for most individual cases on this sample. The candidate's answers
+read as more direct and bridge-resolved on inspection (e.g. one case: baseline rambles through a
+paraphrase, candidate answers "Robert Louis Stevenson" outright).
+
+**No regression on any accuracy axis, a real citation-precision gain, and meaningfully faster** (likely
+fewer/shorter follow-up hops when the model resolves the bridge in one pass instead of needing
+self-correction to catch it). Full 125-case confirmation launched to verify this holds at scale before
+calling it shipped.
+
+**REJECTED — the full 125-case run contradicted the subset entirely** (`eval/reports/20260825-165051.json`
+vs the canonical baseline `eval/reports/20260824-132940.json`):
+
+| metric | old baseline | Round 2 (full 125) | delta |
+|---|---|---|---|
+| answer_accuracy | 0.759 | 0.560 | **-0.199** |
+| answer_coverage | 0.489 | 0.311 | **-0.178** |
+| refusal_accuracy | 0.736 | 0.656 | -0.080 |
+| citation_accuracy | 0.622 | 0.522 | -0.100 |
+| citation_precision | 0.265 | 0.503 | +0.238 |
+| p90 / max latency | 53.5s / 144.9s | 58.6s / 182.7s | worse |
+
+Worse than the shipped baseline on nearly every axis — worse even than Round 1's rejected
+`hops_example` swap (which at least held coverage at 0.522). Only citation_precision improved, same as
+the subset predicted.
+
+**Root cause of the false signal: the 55-case subset was not representative.** Re-checking its own
+numbers — the REVERTED (known-good) baseline scored only 0.325 coverage on that specific subset,
+versus 0.489 on the full 125-case set. The subset had, by chance, sampled a harder-than-average slice.
+A tied score between baseline and candidate *on a hard subset* said nothing about relative performance
+on the full, more representative population — both prompts were depressed by the same hard sample, and
+the subset was too small (only 40 of 90 in-corpus cases) to catch a regression concentrated in the
+other 50.
+
+**SECOND LESSON, layered on the first:** "test the full pipeline, not just replay" was necessary but
+not sufficient — the pipeline also needs the FULL benchmark, not an arbitrary same-size-class sample.
+A full-pipeline test on an unrepresentative subset can produce the same false confidence a replay test
+did, just one level more expensive to discover. There is no cheap substitute for the complete 125-case
+run before a prompt change touching refusal calibration is trusted. **Reverted (2026-08-25)** — see
+`generation/prompts.py`'s history comment for the full record. Bridge-resolution content from both
+rejected rounds is preserved verbatim in `eval/replay_answer.py`'s `PROMPTS` dict for any future
+attempt, but the next one should go straight to a full 125-case run rather than any intermediate
+shortcut.
 
 ---
 

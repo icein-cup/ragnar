@@ -107,3 +107,29 @@ class QdrantStore:
                 FieldCondition(key="doc_id", match=MatchValue(value=doc_id))
             ]),
         )
+
+    def delete_stale(self, doc_id: str, keep_indices: set[int]) -> None:
+        """Remove points for ``doc_id`` whose chunk index is not in ``keep_indices``.
+
+        Because point IDs are deterministic (doc_id:chunk_index), upserting the
+        new chunk set already overwrites any old chunk with the same index.
+        This call deletes the old chunks whose indices are no longer present,
+        without touching the newly-written points.
+        """
+        points, _next = self._client.scroll(
+            collection_name=self.collection,
+            scroll_filter=Filter(must=[
+                FieldCondition(key="doc_id", match=MatchValue(value=doc_id))
+            ]),
+            limit=10000,
+            with_payload=True,
+        )
+        stale_ids = [
+            p.id for p in points
+            if p.payload.get("chunk_index") not in keep_indices
+        ]
+        if stale_ids:
+            self._client.delete(
+                collection_name=self.collection,
+                points_selector=stale_ids,
+            )

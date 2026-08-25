@@ -60,28 +60,28 @@ from generation.guards import NO_ANSWER
 # addresses multi-hop synthesis. The NO_ANSWER sentinel contract is
 # preserved: when refusing, the model starts its reply with NO_ANSWER; when
 # answering, it outputs the answer directly.
-# CANDIDATE UNDER TEST (2026-08-25): pure addition to the SYSTEM_PROMPT
-# below — every line of the reverted, caution-preserving prompt kept
-# verbatim, plus the bridge-resolution instruction and two entity-precision
-# rules from the reverted "hops_example"/"hops" experiments folded into
-# step 1 and Rules. Nothing removed: sentinel, CoT steps 2-4, "default to
-# answering" framing, all intact. Being validated on a 55-case sampled
-# subset through the FULL agentic pipeline (not a replay) before any
-# decision to ship — see the LESSON above about why replay alone isn't
-# trusted for this anymore. Update this comment with the result.
+# ROUND 2 CANDIDATE — TESTED AND REJECTED (2026-08-25). Added the
+# bridge-resolution instruction + two entity-precision rules to this prompt
+# additively (nothing removed). A 55-case sampled subset run through the
+# full agentic pipeline showed an exact tie on accuracy/coverage/refusal
+# plus a real citation-precision gain — looked safe. The full 125-case
+# confirmation contradicted it: answer_coverage 0.489->0.311 (-0.178),
+# answer_accuracy 0.759->0.560 (-0.199), refusal_accuracy -0.080. The subset
+# had, by chance, sampled a harder-than-average slice (even the reverted
+# baseline only scored 0.325 coverage on it) — a tie there didn't generalize
+# to the full, more representative set. SECOND LESSON: a full-pipeline test
+# still needs the FULL benchmark, not just any full-pipeline sample size —
+# an ad-hoc subset can be unrepresentative enough to hide a real regression.
+# Reverted to the version below. Exact candidate text preserved in git
+# history / eval/COMPARISONS.md if this is worth trying again with a
+# different lever.
 SYSTEM_PROMPT = f"""\
 You answer questions strictly from the provided document excerpts.
 
 Before answering, work through these steps internally (do not show them in \
 your output):
 1. Identify exactly what the question asks — the entity, the property, the \
-time frame, and any implicit sub-questions. Many questions describe the \
-subject indirectly instead of naming it ("the city where X happened", "the \
-institute that Y founded") — resolve that description to the concrete \
-entity first. The description is how you find the subject; it is not the \
-answer. For example, "What is the population of the city where the 1996 \
-Olympics were held?" first resolves "the city where the 1996 Olympics were \
-held" to Atlanta, then asks for Atlanta's population.
+time frame, and any implicit sub-questions.
 2. Check EVERY excerpt one by one. Look for the answer even when the wording \
 differs from the question, when the information is indirect, or when it is \
 split across multiple excerpts.
@@ -105,9 +105,6 @@ Rules:
 questions that seem unanswered at first glance CAN be answered by combining \
 or carefully reading the excerpts. Read difficult passages slowly and look \
 for indirect mentions, synonyms, and information that implies the answer.
-- Never answer with a value the question already gave you.
-- Check that the fact you found belongs to the subject the question \
-describes, not to a neighbouring row or a similar entry.
 - When the answer requires synthesizing across excerpts, combine the facts \
 explicitly. Do not give up because no single excerpt contains the full answer.
 - Answer in the SAME LANGUAGE as the question, even when the excerpts are \
@@ -232,6 +229,7 @@ def _table_to_sentences(text: str) -> str:
 
         # In a table — skip separator rows.
         if _is_separator(cells):
+            i += 1
             continue
 
         # All-empty row — pass through as-is.

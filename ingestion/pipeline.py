@@ -56,15 +56,23 @@ class Pipeline:
         chunks = self._chunker.chunk(parsed, doc_id, filename or path.name)
         t2 = time.perf_counter()
 
-        # Replace wholesale so stale and fresh chunks never coexist.
-        self._store.delete_by_doc(doc_id)
-
         t3 = t4 = t2
         if chunks:
             vectors = self._embedder.embed([c.text for c in chunks])
             t3 = time.perf_counter()
+            if len(vectors) != len(chunks):
+                raise ValueError(
+                    f"embedder returned {len(vectors)} vectors for {len(chunks)} chunks"
+                )
             self._store.upsert(chunks, vectors)
             t4 = time.perf_counter()
+
+        # Delete stale chunks only after the new ones are safely embedded and
+        # stored. A transient failure in embed()/upsert() now leaves the previous
+        # index intact instead of wiping it.  We delete by chunk index, not by
+        # doc_id, because deterministic point IDs mean the fresh upsert already
+        # overwrote any old chunk with the same index.
+        self._store.delete_stale(doc_id, {c.chunk_index for c in chunks})
 
         log.info(
             "ingest %s: parse=%.1fs chunk=%.1fs embed=%.1fs upsert=%.1fs chunks=%d",
