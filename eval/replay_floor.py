@@ -37,7 +37,11 @@ ROOT = Path(__file__).parent
 SCORE_GRID = [0.45, 0.50, 0.55, 0.60, 0.65]
 # 0.42 is config.yaml's shipped default — included so the grid can directly
 # compare "does anything beat 0.55/0.42" instead of only bracketing it.
-VECTOR_GRID = [0.35, 0.40, 0.42, 0.45, 0.50]
+# Widened past the old top edge (0.45) on 2026-08-26: at 0.55/0.42 the grid
+# was flat (0 of 125 cases lose all chunks at any swept cell), and 0.50
+# turned out to be where the floor starts doing real refusal work — an edge
+# winner the old range only bracketed. See experiment-results.md Phase 3.
+VECTOR_GRID = [0.42, 0.46, 0.48, 0.50, 0.52, 0.55]
 
 
 def latest_report() -> Path:

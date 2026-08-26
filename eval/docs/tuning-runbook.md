@@ -9,18 +9,26 @@ cheapest phase to redo (one run + arithmetic). Record every result in
 `eval/docs/experiment-results.md` before moving on, and a dated entry in
 `eval/docs/decisions-log.md` per phase.
 
-**Total budget, all four phases:**
+**Total budget, all four phases (revised 2026-08-26 — see decisions-log.md):**
 
 | Phase | Pipeline runs | Approx |
 |---|---|---|
 | 1 retrieval | 6-7 sweep runs (the finalist is one of them, no separate confirm) | ~6-6.5h |
-| 2 agentic | 5 new runs (baseline reused; finalist is one of them) | ~4.5h |
-| 3 floors | 1 uncensored + 1 confirm run (finalist is the confirm run) | ~1.8h |
-| 4 chunking | 3 configs, each requiring re-ingestion | ~4-5h |
+| 2 agentic | 6 new runs — baseline is NOT reusable (see Phase 2), finalist is one of the 6 | ~5.5h |
+| 3 floors | **Answered from existing reports** (see Phase 3) — 1 confirm run only | ~55min |
+| 4 chunking | 2 new configs + Phase 3's confirm run as the baseline row, each new config requiring re-ingestion | ~2-3h |
 
-~17-19h serial total. Each phase's RAGAS finalist check (see below) adds
+~15-16h serial total. Each phase's RAGAS finalist check (see below) adds
 external judge-call time, not another pipeline run — `run_ragas.py --report`
 scores a report already on disk.
+
+**Tie threshold — read before ranking any grid.** No repeat-run variance has
+ever been measured in this repo. `answer_coverage` at n=90 in-corpus cases has
+a binomial 1σ of ~5pts and a 95% interval of ~±10pts; Branch D's own headline
+`+9pts` (`candidates=30/top_k=10` over the old default) sits inside that band.
+Treat any gap under 10pts of `answer_coverage` between two configs as a tie
+and keep the incumbent — this applies to Phase 1's "note the winning top_k"
+and Phase 2's ranking both.
 
 ## Before you launch
 
@@ -153,7 +161,7 @@ is "confirms Branch D", not a new finding.
 an `eval/reports/<stamp>.json` — score that file with RAGAS (see "RAGAS
 finalist check" below) before it's considered done. No extra pipeline run.
 
-## Phase 2 — Agentic (max_hops × multi_query_count, ~5 runs / ~4.5h)
+## Phase 2 — Agentic (max_hops × multi_query_count, 6 runs / ~5.5h)
 
 **Latency, not coverage, is the open question here** — read this before
 running anything. The current default `max_hops=3, multi_query_count=3`
@@ -178,14 +186,22 @@ for hops in 1 2 3; do
   for mq in 2 3; do
     docker compose exec app python eval/run_eval.py --agentic \
       --collection hybridqa --golden eval/golden_hybridqa_draft.yaml \
+      --candidates <C*> --top-k <TK*> \
       --max-hops $hops --multi-query-count $mq
   done
 done
 ```
 
-`hops=3, mq=3` is the recorded baseline (`eval/reports/20260824-132940.json`)
-— reuse that number instead of re-running it if the config hasn't changed
-since. Watch `latency_p90`, not just `latency_mean` — that is the point of
+**`hops=3, mq=3` is NOT reusable as the baseline — re-run it, 6 runs not 5.**
+The recorded baseline (`eval/reports/20260824-132940.json`) is
+`candidates=25/top_k=5`; by the time this phase starts, Phase 1 has already
+changed those to `<C*>/<TK*>`. A wider retrieved set changes what multi-hop
+and self-correction see, so the old report is not a like-for-like comparison
+— corrected 2026-08-26, see decisions-log.md. Note also that report's
+`summary.latency` field is `null` (the 23.2s/15.9s/53.5s/144.9s figures
+circulating for it were computed ad hoc from per-case `stages.seconds`, not
+read from that field) — don't expect tooling reading `summary.latency` to see
+them. Watch `latency_p90`, not just `latency_mean` — that is the point of
 this phase.
 
 **This phase cannot be run in parallel.** Sharding combos across one Ollama
@@ -197,14 +213,46 @@ isn't re-proposed here later.
 **Finalist check:** same as Phase 1 — the winning combo's own run already
 wrote a report; score that file with RAGAS, no extra run.
 
-## Phase 3 — Floors (score_floor × vector_floor, 2 pipeline runs, ~1.8h)
+## Phase 3 — Floors (score_floor × vector_floor, 1 pipeline run, ~55min)
 
-Not ~55 min total — that's step 1 alone. Step 2 (the confirm run below) is a
-second full ~55-min agentic run; skipping it and shipping straight off the
-grid is exactly what the bias warning below says not to do.
+**Already answered as of 2026-08-26 — this phase needs a confirm run, not a
+fresh sweep.** Three uncensored (`score_floor=0.0`/`vector_floor=0.0`)
+125-case reports already exist on the same golden hash (`228db7ac68da`):
+`20260824-132940`, `20260825-152139`, `20260825-165051`. Replaying all three
+agreed to within one case per grid cell (that agreement is itself the
+cross-check that this is a retrieval-side signal, not LLM noise). Full
+writeup in experiment-results.md Phase 3; headline:
 
-Find the `score_floor` × `vector_floor` combo that maximizes
-`answer_coverage` while keeping `refusal_accuracy >= 0.85`.
+- The shipped `0.55/0.42` wipes 0 of 125 cases at any cell — the floors do no
+  refusal work on this corpus. Refusal is carried entirely by the model's
+  `NO_ANSWER`.
+- Probe and in-corpus score distributions overlap and do not separate
+  cleanly — probes score *higher* on cosine (median 0.642 vs 0.558), because
+  a probe like "average annual rainfall in Multan" retrieves the correct,
+  relevant, fact-less table. No retrieval threshold sees that; only the
+  model reading the content can.
+- The floor's one live effect is context pruning. `vector_floor: 0.42 → 0.50`
+  (keep `score_floor: 0.55`) wipes +4 probes / 0 in-corpus cases, cuts
+  context from 74%→42% of retrieved chunks.
+
+Skip step 1 below — no new uncensored run is needed, it already exists three
+times over. Go straight to the confirm:
+
+```bash
+# confirm the recommended combo — on top of whatever Phase 1 settles on
+docker compose exec app python eval/run_eval.py --agentic \
+  --score-floor 0.55 --vector-floor 0.50 \
+  --candidates <C*> --top-k <TK*> \
+  --collection hybridqa --golden eval/golden_hybridqa_draft.yaml
+```
+
+If it holds `answer_coverage` within the tie band (see Recording) and raises
+`refusal_accuracy`, update `config.yaml`. Watch `citation_precision` and
+`latency_p90` too — the 58% context cut should move both favourably, and if
+it doesn't, that's itself a finding.
+
+If a re-derivation is ever actually needed (a corpus change, a new golden
+set), the original procedure was:
 
 ```bash
 # 1. one uncensored run (floors 0.0 so every score is saved) — ~55 min
@@ -234,13 +282,14 @@ decided, and it never re-runs generation. Two consequences:
 Both biases push toward floors that look better than they are.
 
 **The grid is a fixed set of candidates, not a continuous search.**
-`SCORE_GRID`/`VECTOR_GRID` are hardcoded lists (`replay_floor.py:37-40`) —
-currently `[0.45, 0.50, 0.55, 0.60, 0.65]` × `[0.35, 0.40, 0.42, 0.45, 0.50]`
-(the shipped default `0.42` is included, so `0.55/0.42` is a directly
-comparable row, not something the grid only brackets). If a winner lands on
-an edge — `score_floor=0.45` or `vector_floor=0.50` — the true optimum may sit
-outside the swept range; widen the lists and re-run the replay. It's free (no
-LLM calls), so there's no reason to ship an edge winner unexamined.
+`SCORE_GRID`/`VECTOR_GRID` are hardcoded lists (`replay_floor.py:37-41`) —
+currently `[0.45, 0.50, 0.55, 0.60, 0.65]` × `[0.42, 0.46, 0.48, 0.50, 0.52,
+0.55]` (the shipped default `0.42` is included, so `0.55/0.42` is a directly
+comparable row, not something the grid only brackets; widened past the old
+0.35-0.45 range on 2026-08-26 because 0.50 turned out to be the useful edge).
+If a winner lands on an edge again, the true optimum may sit outside the
+swept range; widen the lists and re-run the replay. It's free (no LLM calls),
+so there's no reason to ship an edge winner unexamined.
 
 Record the grid in the experiment-results.md Phase 3 table + a "Finding —"
 line, but **do not edit `config.yaml` from the grid alone.** Confirm the
@@ -296,23 +345,66 @@ decisions-log.md's tracking table) as a reason to keep the previous default
 even if `answer_coverage` improved — `answer_coverage` alone cannot see
 hallucination, `faithfulness` is the gate for that.
 
-## Phase 4 — Chunking (structural only, ~4-5h)
+## Phase 4 — Chunking (structural only, 2 new runs / ~2-3h)
+
+**This phase could not have run as written before 2026-08-26 — read this
+before editing `config.yaml`.** `eval/ingest_hybridqa.py` does not read
+`config.yaml` and does not use `StructuralChunker` — editing
+`config.yaml`'s chunking section and re-ingesting via that script would have
+built the *same* collection every time, silently. It has its own,
+now-parameterized, path: `--target-tokens` / `--overlap-tokens` /
+`--rows-per-group` flags (defaults 500/0/20, matching every existing
+report). Use those flags, not `config.yaml`, to vary this phase.
 
 Strategy is settled (semantic vs structural was a 1-point wash, Branch G);
-only the token budget is open. For each of 250/75/5, 350/50/10, 500/30/20:
-edit `config.yaml` chunking, re-ingest, run one full eval, record. If no
-config beats 350/50/10, keep it.
+only the token budget is open. 81% of retrieved contexts on this corpus are
+prose passages, only 19% are table rows (measured on
+`20260825-152139`) — so `--target-tokens`/`--overlap-tokens` are the levers
+that matter here and `--rows-per-group` is the least important of the three.
+The old default has **zero overlap** and splits prose on a raw character
+window (mid-word, no sentence awareness) — a plausible direct cause of low
+`answer_coverage` if an answer sentence lands split across two chunks.
 
-**This phase mutates the `hybridqa` collection** (re-ingestion overwrites it)
-— unlike Phases 1-3, which only read it. Don't run this concurrently with
-anything else that queries `hybridqa`.
+```bash
+# baseline row: reuse Phase 3's confirm run on the existing hybridqa
+# collection (500/0/20, today's default) — no re-ingest needed for this row.
 
-**Ingestion worker count — set `ingestion.workers: 4` before re-ingesting.**
-Verified live in this repo's app container: `auto_worker_count` resolves to
-**8 workers** (17.2 GB cgroup limit ÷ `worker_memory_gb: 2`, capped at
-`max_workers: 8`, 16 CPUs detected). Each Docling converter runs ~1-2 GB, so 8
-workers is 8-16 GB inside a 17.2 GB container limit — close enough to risk an
-OOM mid-re-ingestion. Phases 1-3 do no ingestion and are unaffected by this.
+# overlap only — isolates the mid-sentence-split hypothesis
+docker compose exec app python eval/ingest_hybridqa.py \
+  --collection hybridqa_500_75 --golden eval/golden_hybridqa_draft.yaml \
+  --target-tokens 500 --overlap-tokens 75 --rows-per-group 20
+docker compose exec app python eval/run_eval.py --agentic \
+  --collection hybridqa_500_75 --golden eval/golden_hybridqa_draft.yaml \
+  --candidates <C*> --top-k <TK*> --score-floor <winning_score> --vector-floor <winning_vector>
+
+# config.yaml's actual production values
+docker compose exec app python eval/ingest_hybridqa.py \
+  --collection hybridqa_350_50 --golden eval/golden_hybridqa_draft.yaml \
+  --target-tokens 350 --overlap-tokens 50 --rows-per-group 10
+docker compose exec app python eval/run_eval.py --agentic \
+  --collection hybridqa_350_50 --golden eval/golden_hybridqa_draft.yaml \
+  --candidates <C*> --top-k <TK*> --score-floor <winning_score> --vector-floor <winning_vector>
+```
+
+Naming each config its own collection (`hybridqa_500_75`, not overwriting
+`hybridqa`) means nothing needs re-ingesting twice and there's no
+"don't query concurrently" hazard to manage — the old collection stays
+queryable throughout. If no config beats the baseline, keep it and drop the
+two scratch collections.
+
+**Honest framing:** this measures the *eval* ingester's chunking, which is a
+separate code path from the app's `StructuralChunker` (see above). A win
+here is a hypothesis about production chunking, not a direct measurement of
+it — `StructuralChunker`'s own `target_tokens`/`overlap_tokens`/
+`table_rows_per_group` would need a dedicated pass to confirm.
+
+**Ingestion worker count.** `ingestion.workers: 4` (as the previous version
+of this section warned) applies to the *app's* document ingestion pipeline,
+which runs a Docling converter per worker at ~1-2 GB each. `eval/ingest_hybridqa.py`
+does not go through that pipeline — it fetches pre-parsed JSON directly from
+GitHub (`TABLE_URL`/`REQUEST_URL`) and does no Docling conversion, so the
+8-worker/17.2 GB OOM risk described there does not apply here. No worker
+setting is needed for this phase.
 
 ## Optional: full-grid sweep via tune_params.py
 
@@ -351,7 +443,22 @@ question in ~6h serial, this is a fallback, not a recommendation.
 ## Recording
 
 - Every result → `eval/docs/experiment-results.md` before the next phase.
+  Generate the numbers with `python eval/report_table.py` (`--full` for every
+  provenance field) rather than transcribing from terminal output by hand —
+  it recomputes any metric a run predates from its saved cases, so it stays
+  correct even against older reports.
+- **Tie threshold: a gap under 10pts of `answer_coverage` is noise, not a
+  finding.** No repeat-run variance has been measured anywhere in this repo;
+  n=90 in-corpus cases puts a 95% interval at roughly ±10pts, and Branch D's
+  own `+9pts` headline sits inside it. Below that gap, keep the incumbent
+  and say so — don't pick a "winner" the data can't actually support.
 - Each "Finding —" line states what won, by how much, and whether it beats
   the default.
 - "Default is already optimal" is a valid finding — write it and freeze.
 - Dated entry in `eval/docs/decisions-log.md` per phase.
+- **A run that dies mid-sweep is not lost.** `run_eval.py` stamps
+  `<stamp>.json` with real provenance before the run starts and streams every
+  case to `<stamp>.jsonl` as it goes; `report_table.py` reads the `.jsonl`
+  fallback when `cases` is empty. Killed at case 120 of 125 still shows up as
+  a correctly-attributed 120-case row — check `report_table.py --full` before
+  re-running a combo from scratch.

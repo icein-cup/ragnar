@@ -348,6 +348,23 @@ def main() -> None:
     reports = ROOT / "reports"
     reports.mkdir(exist_ok=True)
     stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    report_path = reports / f"{stamp}.json"
+
+    prov = provenance(cfg, golden, agentic=args.agentic,
+                      collection=collection, score_floor=floor,
+                      vector_floor=vfloor,
+                      candidates=args.candidates, top_k=args.top_k,
+                      agentic_overrides=_agentic_overrides(args))
+    # Written before run_cases, not after: a killed/crashed run (Ctrl-C,
+    # exception) never reaches the write below, and previously left its
+    # .jsonl cases with NO provenance anywhere on disk — invisible to
+    # report_table.py and unattributable to any config. Stamping the config
+    # first means a partial run is always at least identifiable; the final
+    # write below overwrites this with the real cases and metrics.
+    report_path.write_text(
+        json.dumps({"summary": {"provenance": prov}, "cases": []},
+                   indent=2, ensure_ascii=False)
+    )
 
     cases = run_cases(score_floor=args.score_floor,
                       vector_floor=args.vector_floor, agentic=args.agentic,
@@ -370,16 +387,12 @@ def main() -> None:
             "p90_s": round(sorted(c["stages"]["seconds"] for c in cases)[int(len(cases) * 0.9)], 2),
             "max_s": round(max(c["stages"]["seconds"] for c in cases), 2),
         },
-        "provenance": provenance(cfg, golden, agentic=args.agentic,
-                                 collection=collection, score_floor=floor,
-                                 vector_floor=vfloor,
-                                 candidates=args.candidates, top_k=args.top_k,
-                                 agentic_overrides=_agentic_overrides(args)),
+        "provenance": prov,
     }
 
     print(json.dumps(report, indent=2, ensure_ascii=False))
 
-    (reports / f"{stamp}.json").write_text(
+    report_path.write_text(
         json.dumps({"summary": report, "cases": cases},
                    indent=2, ensure_ascii=False)
     )

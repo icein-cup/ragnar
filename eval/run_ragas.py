@@ -34,6 +34,7 @@ from langchain_community.embeddings import OllamaEmbeddings
 from langchain_openai import ChatOpenAI
 from ragas import evaluate
 from ragas.dataset_schema import EvaluationDataset, SingleTurnSample
+from ragas.run_config import RunConfig
 from ragas.metrics import (
     answer_correctness,
     answer_relevancy,
@@ -205,6 +206,11 @@ def main() -> None:
         metrics=build_metrics(),
         llm=judge,
         embeddings=embeddings,
+        # ragas defaults to max_workers=16 — that many concurrent requests
+        # against a single external judge risks rate-limit floods/errors.
+        # Capped rather than tuned; raise only if the judge's own limits
+        # are known to clear this.
+        run_config=RunConfig(max_workers=4),
     )
     df = result.to_pandas()
 

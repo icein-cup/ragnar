@@ -2,6 +2,77 @@
 
 Running log of discoveries, patterns, and decisions. Updated each iteration.
 
+## 2026-08-26 — Phase 3 (floors) answered from existing reports; Phase 4 harness fixed; crash-resilience gap closed
+
+Reviewed `eval/docs/tuning-runbook.md` against the code it drives before launching
+any of the four phases. Findings:
+
+**Phase 3 needed no new run.** Three uncensored (`score_floor=0.0`,
+`vector_floor=0.0`) 125-case reports already existed on the same golden hash
+(`228db7ac68da`): `20260824-132940`, `20260825-152139`, `20260825-165051`.
+Replaying `replay_floor.py --grid` against all three (see
+experiment-results.md Phase 3 for the full tables): the shipped `0.55/0.42`
+wipes 0 of 125 cases at any swept cell — the floors do zero refusal work, all
+refusal is the model's own `NO_ANSWER`. Score distributions do not separate
+answerable from unanswerable questions (probe cosine median 0.642 vs.
+in-corpus 0.558 — probes score *higher*, since a probe like "average annual
+rainfall in Multan" retrieves the correct, relevant, fact-less table). The
+floor's one live effect is context pruning: sweeping `vector_floor` at
+`score_floor=0.55`, `0.50` wipes +4 probes / 0 in-corpus for 42% context vs.
+74% at the shipped `0.42`. **Recommendation: `vector_floor: 0.42 → 0.50`,
+`score_floor: 0.55` unchanged** — not yet shipped, gated on one confirm run
+(replay can't see whether cutting context this much breaks generated
+answers). `replay_floor.py`'s `VECTOR_GRID` widened to `[0.42, 0.46, 0.48,
+0.50, 0.52, 0.55]` (was topping out at 0.45 — 0.50 was an edge winner the old
+range only bracketed). Phase 3 collapses from 2 pipeline runs to 1.
+
+**Phase 4 could not have run as written.** `eval/ingest_hybridqa.py` never
+read `config.yaml` and had no `StructuralChunker` involvement at all — module
+constants hardcoded 500 tokens / 20 rows, and `split_prose` was a fixed
+character window with **no overlap implementation**. The three proposed
+configs (`250/75/5`, `350/50/10`, `500/30/20`) would have built three
+identical collections; the overlap axis had nothing to exercise. Fixed:
+`--target-tokens`/`--overlap-tokens`/`--rows-per-group` flags added
+(defaulting to the old hardcoded values, so no existing report is
+invalidated), `split_prose` gained an `overlap_chars` parameter mirroring
+`StructuralChunker._split`'s `step = max(max_chars - overlap_chars, 1)`. One
+test added (`tests/test_ingest_hybridqa.py` — nothing covered `split_prose`
+before). Noted for whoever runs this phase: 81% of retrieved contexts in
+`20260825-152139` are prose, only 19% table rows, so `target_tokens`/overlap
+are the levers that matter and `table_rows_per_group` is the least important
+of the three; zero-overlap mid-word splitting is a live suspect for low
+`answer_coverage`.
+
+**A killed run was unrecoverable.** `run_eval.py` streamed every case to
+`<stamp>.jsonl` (flushed per case) but wrote `<stamp>.json` — the only place
+provenance lives — only after the *last* case. A run dying at case 120/125
+left good cases with no config attached anywhere on disk, invisible to
+`report_table.py` (which globs `2*.json`). Fixed: `run_eval.py` now writes
+`<stamp>.json` with real provenance and empty `cases` *before* calling
+`run_cases`, overwritten with the full report at the end. `report_table.load()`
+now falls back to the sibling `.jsonl` when `cases` is empty, so a partial run
+shows up as a correctly-attributed row with recomputed metrics instead of
+being invisible. Verified against a simulated stub report + `.jsonl`.
+
+**Runbook corrections, not yet applied to the file itself:** Phase 2's
+`hops=3, mq=3` baseline reuse (`20260824-132940`) is invalid once Phase 1
+changes `candidates`/`top_k` — that report is `candidates=25/top_k=5`, three
+git shas back — so Phase 2 needs 6 new runs, not 5. No repeat-run variance
+has ever been measured anywhere in this repo; `answer_coverage` at n=90
+in-corpus cases has a ~±10pt 95% interval, and Branch D's headline `+9pts`
+sits inside it — Phase 1/2's "take the winner" rules need a stated tie
+threshold (proposed: <10pt gap = tie, keep incumbent).
+
+**Not run:** no new pipeline evals were executed in this pass — this was a
+harness-and-runbook fix, verified with `pytest`, a `replay_floor.py --grid`
+rerun against all three existing reports (cross-checked, agreed to within one
+case per cell — confirms these are retrieval-side numbers, not LLM noise),
+and a simulated crash-recovery scenario, not a new measurement.
+
+**Next:** commit `eval/run_ragas.py`'s pending `RunConfig(max_workers=4)`
+change (else every report this week is stamped `-dirty`), fold the Phase
+2/3/4 corrections into `tuning-runbook.md` itself, then run Phase 1.
+
 ## 2026-08-25 — Tuning runbook fixed: harness bugs, phase order, and agentic grid cut from 16 combos to 5
 
 Reviewing `eval/docs/tuning-runbook.md` against `eval/tune_params.py` and prior eval results before

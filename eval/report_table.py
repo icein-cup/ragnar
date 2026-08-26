@@ -54,6 +54,16 @@ def load(path: Path) -> dict:
     report = json.loads(path.read_text())
     summary = report.get("summary", {})
     cases = report.get("cases", [])
+    if not cases:
+        # run_eval.py stamps provenance before the run and writes cases only
+        # at the end, so a killed run leaves this file with an empty "cases"
+        # but a real .jsonl beside it (one line flushed per case as it ran).
+        # Falling back to that keeps a partial run visible in the ledger
+        # instead of invisible until someone remembers to look for it.
+        jsonl = path.with_suffix(".jsonl")
+        if jsonl.exists():
+            cases = [json.loads(line) for line in jsonl.read_text().splitlines()
+                     if line]
     prov = summary.get("provenance")
 
     # Prefer what the run recorded; recompute only what it never had. A

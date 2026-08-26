@@ -548,11 +548,6 @@ parallelism isn't re-proposed here later.
 
 ### Phase 3: Floor calibration (`score_floor` × `vector_floor`)
 
-| score_floor | vector_floor | answer_coverage | refusal_accuracy | citation_precision | ragas_faithfulness | ragas_answer_correctness | ragas_context_precision | note |
-|---|---|---|---|---|---|---|---|---|
-| 0.55 | 0.42 | TBD | TBD | TBD | — | — | — | current default (untested stopgap) |
-| ... | ... | ... | ... | ... | | | | |
-
 **Read before trusting this table.** `replay_floor.py`'s grid re-derives
 `refused` purely from whether a chunk clears the candidate floor, discarding
 whatever the model itself decided, and never re-runs generation. So
@@ -563,11 +558,80 @@ credited even after the chunk carrying the answer is filtered out), and
 never re-derived. Both biases push toward floors that look better than they
 are. **The winning combo must be confirmed with one real
 `run_eval.py --agentic` run before `config.yaml` changes** — see
-tuning-runbook.md Phase 3. `VECTOR_GRID` now includes `0.42`
-(`replay_floor.py:38-40`), so the shipped `0.55/0.42` default is a directly
-comparable row in this table rather than something the grid only brackets.
+tuning-runbook.md Phase 3.
 
-**Finding —** [pending measurement]
+**Replayed against three existing uncensored reports** (`score_floor=0.0`,
+`vector_floor=0.0`, same golden hash `228db7ac68da`, 125 cases: 90 in-corpus /
+35 probes): `20260824-132940`, `20260825-152139`, `20260825-165051`. No new
+pipeline run was needed for this table — that is the entire point of
+`replay_floor.py`.
+
+**The shipped `0.55/0.42` grid is flat: 0 of 125 cases lose all their chunks
+at any of the original grid's cells.** The floors do no refusal work at that
+setting — refusal is carried entirely by the model's own `NO_ANSWER` (30 of
+35 probes refused in `20260825-152139`, vs. `replay_floor.py`'s
+floor-only-derived 0.72 refusal_accuracy on the same report).
+
+Best-chunk score distributions do not separate answerable from unanswerable
+questions — if anything probes score *higher* on cosine:
+
+| | min | p25 | p50 | p75 | max |
+|---|---|---|---|---|---|
+| in-corpus rerank | 0.549 | 0.699 | 0.726 | 0.730 | 0.731 |
+| probe rerank | 0.504 | 0.597 | 0.687 | 0.716 | 0.731 |
+| in-corpus vector | 0.397 | 0.522 | 0.558 | 0.616 | 0.714 |
+| probe vector | 0.458 | 0.546 | **0.642** | 0.660 | 0.726 |
+
+This is structural, not a calibration failure: a HybridQA probe like "What is
+the average annual rainfall in Multan?" retrieves the correct, genuinely
+relevant Multan table — the corpus is *about* the entity, it simply lacks the
+fact asked for. No retrieval-score threshold can see that distinction; only
+the model reading the content can.
+
+**The floor's one measurable effect is context pruning**, holding
+`score_floor=0.55` (identical across all three reports):
+
+| vector_floor | in-corpus wiped /90 | probes wiped /35 | chunks kept |
+|---|---|---|---|
+| 0.42 (shipped) | 0 | 0 | 74% |
+| 0.46 | 0 | 2 | 53% |
+| 0.48 | 0 | 3 | 47% |
+| **0.50** | **0** | **4** | **42%** |
+| 0.52 | 0 | 4 | 38% |
+| 0.55 | 1 | 4 | 36% |
+| 0.60 | 1 | 4 | 34% |
+
+`score_floor` cross-check at `vector_floor=0.50`: 0.50 keeps 100% of chunks
+(all rerank scores measured are ≥0.504 — anything at or below ~0.50 is
+inert); 0.55 wipes 0 in-corpus / 4 probes; 0.60 is identical on probes; 0.65
+costs 3 in-corpus cases for +2 probes. `0.55` sits at the knee.
+
+These three reports predate Branch D (`candidates=25/top_k=5`, not the
+current `30/10`). Under wider retrieval the retrieved set is a strict
+superset, so per-case max score can only rise — the floors become *strictly*
+less likely to wipe a case. The conclusion below strengthens under `30/10`,
+it does not weaken.
+
+| score_floor | vector_floor | answer_coverage | refusal_accuracy | citation_precision | ragas_faithfulness | ragas_answer_correctness | ragas_context_precision | note |
+|---|---|---|---|---|---|---|---|---|
+| 0.55 | 0.42 | 0.53 (replay) | 0.72 (replay, lower bound) | 0.29 (not meaningful, see above) | — | — | — | current default; 0/125 cases wiped |
+| 0.55 | 0.50 | 0.53 (replay) | 0.75 (replay, lower bound) | 0.29 (not meaningful) | TBD | TBD | TBD | **recommended** — 0 in-corpus / +4 probes wiped, 58% less context |
+
+**Finding — the floors are not the refusal mechanism on this corpus; they are
+a context-pruning knob, and the shipped `vector_floor` leaves it almost
+entirely open.** Move `vector_floor: 0.42 → 0.50`, keep `score_floor: 0.55`
+(already at the knee). Zero in-corpus cases lost, +4 correctly-refused
+probes, and generation sees 42% of retrieved context instead of 74% — worth
+watching `citation_precision` (currently 0.287) and `latency_p90` for the
+knock-on effect. **Not yet shipped to `config.yaml`** — the replay cannot see
+whether cutting context this much breaks the *answers* it was generated
+from, so one confirm run (`run_eval.py --agentic --score-floor 0.55
+--vector-floor 0.50`, on top of whatever Phase 1 settles on) gates the
+`config.yaml` change. Phase 3 therefore needs 1 pipeline run, not 2 —
+the uncensored run the runbook calls for already exists three times over.
+`replay_floor.py`'s `VECTOR_GRID` was widened to `[0.42, 0.46, 0.48, 0.50,
+0.52, 0.55]` (was topping out at 0.45) since 0.50 is the useful point and the
+old range only bracketed it.
 
 ### Phase 4: Chunking token budget (structural only)
 

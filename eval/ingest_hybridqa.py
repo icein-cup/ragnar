@@ -38,8 +38,13 @@ REQUEST_URL = (
     "master/request_tok/{table_id}.json"
 )
 
-# Match the app's structural chunker prose budget.
-CHARS_PER_CHUNK = 500 * 3.5
+# Defaults reproduce the collection every existing report was measured
+# against. Deliberately NOT read from config.yaml: this is the eval corpus
+# builder, not the app's StructuralChunker, and coupling them silently would
+# make old reports irreproducible the next time config.yaml moves.
+CHARS_PER_TOKEN = 3.5
+TARGET_TOKENS = 500
+OVERLAP_TOKENS = 0
 ROWS_PER_GROUP = 20
 
 
@@ -55,10 +60,14 @@ def table_to_markdown(table: dict) -> str:
     return "\n".join(lines)
 
 
-def split_prose(text: str, max_chars: int) -> list[str]:
+def split_prose(text: str, max_chars: int, overlap_chars: int = 0) -> list[str]:
+    """Fixed character-window split. Mirrors StructuralChunker._split's
+    overlap semantics (ingestion/chunkers/structural.py) so the two stay
+    comparable when this axis is tuned."""
     if len(text) <= max_chars:
         return [text]
-    return [text[i:i + max_chars] for i in range(0, len(text), max_chars)]
+    step = max(max_chars - overlap_chars, 1)
+    return [text[i:i + max_chars] for i in range(0, len(text), step)]
 
 
 def split_prose_semantic(passages: dict[str, str], embedder,
@@ -120,9 +129,21 @@ def main() -> None:
     parser.add_argument("--breakpoint-percentile", type=float, default=95.0,
                         help="Cosine-distance percentile for semantic topic "
                              "boundaries (only with --semantic).")
+    parser.add_argument("--target-tokens", type=int, default=TARGET_TOKENS,
+                        help="Prose chunk budget in tokens (ignored for "
+                             "--semantic, whose cuts land on topic boundaries "
+                             "instead of a fixed size).")
+    parser.add_argument("--overlap-tokens", type=int, default=OVERLAP_TOKENS,
+                        help="Prose chunk overlap in tokens. Ignored for "
+                             "--semantic, same reason as --target-tokens.")
+    parser.add_argument("--rows-per-group", type=int, default=ROWS_PER_GROUP,
+                        help="Table rows per chunk (header repeated in each).")
     args = parser.parse_args()
     if args.collection is None:
         args.collection = "hybridqa_semantic" if args.semantic else "hybridqa"
+
+    max_chars = int(args.target_tokens * CHARS_PER_TOKEN)
+    overlap_chars = int(args.overlap_tokens * CHARS_PER_TOKEN)
 
     import yaml
     entries = yaml.safe_load(args.golden.read_text())
@@ -161,7 +182,7 @@ def main() -> None:
     for table_id, data in tables.items():
         table = data["table"]
         md = table_to_markdown(table)
-        pieces = chunk_table_markdown(md, rows_per_group=ROWS_PER_GROUP) or [md]
+        pieces = chunk_table_markdown(md, rows_per_group=args.rows_per_group) or [md]
         for i, piece in enumerate(pieces):
             chunks.append(Chunk(
                 doc_id=table_id, filename=table["title"], text=piece,
@@ -169,7 +190,7 @@ def main() -> None:
             ))
         if args.semantic:
             prose_pieces = split_prose_semantic(
-                data["passages"], embedder, int(CHARS_PER_CHUNK),
+                data["passages"], embedder, max_chars,
                 args.breakpoint_percentile)
             for path, title in ((p, p.removeprefix("/wiki/").replace("_", " "))
                                 for p in data["passages"]):
@@ -181,7 +202,7 @@ def main() -> None:
         else:
             for path, text in data["passages"].items():
                 title = path.removeprefix("/wiki/").replace("_", " ")
-                for i, piece in enumerate(split_prose(text, int(CHARS_PER_CHUNK))):
+                for i, piece in enumerate(split_prose(text, max_chars, overlap_chars)):
                     chunks.append(Chunk(
                         doc_id=path, filename=title, text=piece,
                         chunk_index=i, is_table=False,
