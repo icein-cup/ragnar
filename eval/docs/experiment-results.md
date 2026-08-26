@@ -401,14 +401,31 @@ agreed 2026-08-24: p50 under ~6-8s, p90 under ~15-20s, nothing silent for more t
 **Current p90 already fails that, before any accuracy change.** Any future comparison in this file
 must report latency alongside accuracy — a coverage win that pushes p90 past target is not a win.
 
-**Target revised 2026-08-26: p90 ~35s is acceptable.** Owner's call, superseding the
-15-20s figure above. The post-move p90 of 34.24s therefore *clears* the bar rather than
-missing it by 1.7x, and latency stops being the binding constraint on tuning. Two things
-this does not change, both worth keeping in view when reading any row here: p90 is not a
-ceiling — the slowest case in that run was **84.2s** (an out-of-corpus question, where the
-fan-out keeps hunting for material that does not exist) — and the blocking-spinner UX above
-is untouched, so a 35s p90 still means occasional minute-plus stalls with nothing on screen.
-Latency remains a **reported** number on every comparison; it is no longer a veto.
+**Target revised 2026-08-26: max ≤35s — a hard ceiling on every case, not a percentile.**
+Owner's call, superseding the p50 6-8s / p90 15-20s figures above. This is a stricter
+constraint than a p90, and **the pipeline does not currently meet it**:
+
+| Run | over 35s | max |
+|---|---|---|
+| `20260825-165051`, 125 cases, pre-move | **30/125 (24%)** | 182.7s — 5.2x over |
+| `20260826-110031`, 20 cases, post-move | **1/20 (5%)** | 84.2s — 2.4x over |
+
+Every violator is a high-fan-out case (7-13 generated queries), and most are out-of-corpus:
+the search keeps generating queries hunting for material that does not exist, and each query
+costs a full rerank. That is the tail, and the tail is now the binding metric.
+
+**`max_s`, not `latency_p90`, is the number that decides a config.** Every report already
+records it (`summary.latency.max_s`); comparisons in this file have been ranking on mean and
+p90, which say nothing about a ceiling. A config with a better p90 and a worse max is a
+regression under this target.
+
+**Tuning alone cannot deliver this, and the sweep should not be expected to.** A parameter
+sweep shifts a distribution; it does not bound a tail. `retrieval/agentic.py` has no
+deadline, timeout, or time budget of any kind — nothing in the code can enforce a ceiling,
+so the best any config can do is make violations rarer. A guaranteed max needs a wall-clock
+check in the hop / fan-out loops that stops and answers with what has been retrieved so far.
+Until that exists, treat `max_s` as a measurement of how far over the ceiling a config runs,
+not as something a grid cell can fix.
 
 **Where that latency actually goes (2026-08-26).** Profiled after a smoke run came in at
 ~84s/case under the current `candidates=30/top_k=10`. The reranker, not the LLM, is the
@@ -547,7 +564,7 @@ contain the right words (see tuning-runbook.md "RAGAS finalist check").
 
 ### Phase 1: Retrieval volume (`candidates` × `top_k`)
 
-| candidates | top_k | answer_coverage | citation_precision | latency_p90 | ragas_faithfulness | ragas_answer_correctness | ragas_context_precision | note |
+| candidates | top_k | answer_coverage | citation_precision | latency_max | latency_p90 | ragas_faithfulness | ragas_answer_correctness | ragas_context_precision | note |
 |---|---|---|---|---|---|---|---|---|
 | 30 | 10 | TBD | TBD | TBD | — | — | — | current default (Branch D, pending full confirmation) |
 | ... | ... | ... | ... | ... | | | | |
@@ -590,31 +607,30 @@ Together those close most of the grid:
 remain, one of which (`3, 3`) is the already-measured baseline — **5 new
 runs, ~4.5h**, not 16 runs and ~20h.
 
-**Both of those reasons expired on 2026-08-26; the grid stays at six anyway.**
-Read the table above as a scope decision, not a latency verdict — the
-justifications behind it no longer hold:
+**The pruning stands; one of its two arguments died and was replaced.**
+Read the table above with this attached:
 
-- The **+47s/case** that killed `mq` 5 and 7 was measured with the reranker
-  on container CPU. `multi_query_count` is a direct multiplier on rerank
-  count, and a rerank went 10.34s → 1.48s. That penalty is stale by
-  construction and would be a fraction of +47s today.
-- `max_hops=4` was dead for missing a p90 target that has since been relaxed
-  to ~35s (see "Latency reality" above).
+- The **+47s/case** that killed `mq` 5 and 7 is **stale** — measured with the
+  reranker on container CPU, and `multi_query_count` multiplies rerank count,
+  which went 10.34s → 1.48s. The figure would be a fraction of +47s today.
+  But `mq` 5 and 7 stay dead on a different argument: more generated queries
+  lengthen the tail, and every case over 35s in both measured runs had 7-13
+  queries. The conclusion outlived its original reason.
+- `max_hops=4` was dead for missing a p90 target since replaced by a stricter
+  one — max ≤35s, which the baseline violates at 84.2s (see "Latency reality"
+  above). Still dead, now on the tail rather than the p90.
 
 Owner's call 2026-08-26, asked and answered explicitly: **keep the six-combo
-grid.** The latency headroom is real but is being spent on finishing the
-sweep rather than on re-deriving pruned cells. Reopening `mq=5` across
-`max_hops` 1-3 (9 combos, ~6h) is the cheapest way back in if a later result
-makes the question live again; the full 16-combo grid is ~10h for this phase
-alone.
+grid**, keep `top_k=12` dropped. Reopening `mq=5` across `max_hops` 1-3 (9
+combos, ~6h) is the cheapest way back in if a later result makes the question
+live again; the full 16-combo grid is ~10h for this phase alone.
 
-**The question no longer inverts.** This phase was reframed as "how far
-*down* can these go before coverage breaks" precisely because more of either
-was unaffordable — latency was the objective, not the constraint. With the
-target at ~35s and the baseline at 34.24s, that inversion is off: the six
-open combos are again a genuine coverage-vs-latency tradeoff, and a config
-that costs seconds for real coverage is now allowed to win. Report latency on
-every row; stop treating it as a veto.
+**The question stays inverted, and the max target keeps it that way.** This
+phase is "how far *down* can these parameters go before coverage breaks" —
+`max_hops=2` or `multi_query_count=2` is a latency win against a ceiling
+being missed, not a tradeoff against a coverage gain. Rank rows on
+`latency_max`. (An earlier revision of this section un-inverted the framing
+on a misreading of the target as p90 ~35s; see decisions-log.md 2026-08-26.)
 
 **This phase cannot be run in parallel.** Sharding combos across one Ollama
 makes per-request latency a function of contention, and contention scales
@@ -707,7 +723,7 @@ a context-pruning knob, and the shipped `vector_floor` leaves it almost
 entirely open.** Move `vector_floor: 0.42 → 0.50`, keep `score_floor: 0.55`
 (already at the knee). Zero in-corpus cases lost, +4 correctly-refused
 probes, and generation sees 42% of retrieved context instead of 74% — worth
-watching `citation_precision` (currently 0.287) and `latency_p90` for the
+watching `citation_precision` (currently 0.287) and `latency_max` for the
 knock-on effect. **Not yet shipped to `config.yaml`** — the replay cannot see
 whether cutting context this much breaks the *answers* it was generated
 from, so one confirm run (`run_eval.py --agentic --score-floor 0.55

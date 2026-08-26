@@ -2,7 +2,64 @@
 
 Running log of discoveries, patterns, and decisions. Updated each iteration.
 
+## 2026-08-26 — Latency target is max ≤35s, a hard ceiling — corrected same day
+
+**Correcting the entry below, which recorded this as "p90 ~35s".** The owner
+meant **max ≤35s: no case may exceed it.** That is a materially stricter
+constraint and it reverses the conclusion drawn from the looser reading.
+The entry below is kept as written, with its own correction note, because the
+error is instructive — the numbers it cites are right and its conclusion is
+wrong, purely on which statistic the target names.
+
+**The pipeline does not meet this target.**
+
+| Run | over 35s | max |
+|---|---|---|
+| `20260825-165051`, 125 cases, pre-move | **30/125 (24%)** | 182.7s — 5.2x over |
+| `20260826-110031`, 20 cases, post-move | **1/20 (5%)** | 84.2s — 2.4x over |
+
+Every violator in both runs is a high-fan-out case (7-13 generated queries),
+and most are out-of-corpus: the search keeps generating queries hunting for
+material that does not exist, paying a full rerank per query. **The tail is
+the binding metric, not the middle.**
+
+**Three consequences:**
+
+1. **Rank on `max_s`, not `latency_p90`.** Every report already records it
+   (`summary.latency.max_s`); this file's comparisons have been ranking on
+   mean and p90, which say nothing about a ceiling. A config with a better
+   p90 and a worse max is a regression under this target.
+2. **`mq` 5 and 7 stay dead, and the pruning is re-justified on new
+   grounds.** The +47s/case figure remains stale (measured on the container
+   CPU reranker), but more generated queries lengthen exactly the tail this
+   target binds on. The conclusion survives its original argument's death.
+3. **Phase 2's inverted framing is correct after all** — "how far *down* can
+   these parameters go before coverage breaks." The entry below un-inverted
+   it; that was wrong and is reverted.
+
+**The sweep cannot deliver this target, and should not be expected to.** A
+parameter sweep shifts a distribution; it does not bound a tail.
+`retrieval/agentic.py` has no deadline, timeout, or time budget of any kind —
+verified, nothing in the code can enforce a ceiling. The best any grid cell
+can do is make violations rarer. A guaranteed max needs a wall-clock check in
+the hop (`_multi_hop`, line 488) and fan-out (`_retrieve_multi_query`, line
+422) loops that stops and answers with what has been retrieved so far. That
+is an implementation task, not a tuning one, and it is **not** currently in
+the sweep plan.
+
+**Pattern, fourth instance this week.** A number was recorded in a form that
+was not what was meant (p90 vs max), and a chain of reasoning was built on it
+within one turn. Cheap to catch here because the owner restated it
+immediately. Same family as the three below: check what a foundational number
+actually says before deriving from it.
+
 ## 2026-08-26 — Latency target relaxed to p90 ~35s; pruned grid cells stay pruned by choice
+
+**Superseded within hours — see the entry above.** The target is max ≤35s,
+not p90 ~35s, and under that reading the central claim of this entry is
+false: latency is still binding, on the tail. The measurements cited below
+are accurate; only the conclusion drawn from them is wrong. Kept for the
+record.
 
 Owner's call, superseding the p50 6-8s / p90 15-20s target agreed 2026-08-24.
 The post-move p90 of 34.24s clears ~35s, so **latency stops being the binding

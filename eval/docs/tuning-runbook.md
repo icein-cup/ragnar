@@ -206,9 +206,10 @@ confirming/refining around that point, not re-deriving it from scratch.
 `top_k=12` is dropped from the grid, on Branch D's own numbers showing
 coverage flattening past `top_k=10`. The secondary argument once made here —
 that it pushes more context into an already-over-latency-budget generation
-call — no longer applies, since the p90 target was relaxed to ~35s on
-2026-08-26. Confirmed dropped anyway (owner, 2026-08-26): the flattening is
-the load-bearing reason and is unaffected by latency.
+call — is not what settles it either way. Confirmed dropped (owner,
+2026-08-26): the flattening is the load-bearing reason. The latency target
+is now max ≤35s, which the baseline already violates, so more context per
+call is if anything harder to justify than before.
 
 Coordinate descent, not the full grid — hold one axis at default, sweep the
 other, take the winner, sweep the second axis against it:
@@ -252,21 +253,29 @@ in the originally-planned grid before a single new run: `multi_query_count`
 5/7 on the +47s measurement, `max_hops=4` because `max_hops=3` already misses
 the p90 target 3x. See experiment-results.md Phase 2 for the full grid table.
 
-**Both disqualifying reasons expired 2026-08-26; the grid stays at six by
-choice.** The +47s was measured with the reranker on container CPU, and
-`multi_query_count` multiplies rerank count — a rerank now costs 1.48s, not
-10.34s, so that penalty is stale by construction. And the p90 target was
-relaxed to ~35s (owner, 2026-08-26), which the post-move baseline of 34.24s
-clears. Keeping six combos was asked and answered explicitly: spend the
-headroom on finishing the sweep, not on re-deriving pruned cells. If a later
-result makes it live again, reopening `mq=5` across `max_hops` 1-3 is 9
-combos / ~6h; the full grid is ~10h for this phase alone.
+**The pruning stands, and the target change reinforces it.** The specific
++47s/case figure is stale — it was measured with the reranker on container
+CPU, and `multi_query_count` multiplies rerank count, which now costs 1.48s
+instead of 10.34s. But the target is **max ≤35s** (owner, 2026-08-26), a hard
+ceiling on every case rather than a percentile, and the current baseline
+already violates it at 84.2s. More generated queries lengthen exactly the
+tail that constraint binds on: every case over 35s in both measured runs had
+7-13 queries. `mq` 5 and 7 are dead on the tail, independently of the stale
+number. Grid stays at six (asked and answered, 2026-08-26).
 
-So the phase is **a genuine coverage-vs-latency tradeoff again**, not the
-"how far down can these go before coverage breaks" question it was reframed
-as while the baseline was 3x over budget. A config that costs seconds and
-buys real coverage is now allowed to win. Report `latency_p90` on every row —
-it is still a number every comparison must carry, just no longer a veto.
+**The question stays inverted: how far *down* can these parameters go before
+coverage breaks.** `max_hops=2` or `multi_query_count=2` is a latency win
+against a ceiling being missed, not a tradeoff against a coverage gain.
+
+**Rank on `latency_max`, not `latency_p90`.** A percentile says nothing about
+a ceiling — a config with a better p90 and a worse max is a regression under
+this target. `summary.latency.max_s` is already in every report.
+
+**Do not expect this phase to deliver the ceiling.** Tuning shifts a
+distribution; it cannot bound a tail, and `retrieval/agentic.py` has no
+deadline or time budget to enforce one. The best a grid cell can do is make
+violations rarer. A guaranteed max needs a wall-clock check in the hop and
+fan-out loops — see experiment-results.md "Latency reality".
 
 Run the full remaining grid (small enough that coordinate descent isn't
 needed):
@@ -291,7 +300,8 @@ and self-correction see, so the old report is not a like-for-like comparison
 `summary.latency` field is `null` (the 23.2s/15.9s/53.5s/144.9s figures
 circulating for it were computed ad hoc from per-case `stages.seconds`, not
 read from that field) — don't expect tooling reading `summary.latency` to see
-them. Watch `latency_p90`, not just `latency_mean` — that is the point of
+them. Watch `latency_max` first and `latency_p90` next, not just
+`latency_mean` — max ≤35s is the target (see Phase 2) and that is the point of
 this phase.
 
 **This phase cannot be run in parallel.** Sharding combos across one Ollama
@@ -338,7 +348,7 @@ docker compose exec app python eval/run_eval.py --agentic \
 
 If it holds `answer_coverage` within the tie band (see Recording) and raises
 `refusal_accuracy`, update `config.yaml`. Watch `citation_precision` and
-`latency_p90` too — the 58% context cut should move both favourably, and if
+`latency_max` too — the 58% context cut should move both favourably, and if
 it doesn't, that's itself a finding.
 
 If a re-derivation is ever actually needed (a corpus change, a new golden
