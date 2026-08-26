@@ -2,6 +2,80 @@
 
 Running log of discoveries, patterns, and decisions. Updated each iteration.
 
+## 2026-08-26 — Reranker moved to the host GPU: 7x, and a wrong diagnosis corrected on the way
+
+A smoke run before Phase 1 came in at **~84s/case**, against this runbook's claimed
+~10s/case. Chasing that produced the largest single speedup so far, and two
+retractions worth recording.
+
+**The bottleneck is the reranker, not the LLM.** During a run the app container sat at
+~1390% CPU while Ollama sat at 0.1% and Qdrant at 0.18%. Ollama runs on the host and
+reports `100% GPU`; the cross-encoder was doing all its work on container CPU. Per-case
+time tracks `queries` almost linearly (1 query ≈ 17s, 7 queries ≈ 160s) because the
+agentic path pays one **full** rerank per generated query. `reranker.py`'s own comment
+claimed "1-3s for 25 candidates"; measured cost was **10.34s for 30**, 3-5x optimistic.
+Comment corrected.
+
+**Retracted: thread oversubscription.** A first benchmark suggested torch was
+oversubscribing threads (4 concurrent reranks x 16 threads on 16 cores) and that
+capping `torch.set_num_threads` would help. It was an artifact of test order — whichever
+setting ran first absorbed all the warmup cost. Re-running 16 threads *last* as a
+control gave 10.34s where running it *first* gave 31.08s, same setting. No thread
+change was made. Recorded because the hypothesis was plausible, the first numbers
+supported it, and only the control killed it.
+
+**Retracted: ONNX as the fix.** Exported the cross-encoder to ONNX Runtime
+(`eval/export_reranker_onnx.py`, parity-checked: max score delta 3.58e-07, identical
+ranking). Real gain **1.21x** (10.34s -> 8.57s), not the 2-4x expected — ONNX Runtime
+logs `Unknown CPU vendor` under Docker's VM and falls back to generic kernels. Kept,
+because it is free at runtime and verified safe, but it is a trim, not the fix. It also
+answered the wrong question: it optimised CPU inference *inside* a container when the
+real constraint was that the reranker was in a container at all.
+
+**The actual fix: run the reranker on the host, like Ollama already does.** Docker on
+macOS has no access to Metal or the Neural Engine, so MPS/MLX/Core ML are all
+unreachable from inside. Measured per 30-candidate rerank on an M5 Pro:
+
+| Where | Per rerank |
+|---|---|
+| Container CPU (torch) | 10.34s |
+| Container CPU (ONNX) | 8.57s |
+| Host CPU (torch) | 6.58s |
+| **Host GPU (MPS/Metal)** | **1.48s** |
+
+The container costs ~1.6x on CPU work by itself; the GPU is the other ~4.4x.
+
+**Shipped:** `retrieval/rerank_server.py`, a stdlib-`http.server` service run natively
+on the host with the model on `mps`, warmed at startup, inference serialised behind a
+lock (multi-query fan-out sends up to 4 concurrent requests; concurrent Metal forward
+passes are not reliably safe and GPU work serialises anyway). Bound to `127.0.0.1` so
+it stays off the LAN while Docker reaches it via `host.docker.internal`.
+`BGEReranker` gains an HTTP path behind `RERANKER_URL`; the seam is one line — the
+server returns **raw logits** and the sigmoid/sort/`top_k` stay client-side, so both
+paths run identical code from model output onward.
+
+**Verified end-to-end through the real `BGEReranker`, container to host:** `top_k`
+ordering identical, max score delta **4.17e-07**, **5.95x** (8.93s -> 1.50s per rerank;
+6.9x against the original torch baseline). Parity matters here specifically because
+these scores feed `score_floor` — a shift near 0.55 changes which chunks survive and
+would move every eval number silently.
+
+**Deliberate design choice:** if `RERANKER_URL` is set and the server is down,
+reranking **raises** rather than falling back to the in-container model. A silent
+fallback would leave an unattended sweep running at 7x its budgeted latency, with
+nothing in the report to explain it. Failing loudly costs one run; failing quietly
+costs the experiment.
+
+**Runbook budget corrected in both directions.** The documented "~55 min/run" was
+measured at `candidates=25/top_k=5` and was already wrong before today: the real figure
+is **~2.9h/run** in-container, **~1.8h/run** with the host service. Full four-phase
+total is ~28h with the service, ~45h without — not the ~15h previously written down.
+Added as pre-launch check 5.
+
+**Not yet measured:** the effect on a full 125-case run. All figures above are
+rerank-level or projected from mean queries/case. The next real run will show whether
+~52s/case holds.
+
 ## 2026-08-26 — Phase 3 (floors) answered from existing reports; Phase 4 harness fixed; crash-resilience gap closed
 
 Reviewed `eval/docs/tuning-runbook.md` against the code it drives before launching

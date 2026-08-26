@@ -26,6 +26,22 @@ Start the stack if it isn't already running:
 
     docker compose up -d
 
+### 1b. Start the reranker service (strongly recommended)
+
+The cross-encoder is the largest cost in any eval run, and Docker on macOS
+cannot reach the GPU. Run it on the host instead — **1.48s vs 10.34s per
+30-candidate rerank** on an M5 Pro, and the agentic path pays that once per
+generated query. A 125-case run is ~1.8h with it and ~2.9h without.
+
+    .venv/bin/python retrieval/rerank_server.py     # leave running
+    curl -s http://127.0.0.1:8007/health            # {"status": "ok", ...}
+
+`docker-compose.yml` already points `RERANKER_URL` at it. Scores are
+identical either way (verified to 4.17e-07, same `top_k` ordering), so this
+changes runtime only — but if `RERANKER_URL` is set and the server is down,
+reranking fails loudly rather than silently reverting to the slow path.
+Set `RERANKER_URL=` empty to score in-container deliberately.
+
 ### 2. Ingest your documents
 
 Copy evaluation documents into `data/inbox/` (or upload via the UI). The

@@ -79,14 +79,14 @@ retrieval:
   # NOT VALIDLY CALIBRATED. The --calibrate sweep this value came from was
   # broken: eval/run_eval.py left vector_floor at 0.0, and since the floors
   # are OR'd, every result cleared the gate at every swept floor. The sweep
-  # is fixed now but this number has not been re-derived — see eval/README.md.
+  # is fixed now but this number has not been re-derived — see eval/EVAL_README.md.
   #
   # Was 0.6 from Task 25's calibration (only 5 golden-set cases, explicitly
   # flagged there as not production-trustworthy). Real usage against a real
   # uploaded corpus showed a clean gap: out-of-corpus questions scored
   # 0.50-0.503, relevant ones (even a single vague word) scored 0.578+.
   # 0.55 sits in that gap with margin on both sides. Still a stopgap, not a
-  # real calibration - see eval/README.md, which needs a much larger golden
+  # real calibration - see eval/EVAL_README.md, which needs a much larger golden
   # set before this number should be trusted.
   #
   # That 0.578+ gap does NOT hold on table-heavy corpora: bge-reranker-v2-m3

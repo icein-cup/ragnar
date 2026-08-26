@@ -1,7 +1,7 @@
 """Print the benchmark ledger: one row per saved report.
 
 Generated, never hand-written. The audit that prompted this found
-eval/README.md claiming the golden set held 5 cases when it held 208 — a
+eval/EVAL_README.md claiming the golden set held 5 cases when it held 208 — a
 results table maintained by hand rots exactly the same way, and a rotted
 results table is worse than none, because it still looks authoritative.
 

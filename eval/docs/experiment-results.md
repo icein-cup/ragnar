@@ -401,6 +401,42 @@ agreed 2026-08-24: p50 under ~6-8s, p90 under ~15-20s, nothing silent for more t
 **Current p90 already fails that, before any accuracy change.** Any future comparison in this file
 must report latency alongside accuracy — a coverage win that pushes p90 past target is not a win.
 
+**Where that latency actually goes (2026-08-26).** Profiled after a smoke run came in at
+~84s/case under the current `candidates=30/top_k=10`. The reranker, not the LLM, is the
+dominant cost: during a run the app container sat at ~1390% CPU while Ollama sat at 0.1%
+(it runs on the host, on the GPU) and Qdrant at 0.18%. Per-case time tracks the number of
+generated queries almost linearly, because the agentic path pays one **full** rerank per
+query:
+
+| queries in a case | observed case time |
+|---|---|
+| 1 | 15-24s |
+| 4 | ~103s |
+| 7 | 116-198s |
+
+Measured cost of a single 30-candidate rerank, by where it runs (M5 Pro):
+
+| Location | Per rerank | Notes |
+|---|---|---|
+| Container CPU (torch) | 10.34s | the shipped path until today |
+| Container CPU (ONNX) | 8.57s | 1.21x; ONNX Runtime can't identify the CPU under Docker's VM |
+| Host CPU (torch) | 6.58s | the container alone costs ~1.6x |
+| **Host GPU (Metal)** | **1.48s** | **7x** — Docker on macOS cannot reach Metal at all |
+
+`reranker.py`'s own comment claimed "1-3s for 25 candidates" — 3-5x optimistic, now
+corrected. Verified end-to-end through `BGEReranker` container-to-host: identical `top_k`
+ordering, max score delta 4.17e-07, 5.95x. See decisions-log.md for the two hypotheses
+that were measured and discarded first (thread oversubscription, ONNX-as-the-fix), both
+killed by controls rather than by theory.
+
+**Consequences for every row in this file.** Latency numbers recorded before 2026-08-26
+were measured on the in-container CPU reranker and are not comparable to anything measured
+with the host service running — note which applies when adding a row. Accuracy numbers are
+unaffected: the parity check confirms scores are identical to seven decimal places, so
+nothing about what gets retrieved or refused changes. And `multi_query_count` is now known
+to be a direct multiplier on the single most expensive stage, which sharpens Phase 2's
+question considerably.
+
 **Deictic phrasing predicts difficulty better than the system's own confidence signal** (same
 report): questions using "this X" / "the X that..." phrasing score 33% (15/45) vs 64% (29/45) for
 plain phrasing — a bigger gap than fast-path-vs-slow-path (47% vs 62%). Detectable for free from the

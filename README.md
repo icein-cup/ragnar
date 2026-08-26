@@ -39,7 +39,7 @@ You drag a PDF into the sidebar and ask a question. In between, RAGnar:
    also selectable, cutting on meaning instead of headings — better suited to
    scanned or heading-poor documents, worth comparing on your own corpus.
 3. **Embeds and stores** — BGE-M3 vectors in Qdrant.
-4. **Retrieves and narrows** — 25 candidates, reranked by a cross-encoder down to 5,
+4. **Retrieves and narrows** — 30 candidates, reranked by a cross-encoder down to 10,
    then measured against a similarity floor.
 5. **Works the question, when one pass isn't enough** — the query is rewritten for
    retrieval, fanned out into variants, and followed up on where excerpts leave a gap.
@@ -90,7 +90,7 @@ RAGnar decides whether it *can* answer before the model is involved:
 
 ```
 question
-   └─▶ embed ─▶ retrieve 25 ─▶ rerank ─▶ top 5
+   └─▶ embed ─▶ retrieve 30 ─▶ rerank ─▶ top 10
                                           │
    rerank score below 0.55 AND ──yes──▶ refuse, and list related documents
    vector score below 0.42?               │
@@ -186,7 +186,7 @@ Ollama has to run natively on the host rather than in a container, because Docke
 macOS cannot reach the GPU:
 
 ```bash
-ollama pull qwen2.5:3b
+ollama pull qwen2.5:7b
 ollama pull bge-m3
 
 cp .env.example .env      # optional: HF_TOKEN silences a rate-limit warning
@@ -200,6 +200,33 @@ Both containers use `restart: unless-stopped`. Docker Desktop under memory press
 SIGKILL the app, and without that line it stays dead until you notice — but a deliberate
 `docker compose stop` is still respected.
 
+### The reranker wants the host too
+
+The same GPU constraint that keeps Ollama on the host applies to the cross-encoder
+reranker, and it is the most expensive thing in the pipeline. Measured on an M5 Pro,
+30 candidates per rerank:
+
+| Where it runs | Per rerank |
+|---|---|
+| In the container, CPU | 10.34s |
+| In the container, CPU + ONNX export | 8.57s |
+| On the host, CPU | 6.58s |
+| **On the host, Metal GPU** | **1.48s** |
+
+The agentic path pays that once per generated query, so a question that fans out to
+seven phrasings spends over a minute reranking alone. Starting the host service is
+optional but worth roughly **7x**:
+
+```bash
+.venv/bin/python retrieval/rerank_server.py     # leave running; loads on Metal
+```
+
+`docker-compose.yml` already points `RERANKER_URL` at it. With the service down, set
+`RERANKER_URL=` (empty) to score in-container instead — otherwise reranking fails
+loudly rather than silently reverting to the slow path, which on an unattended eval
+sweep is the difference between one failed run and a whole experiment quietly running
+at seven times its budgeted latency.
+
 ---
 
 ## Settings
@@ -208,13 +235,13 @@ The panel exposes what is worth changing per question; `config.yaml` holds the d
 
 | Setting | Default | What it changes |
 |---|---|---|
-| Model | `qwen2.5:3b` | Which local model writes the answer |
+| Model | `qwen2.5:7b` | Which local model writes the answer |
 | Temperature | low | Higher wanders further from the excerpts |
 | Reranker | on | Off is faster and noticeably less precise |
 | Similarity floor | `0.55` | Rerank score below this AND vector floor below its own → refuse |
 | Vector floor | `0.42` | Second, more lenient check on raw embedding similarity |
-| Chunk size | 500 tokens | Target size per chunk, 50-token overlap |
-| Table rows per group | 20 | Rows per table chunk, header repeated in each |
+| Chunk size | 350 tokens | Target size per chunk, 50-token overlap |
+| Table rows per group | 10 | Rows per table chunk, header repeated in each |
 | Query rewriting | on | Rewrites the question for retrieval before searching |
 | Multi-query retrieval | on | Searches several phrasings in parallel, fuses the hits |
 | Multi-hop reasoning | on | Follows up when the excerpts leave a gap, up to 3 hops |
@@ -236,7 +263,7 @@ Worse than hand-tuned, in fact. `0.55` was originally read off an `eval/run_eval
 floor at `0.0`, and because the two floors are OR'd, every result cleared the gate at
 every swept value. That bug is fixed, but the number predates the fix and has not been
 re-derived. Treat both floors as placeholders until you re-run the sweep on your own
-corpus — see `eval/README.md`.
+corpus — see `eval/EVAL_README.md`.
 
 ---
 
@@ -264,13 +291,13 @@ corpus — see `eval/README.md`.
 
 | Key | Default | Notes |
 |---|---|---|
-| `models.llm` | `qwen2.5:3b` | Answer generation, via Ollama |
+| `models.llm` | `qwen2.5:7b` | Answer generation, via Ollama |
 | `models.embedding` | `bge-m3` | 1024-dimensional vectors |
 | `models.reranker` | `BAAI/bge-reranker-v2-m3` | Cross-encoder, downloaded once |
-| `chunking.target_tokens` | `500` | 50-token overlap |
-| `chunking.table_rows_per_group` | `20` | Header repeated per group |
-| `retrieval.candidates` | `25` | Fetched before reranking |
-| `retrieval.top_k` | `5` | Kept after reranking |
+| `chunking.target_tokens` | `350` | 50-token overlap |
+| `chunking.table_rows_per_group` | `10` | Header repeated per group |
+| `retrieval.candidates` | `30` | Fetched before reranking |
+| `retrieval.top_k` | `10` | Kept after reranking |
 | `retrieval.score_floor` | `0.55` | Rerank-score floor |
 | `retrieval.vector_floor` | `0.42` | Vector-similarity floor — either clearing its own floor keeps a chunk |
 
@@ -280,6 +307,7 @@ Environment (`.env`):
 |---|---|---|
 | `OLLAMA_BASE_URL` | Yes | `http://host.docker.internal:11434` — Ollama on the host |
 | `QDRANT_URL` | Yes | `http://qdrant:6333` — the sibling container |
+| `RERANKER_URL` | No | `http://host.docker.internal:8007` — the host reranker service (see Install). Set empty to score in-container on CPU instead |
 | `HF_TOKEN` | No | Raises the HuggingFace rate limit while the reranker downloads |
 | `FILE_SERVER_HOST` | No | Bind address for the archive file server. `0.0.0.0` by default, which is required under Docker — set `127.0.0.1` when running the app natively |
 | `RAGAS_JUDGE_BASE_URL` | No | Eval only. OpenAI-compatible judge endpoint |
@@ -303,7 +331,7 @@ Tracked rather than glossed over:
   Docling — so a normal `pytest` run proves nothing about `.xlsx`.
 - **Neither floor has been validly calibrated.** The sweep that produced `0.55` was
   broken (see Settings); the harness is fixed but the number has not been re-derived,
-  and the golden set is 5 cases against a fixture. See `eval/README.md`.
+  and the golden set is 5 cases against a fixture. See `eval/EVAL_README.md`.
 - **The eval harness measures less than the app does.** `run_eval.py` defaults to the
   bare retrieval path; the UI always runs the agentic one. Pass `--agentic` to compare
   like for like — it costs several LLM calls per case.
@@ -327,8 +355,12 @@ A green default run is not evidence the integration path works.
 ## Requirements
 
 Docker Desktop, and [Ollama](https://ollama.com/) running natively on the host with
-`qwen2.5:3b` and `bge-m3` pulled. Apple Silicon is the tested configuration; the
+`qwen2.5:7b` and `bge-m3` pulled. Apple Silicon is the tested configuration; the
 reranker adds a one-time download on first run.
+
+Optionally, `retrieval/rerank_server.py` running on the host as well — the same GPU
+constraint that keeps Ollama out of the container applies to the reranker, and it is
+worth ~7x on Apple Silicon (see Install). The pipeline works without it, on CPU.
 
 `eval/` is deliberately isolated from the running app and never imported by it — the
 evaluation harness cannot change the behaviour it is measuring.

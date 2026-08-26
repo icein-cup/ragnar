@@ -22,6 +22,15 @@ services:
     environment:
       OLLAMA_BASE_URL: http://host.docker.internal:11434
       QDRANT_URL: http://qdrant:6333
+      # Reranker runs on the HOST so the cross-encoder can use Metal — this
+      # VM has no GPU access, and the gap is 1.48s vs 10.34s per rerank on an
+      # M5 Pro. Start it with:
+      #     .venv/bin/python retrieval/rerank_server.py
+      # Leave this UNSET to score in-container on CPU instead (slower, but
+      # needs nothing running on the host). If it is set and the server is
+      # down, reranking fails loudly rather than silently reverting to CPU —
+      # a sweep quietly running 7x slower is worse than one that stops.
+      RERANKER_URL: ${RERANKER_URL-http://host.docker.internal:8007}
       HF_TOKEN: ${HF_TOKEN:-}
       # Eval-only: Ragas LLM judge. Passed through so eval/run_ragas.py can
       # reach an OpenAI-compatible judge endpoint from inside the container.

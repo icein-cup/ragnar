@@ -14,7 +14,7 @@ Phases:
     agentic    — max_hops × multi_query_count. Same: re-runs the pipeline.
     chunking   — target_tokens × overlap_tokens × table_rows_per_group.
                  Requires re-ingestion per config, so it is NOT automated
-                 here; see eval/README.md "Comparing configurations".
+                 here; see eval/EVAL_README.md "Comparing configurations".
 
 Ranking is by answer_coverage subject to a refusal_accuracy floor — the
 codebase's documented primary metric and constraint (see eval/metrics.py).

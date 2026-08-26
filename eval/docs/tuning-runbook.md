@@ -13,14 +13,20 @@ cheapest phase to redo (one run + arithmetic). Record every result in
 
 | Phase | Pipeline runs | Approx |
 |---|---|---|
-| 1 retrieval | 6-7 sweep runs (the finalist is one of them, no separate confirm) | ~6-6.5h |
-| 2 agentic | 6 new runs — baseline is NOT reusable (see Phase 2), finalist is one of the 6 | ~5.5h |
-| 3 floors | **Answered from existing reports** (see Phase 3) — 1 confirm run only | ~55min |
-| 4 chunking | 2 new configs + Phase 3's confirm run as the baseline row, each new config requiring re-ingestion | ~2-3h |
+| 1 retrieval | 6-7 sweep runs (the finalist is one of them, no separate confirm) | ~11h |
+| 2 agentic | 6 new runs — baseline is NOT reusable (see Phase 2), finalist is one of the 6 | ~11h |
+| 3 floors | **Answered from existing reports** (see Phase 3) — 1 confirm run only | ~1.8h |
+| 4 chunking | 2 new configs + Phase 3's confirm run as the baseline row, each new config requiring re-ingestion | ~4h |
 
-~15-16h serial total. Each phase's RAGAS finalist check (see below) adds
-external judge-call time, not another pipeline run — `run_ragas.py --report`
-scores a report already on disk.
+~28h serial with the host reranker running; ~45h without it. Each phase's
+RAGAS finalist check (see below) adds external judge-call time, not another
+pipeline run — `run_ragas.py --report` scores a report already on disk.
+
+These are ~1.8h per 125-case run, not the ~55min this document claimed before
+2026-08-26 (see Setup). If the total matters more than the completeness of
+the grid, the cheapest reductions are `multi_query_count` (Phase 2) and
+`candidates` (Phase 1) — both directly multiply rerank cost, and both are
+already axes those phases sweep.
 
 **Tie threshold — read before ranking any grid.** No repeat-run variance has
 ever been measured in this repo. `answer_coverage` at n=90 in-corpus cases has
@@ -32,9 +38,9 @@ and Phase 2's ranking both.
 
 ## Before you launch
 
-Four checks, in order, before Phase 1 starts. All were verified live against
-this repo's actual environment (services, models, RAM) on 2026-08-25 — the
-numbers below are measured, not estimated.
+Five checks, in order, before Phase 1 starts. All were verified live against
+this repo's actual environment (services, models, RAM) on 2026-08-25, and
+check 5 was added 2026-08-26 — the numbers below are measured, not estimated.
 
 **1. Clean git tree — required for provenance.** `run_eval.py`'s
 `_git_revision()` stamps every report `<sha>-dirty` whenever
@@ -101,6 +107,28 @@ collection should hold 2846 points at 1024 dims (`bge-m3`'s output size).
 and `RAGAS_JUDGE_BASE_URL`/`RAGAS_JUDGE_API_KEY`/`RAGAS_JUDGE_MODEL` must be
 set in the app container's environment.
 
+**5. Reranker service — start it, or the sweep takes ~7x longer than budgeted.**
+Added 2026-08-26. The cross-encoder is the single largest cost in a run, and
+Docker on macOS cannot reach the GPU. Measured on an M5 Pro, per 30-candidate
+rerank: **10.34s in-container (CPU) vs 1.48s on the host (Metal)**. The
+agentic path pays that once per generated query, so this is not a marginal
+saving — it is most of the runtime of every phase below.
+
+```bash
+.venv/bin/python retrieval/rerank_server.py     # on the HOST, leave running
+curl -s http://127.0.0.1:8007/health            # {"status": "ok", "loaded": true}
+```
+
+`docker-compose.yml` points `RERANKER_URL` at it already. If it is set and
+the server is down, reranking raises rather than silently falling back —
+deliberately, because a sweep quietly running at 7x its budgeted latency with
+nothing in the report to explain it is worse than one that stops. Verify the
+container can see it before starting a long phase:
+
+```bash
+docker compose exec app python -c "import httpx,os; print(httpx.get(os.environ['RERANKER_URL']+'/health',timeout=10).json())"
+```
+
 ## Setup
 
 Tune against HybridQA (the only corpus with a full golden set):
@@ -111,10 +139,25 @@ docker compose up -d
 --collection hybridqa --golden eval/golden_hybridqa_draft.yaml
 ```
 
-One `--agentic` run over 125 cases ≈ 55 min (~10s/case) — the agentic path
-makes ~5 LLM calls per case. Retrieval and agentic have no offline shortcut
-(each combo changes what is retrieved or how the pipeline queries), so every
-row in those two phases costs a full run.
+**Run time, corrected 2026-08-26.** The old "≈55 min (~10s/case)" figure was
+measured at `candidates=25/top_k=5` and no longer holds. Measured on the
+current config:
+
+| Reranker location | Per rerank | Per case (mean 3.6 queries) | 125-case run |
+|---|---|---|---|
+| In-container CPU | 10.34s | ~84s | **~2.9h** |
+| Host GPU (Metal) | 1.48s | ~52s | **~1.8h** |
+
+The agentic path makes ~5 LLM calls per case *and* one full rerank per
+generated query — the reranks, not the LLM calls, are the larger half. Start
+the host service (check 5 above) before budgeting any phase. Retrieval and
+agentic have no offline shortcut (each combo changes what is retrieved or how
+the pipeline queries), so every row in those two phases costs a full run.
+
+Two things that distort early readings: the first cases of any run are
+several times slower than steady state while models warm up, and
+`multi_query_count` multiplies rerank cost directly — a 7-query case costs
+roughly seven times a 1-query case.
 
 `--golden` must always be passed alongside `--collection` — nothing checks
 they agree, and a mismatched pair silently scores the wrong questions against
