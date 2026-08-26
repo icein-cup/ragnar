@@ -31,7 +31,8 @@ Start the stack if it isn't already running:
 The cross-encoder is the largest cost in any eval run, and Docker on macOS
 cannot reach the GPU. Run it on the host instead — **1.48s vs 10.34s per
 30-candidate rerank** on an M5 Pro, and the agentic path pays that once per
-generated query. A 125-case run is ~1.8h with it and ~2.9h without.
+generated query. A 125-case run is ~37min with it (measured 2026-08-26
+at 18.0s/case) and an estimated ~1.8h without.
 
     .venv/bin/python retrieval/rerank_server.py     # leave running
     curl -s http://127.0.0.1:8007/health            # {"status": "ok", ...}
@@ -166,8 +167,28 @@ Golden-set field map (no schema change needed):
     expected_answer -> reference
     contexts        -> retrieved_contexts
 
-Out-of-corpus cases are refused by design and have no answer/contexts to
-score — they are skipped here and covered by `refusal_accuracy`.
+**Two filters apply, and the second one matters when reading the numbers.**
+`build_samples` scores only in-corpus **answered** cases. Out-of-corpus cases
+are refused by design and have no answer/contexts to score — they are covered
+by `refusal_accuracy`. But in-corpus cases the pipeline *refused* are dropped
+too, and those are the coverage failures. Every Ragas number above therefore
+describes the subset the pipeline already answered; it can look healthy while
+coverage is poor. `answer_coverage` from the deterministic metrics is the one
+that counts refusals as failures. Concretely, the 2026-08-26 smoke run's 20
+cases became 10 scorable ones — 5 out-of-corpus, 5 in-corpus refusals.
+
+Score a saved report instead of re-running the pipeline — a post-process of a
+run already paid for, and the normal way to check a sweep finalist:
+
+    docker compose exec app python eval/run_ragas.py \
+      --report eval/reports/<stamp>.json
+    docker compose exec app python eval/run_ragas.py --report   # newest
+
+`--agentic`/`--collection`/`--golden` are ignored in this mode; the report
+already encodes what produced it. Judgement count is scorable cases x 8
+metrics, so a 125-case run is well over a thousand external calls — the
+`max_workers=4` cap in `run_ragas.py` is what keeps that from flooding the
+judge's rate limit.
 
 ---
 

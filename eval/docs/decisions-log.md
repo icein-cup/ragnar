@@ -2,6 +2,77 @@
 
 Running log of discoveries, patterns, and decisions. Updated each iteration.
 
+## 2026-08-26 — Smoke test passes; the sweep budget was wrong twice and is now measured
+
+First completed run with the host reranker actually serving. 20 cases,
+agentic, `candidates=30/top_k=10`, `golden_subset20.yaml`, report
+`20260826-110031`. Wiring check only — subset20 numbers never inform a
+tuning decision (see the 2026-08-25 subset false-signal entry).
+
+**Harness paths confirmed live, all four:**
+- provenance stub written *before* case 1 (verified mid-run, not after)
+- full report written with 20 cases and a `latency` block
+- `report_table.py` picks the run up as a ledger row
+- `run_ragas.py --report` scores a saved report — 80 judgements
+  (10 scorable cases × 8 metrics), exit 0, judge reachable
+
+**Budget: ~10-11h, not ~28h.** Measured 18.0s/case, 4.05 queries/case →
+~37min per 125-case run × ~15 runs. The runbook has now carried three
+different figures and this is the first with a completed run behind it:
+
+| Claim | Per run | Total | Basis |
+|---|---|---|---|
+| original | ~55min | ~15h | never measured |
+| 2026-08-26 revision | ~1.8h | ~28h | in-container half measured; **host half projected** |
+| now | ~37min | ~10-11h | measured, host reranker serving |
+
+The ~28h revision was the worst of the three, and it was the one that
+replaced a figure for being unmeasured. Its in-container row (~2.9h) was
+real; its host row (~1.8h) was an unlabelled projection off that row. The
+original ~55min was closer to the truth than the correction applied to it.
+
+**Why the 7x reranker win is only ~1.5x on wall-clock.** Reranks inside a
+case's multi-query fan-out run *concurrently*, so a per-component ratio does
+not multiply through. Proof from the pre-move 125-case run: 503 reranks ×
+10.34s = 86.7min, which exceeds that run's entire 54.9min wall-clock. The
+defensible comparison is like-for-like — 26.4s/case (pre-move, 4.02 q/case,
+25 candidates) → 18.0s/case (post-move, 4.05 q/case, 30 candidates): ~1.5x
+while doing *more* work per query.
+
+**Lesson, and it is the same one as the reranker thread-oversubscription
+retraction above:** a projection and a measurement must never be written into
+the same table without labelling which is which. Both errors this week were
+an estimate inheriting the authority of the measurement next to it. The
+runbook's run-time table now marks its estimated row `(est.)` explicitly.
+
+**Bug: every in-container report stamped `git: "unknown"`.** The app image
+ships no `git` binary, so `_git_revision()`'s subprocess call returned
+nothing and fell to its `except` — meaning the runbook's own pre-launch check
+("confirm no `-dirty` suffix in provenance") could never fire, and no report
+produced in Docker was traceable to a commit. Fixed by reading `.git/HEAD`,
+loose refs, and `packed-refs` directly in Python; in-container runs now stamp
+`<sha>-nogit`. Dirty detection cannot survive that fallback (it needs the
+index hashing only git does), so `-nogit` marks dirtiness as *unknown* rather
+than falsely clean, and the runbook now states plainly that the host-side
+`git status --short` is the only real guard. 5 tests added
+(`tests/test_git_revision.py`).
+
+**RAGAS `n=3 → n=1` warning, resolved as a non-issue.** Ollama Cloud's
+OpenAI-compatible endpoint ignores `n`, so `answer_relevancy` (the only
+metric requesting 3, `strictness=3`) got 1. At `temperature=0` all three
+generations would be identical anyway — the self-consistency averaging is
+inert under a deterministic judge, and no extra call was being paid for.
+Pinned `answer_relevancy.strictness = 1` to state what already happens.
+Rejected the alternative (raise temperature, loop 3 separate calls): a
+tuning sweep compares runs against each other, so a reproducible judge is
+worth more than a variance-smoothed one.
+
+**RAGAS scores a filtered subset — do not read it as run quality.**
+`build_samples` drops out-of-corpus and refused cases, so this run's 20
+became 10. The 5 in-corpus refusals — the actual coverage failures — are
+invisible to every RAGAS number. `answer_coverage` from the house metrics is
+the one that counts them.
+
 ## 2026-08-26 — Reranker moved to the host GPU: 7x, and a wrong diagnosis corrected on the way
 
 A smoke run before Phase 1 came in at **~84s/case**, against this runbook's claimed

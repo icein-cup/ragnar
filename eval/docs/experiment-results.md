@@ -437,6 +437,27 @@ nothing about what gets retrieved or refused changes. And `multi_query_count` is
 to be a direct multiplier on the single most expensive stage, which sharpens Phase 2's
 question considerably.
 
+**What the move actually bought, measured end-to-end (2026-08-26, later).** The 7x on the
+reranker is **~1.5x on wall-clock**, because reranks inside a case's multi-query fan-out run
+concurrently — a per-component ratio does not multiply through. The arithmetic proves it:
+the pre-move 125-case run issued 503 reranks, and 503 x 10.34s = 86.7min, more than that
+run's entire 54.9min wall-clock.
+
+| Run | Reranker | candidates / top_k | queries/case | **s/case** |
+|---|---|---|---|---|
+| `20260825-165051`, 125 cases | container CPU | 25 / 5 | 4.02 | 26.4 |
+| `20260826-110031`, 20 cases | **host Metal** | 30 / 10 | 4.05 | **18.0** |
+
+Near-identical fan-out per case makes these comparable on cost, and the post-move run is
+doing *more* work per query (30 candidates to rerank, twice the chunks into the prompt).
+No accuracy figure from `20260826-110031` appears here or anywhere in this file — it ran on
+`golden_subset20.yaml`, which the 2026-08-25 subset false-signal entry rules out as a tuning
+signal. Latency is recorded because cost per case is a property of the configuration, not of
+which questions were asked; the caveat is that this set is 25% out-of-corpus and those cases
+sit at both extremes (3.1s and 84.2s). p90 against the production target is still an open
+question — the pre-move 125-case p90 was 58.65s and the post-move 20-case p90 was 34.24s,
+both far outside the ~15-20s target agreed 2026-08-24.
+
 **Deictic phrasing predicts difficulty better than the system's own confidence signal** (same
 report): questions using "this X" / "the X that..." phrasing score 33% (15/45) vs 64% (29/45) for
 plain phrasing — a bigger gap than fast-path-vs-slow-path (47% vs 62%). Detectable for free from the

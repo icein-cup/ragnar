@@ -107,7 +107,7 @@ def build_samples(agentic: bool = False,
     field this needs (question, answer, expected_answer, contexts) plus the
     two filter fields below (out_of_corpus, refused) — see the per-case dict
     built in run_eval.py's run_cases(). Scoring a saved report is a
-    post-process of a run already paid for, not a second ~55-minute pipeline
+    post-process of a run already paid for, not a second ~37-minute pipeline
     run; agentic/collection/golden are ignored in this mode since the report
     already encodes what produced it.
     """
@@ -144,6 +144,14 @@ def build_metrics() -> list:
     figures, which the house deterministic metrics cannot catch once an
     answer is actually produced.
     """
+    # answer_relevancy defaults to strictness=3 — three generations per case,
+    # averaged to cancel judge variance. Pointless here: the judge runs at
+    # temperature=0, so all three would be identical, and Ollama Cloud's
+    # OpenAI-compatible endpoint ignores `n` anyway and returns one. Pinning
+    # it to 1 states what already happens and drops the "LLM returned 1
+    # generations instead of requested 3" warning on every case.
+    answer_relevancy.strictness = 1
+
     no_invented_numbers = AspectCritic(
         name="no_invented_numbers",
         definition=(

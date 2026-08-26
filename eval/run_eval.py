@@ -92,8 +92,8 @@ def run_cases(score_floor: float | None = None,
     runs — the bare Search path below measures a pipeline no user hits.
 
     sink, when given, receives one JSON line per case as it completes. An
-    agentic run over the HybridQA set is ~55 minutes, and without this a
-    crash or a Ctrl-C at case 120 of 125 threw away the whole hour. The
+    agentic run over the HybridQA set is ~37 minutes, and without this a
+    crash or a Ctrl-C at case 120 of 125 threw away all of it. The
     lines carry the same per-case shape the replay harnesses read, so a
     partial run is still scoreable.
     """
@@ -126,9 +126,10 @@ def run_cases(score_floor: float | None = None,
     cases = []
     sink_file = sink.open("w") if sink else None
 
-    # A --agentic run is ~10s per case and prints nothing until the end, which
-    # reads as a hang on a 100+ entry golden set. One line per case on stderr,
-    # so the report on stdout stays pipeable.
+    # A --agentic run is ~18s per case (measured 2026-08-26 with the host
+    # reranker; ~52s without it) and prints nothing until the end, which reads
+    # as a hang on a 100+ entry golden set. One line per case on stderr, so
+    # the report on stdout stays pipeable.
     started = time.monotonic()
     try:
         for n, entry in enumerate(golden_entries, 1):
@@ -198,6 +199,14 @@ def _git_revision() -> str:
     """Short SHA, suffixed "-dirty" when the tree has uncommitted changes.
 
     A report that cannot be traced to code is a number without a cause.
+
+    The app image ships no `git` binary, so every in-container run stamped
+    "unknown" until the .git fallback below was added — which made the
+    runbook's "no -dirty suffix" pre-launch check silently vacuous. The
+    fallback reads .git directly and can only report the SHA; detecting a
+    dirty tree needs the index hashing only git itself does, so it is
+    suffixed "-nogit" to mark dirtiness as unknown rather than clean. The
+    runbook's host-side clean-tree check is what actually guards that.
     """
     def _git(*args: str) -> str:
         return subprocess.run(("git",) + args, cwd=ROOT.parent,
@@ -205,11 +214,38 @@ def _git_revision() -> str:
                               timeout=10).stdout.strip()
     try:
         sha = _git("rev-parse", "--short", "HEAD")
-        if not sha:
-            return "unknown"
-        return f"{sha}-dirty" if _git("status", "--porcelain") else sha
+        if sha:
+            return f"{sha}-dirty" if _git("status", "--porcelain") else sha
     except Exception:
-        return "unknown"
+        pass
+    return _git_revision_from_dotgit()
+
+
+def _git_revision_from_dotgit() -> str:
+    """Short SHA read straight from .git, for hosts with no git binary.
+
+    HEAD is either a "ref: refs/heads/<branch>" pointer or a detached SHA.
+    A packed ref (no loose file under .git/refs/) falls back to
+    packed-refs, which lists "<sha> <refname>" one per line.
+    """
+    try:
+        git_dir = ROOT.parent / ".git"
+        head = (git_dir / "HEAD").read_text().strip()
+        if not head.startswith("ref: "):
+            return f"{head[:7]}-nogit" if head else "unknown"
+        ref = head[5:].strip()
+        ref_file = git_dir / ref
+        if ref_file.exists():
+            return f"{ref_file.read_text().strip()[:7]}-nogit"
+        packed = git_dir / "packed-refs"
+        if packed.exists():
+            for line in packed.read_text().splitlines():
+                parts = line.split()
+                if len(parts) == 2 and parts[1] == ref:
+                    return f"{parts[0][:7]}-nogit"
+    except Exception:
+        pass
+    return "unknown"
 
 
 def provenance(cfg: Config, golden: Path, *, agentic: bool,
@@ -270,7 +306,8 @@ def calibrate_floor(score_floor: float | None = None,
     Prefer the offline route: one run with both floors at 0.0 saves every
     score, and any candidate floor can then be evaluated arithmetically over
     that report. This sweep re-runs the entire pipeline once per value, so at
-    ~55 minutes a run it costs the better part of a day.
+    ~37 minutes a run it costs hours to learn what arithmetic answers in
+    seconds.
     """
     cfg = Config()
     vfloor = cfg.vector_floor if vector_floor is None else vector_floor

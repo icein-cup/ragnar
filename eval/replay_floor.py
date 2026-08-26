@@ -2,7 +2,7 @@
 
 A floor has two numbers and only the pair means anything: how many
 answerable questions it still answers, and how many unanswerable ones it
-refuses. Re-running the pipeline once per candidate floor costs ~55 minutes
+refuses. Re-running the pipeline once per candidate floor costs ~37 minutes
 each; a report already records, per case, the rerank and vector score of
 every chunk that survived, so a candidate floor can be re-applied
 arithmetically in seconds.

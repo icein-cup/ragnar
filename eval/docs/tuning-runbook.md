@@ -9,24 +9,36 @@ cheapest phase to redo (one run + arithmetic). Record every result in
 `eval/docs/experiment-results.md` before moving on, and a dated entry in
 `eval/docs/decisions-log.md` per phase.
 
-**Total budget, all four phases (revised 2026-08-26 — see decisions-log.md):**
+**Total budget, all four phases (measured 2026-08-26 — see decisions-log.md):**
 
 | Phase | Pipeline runs | Approx |
 |---|---|---|
-| 1 retrieval | 6-7 sweep runs (the finalist is one of them, no separate confirm) | ~11h |
-| 2 agentic | 6 new runs — baseline is NOT reusable (see Phase 2), finalist is one of the 6 | ~11h |
-| 3 floors | **Answered from existing reports** (see Phase 3) — 1 confirm run only | ~1.8h |
-| 4 chunking | 2 new configs + Phase 3's confirm run as the baseline row, each new config requiring re-ingestion | ~4h |
+| 1 retrieval | 6-7 sweep runs (the finalist is one of them, no separate confirm) | ~4h |
+| 2 agentic | 6 new runs — baseline is NOT reusable (see Phase 2), finalist is one of the 6 | ~4h |
+| 3 floors | **Answered from existing reports** (see Phase 3) — 1 confirm run only | ~40min |
+| 4 chunking | 2 new configs + Phase 3's confirm run as the baseline row, each new config requiring re-ingestion | ~2h |
 
-~28h serial with the host reranker running; ~45h without it. Each phase's
-RAGAS finalist check (see below) adds external judge-call time, not another
-pipeline run — `run_ragas.py --report` scores a report already on disk.
+~10-11h serial with the host reranker running. Each phase's RAGAS finalist
+check (see below) adds external judge-call time, not another pipeline run —
+`run_ragas.py --report` scores a report already on disk.
 
-These are ~1.8h per 125-case run, not the ~55min this document claimed before
-2026-08-26 (see Setup). If the total matters more than the completeness of
-the grid, the cheapest reductions are `multi_query_count` (Phase 2) and
-`candidates` (Phase 1) — both directly multiply rerank cost, and both are
-already axes those phases sweep.
+These are ~37min per 125-case run, from a measured 18.0s/case (see Setup).
+If the total matters more than the completeness of the grid, the cheapest
+reductions are `multi_query_count` (Phase 2) and `candidates` (Phase 1) —
+both directly multiply rerank cost, and both are already axes those phases
+sweep.
+
+**This budget has been wrong twice; trust it only as far as its basis.** The
+document originally claimed ~55min/run (~15h total) with nothing measured
+behind it. On 2026-08-26 that was revised to ~1.8h/run (~28h) — but only the
+*in-container* half of that revision was measured; the host-reranker figure
+was projected from it and was the furthest off of the three. The numbers
+above come from a completed 20-case run at `candidates=30/top_k=10` with the
+host reranker actually serving: 18.0s/case, 4.05 queries/case. The residual
+risk is composition, not rate — that run was 25% out-of-corpus, and the
+125-case draft set's mix differs. Phase 3's single confirm run is a real
+125-case run and settles it in ~40min; treat its wall-clock as the number
+that replaces this table.
 
 **Tie threshold — read before ranking any grid.** No repeat-run variance has
 ever been measured in this repo. `answer_coverage` at n=90 in-corpus cases has
@@ -42,12 +54,16 @@ Five checks, in order, before Phase 1 starts. All were verified live against
 this repo's actual environment (services, models, RAM) on 2026-08-25, and
 check 5 was added 2026-08-26 — the numbers below are measured, not estimated.
 
-**1. Clean git tree — required for provenance.** `run_eval.py`'s
-`_git_revision()` stamps every report `<sha>-dirty` whenever
-`git status --porcelain` is non-empty, and that file's own docstring is blunt
-about why: *"A report that cannot be traced to code is a number without a
-cause."* Commit any pending harness/doc changes before running anything, then
-confirm:
+**1. Clean git tree — required for provenance, and only you can check it.**
+`run_eval.py`'s `_git_revision()` stamps `<sha>-dirty` when
+`git status --porcelain` is non-empty — but **only where a `git` binary
+exists, which the app image does not ship.** In-container runs take the
+`.git` fallback and stamp `<sha>-nogit`: the SHA is real, the dirty state is
+unknown. So the check below is not a formality the report will catch for you
+— it is the *only* thing standing between a sweep and untraceable numbers.
+The file's own docstring is blunt about why: *"A report that cannot be traced
+to code is a number without a cause."* Commit any pending harness/doc changes
+before running anything, then confirm **on the host**:
 
 ```bash
 git status --short   # must be empty
@@ -69,9 +85,11 @@ docker compose exec app python eval/run_eval.py --agentic \
 ```
 
 Confirm: the run completes and writes `eval/reports/<stamp>.json`;
-`summary.provenance.git` has **no** `-dirty` suffix (proves check 1 actually
-took effect); `summary.provenance.golden_cases` is 20; the `latency` block is
-present. Then confirm the RAGAS post-process path on that same report:
+`summary.provenance.git` is a real short SHA matching `git rev-parse --short
+HEAD` (in-container it carries the `-nogit` suffix — expected, see check 1;
+`unknown` means the `.git` fallback failed and provenance is broken);
+`summary.provenance.golden_cases` is 20; the `latency` block is present. Then
+confirm the RAGAS post-process path on that same report:
 
 ```bash
 docker compose exec app python eval/run_ragas.py --report eval/reports/<stamp>.json
@@ -139,14 +157,29 @@ docker compose up -d
 --collection hybridqa --golden eval/golden_hybridqa_draft.yaml
 ```
 
-**Run time, corrected 2026-08-26.** The old "≈55 min (~10s/case)" figure was
-measured at `candidates=25/top_k=5` and no longer holds. Measured on the
-current config:
+**Run time, measured 2026-08-26.** The old "≈55 min (~10s/case)" figure was
+measured at `candidates=25/top_k=5` and no longer holds.
 
-| Reranker location | Per rerank | Per case (mean 3.6 queries) | 125-case run |
+| Reranker location | Per rerank | Per case | 125-case run |
 |---|---|---|---|
-| In-container CPU | 10.34s | ~84s | **~2.9h** |
-| Host GPU (Metal) | 1.48s | ~52s | **~1.8h** |
+| In-container CPU | 10.34s | ~52s (est.) | ~1.8h (est.) |
+| Host GPU (Metal) | 1.48s | **18.0s (measured)** | **~37min** |
+
+Only the host-GPU row is measured end-to-end — a completed 20-case agentic
+run at `candidates=30/top_k=10`, 4.05 queries/case. The in-container row is
+back-estimated from the same run and the per-rerank rates; treat it as an
+order of magnitude, not a number.
+
+**The 7x reranker speedup is not a 7x run speedup.** Reranks inside a case's
+multi-query fan-out run concurrently, so the component gain does not
+multiply through to wall-clock. The like-for-like evidence: a 125-case run
+at `candidates=25/top_k=5` before the move averaged 26.4s/case at 4.02
+queries/case; the 20-case run after it averaged 18.0s/case at 4.05
+queries/case — **~1.5x**, while doing more work per query (30 candidates to
+rerank instead of 25, twice the chunks into the prompt). Any estimate that
+scales a per-rerank ratio straight into a run total will be wrong; the
+arithmetic proves it — 503 reranks × 10.34s is 86.7min, more than that
+run's entire 54.9min wall-clock.
 
 The agentic path makes ~5 LLM calls per case *and* one full rerank per
 generated query — the reranks, not the LLM calls, are the larger half. Start
@@ -163,7 +196,7 @@ roughly seven times a 1-query case.
 they agree, and a mismatched pair silently scores the wrong questions against
 the wrong corpus.
 
-## Phase 1 — Retrieval (candidates × top_k, ~6-7 runs / ~6h)
+## Phase 1 — Retrieval (candidates × top_k, ~6-7 runs / ~4h)
 
 Does more candidate/top_k headroom buy recall without noise? Branch D already
 found `top_k=10/candidates=30` = +9pts over the old `candidates=25/top_k=5`
@@ -204,7 +237,7 @@ is "confirms Branch D", not a new finding.
 an `eval/reports/<stamp>.json` — score that file with RAGAS (see "RAGAS
 finalist check" below) before it's considered done. No extra pipeline run.
 
-## Phase 2 — Agentic (max_hops × multi_query_count, 6 runs / ~5.5h)
+## Phase 2 — Agentic (max_hops × multi_query_count, 6 runs / ~4h)
 
 **Latency, not coverage, is the open question here** — read this before
 running anything. The current default `max_hops=3, multi_query_count=3`
@@ -256,7 +289,7 @@ isn't re-proposed here later.
 **Finalist check:** same as Phase 1 — the winning combo's own run already
 wrote a report; score that file with RAGAS, no extra run.
 
-## Phase 3 — Floors (score_floor × vector_floor, 1 pipeline run, ~55min)
+## Phase 3 — Floors (score_floor × vector_floor, 1 pipeline run, ~40min)
 
 **Already answered as of 2026-08-26 — this phase needs a confirm run, not a
 fresh sweep.** Three uncensored (`score_floor=0.0`/`vector_floor=0.0`)
@@ -298,7 +331,7 @@ If a re-derivation is ever actually needed (a corpus change, a new golden
 set), the original procedure was:
 
 ```bash
-# 1. one uncensored run (floors 0.0 so every score is saved) — ~55 min
+# 1. one uncensored run (floors 0.0 so every score is saved) — ~40 min
 docker compose exec app python eval/run_eval.py --agentic \
   --score-floor 0 --vector-floor 0 \
   --collection hybridqa --golden eval/golden_hybridqa_draft.yaml
@@ -376,7 +409,7 @@ docker compose exec app python eval/run_ragas.py \
 
 Passing `--agentic --collection ... --golden ...` instead (the pre-`--report`
 form) still works, but re-runs retrieval and generation from scratch —
-another full ~55-min pipeline run per phase, on top of the run that already
+another full ~40-min pipeline run per phase, on top of the run that already
 produced the finalist's deterministic metrics. Always prefer `--report`
 here; `--agentic` on this command is for scoring a fresh unsaved run, not for
 the finalist check.
@@ -388,7 +421,7 @@ decisions-log.md's tracking table) as a reason to keep the previous default
 even if `answer_coverage` improved — `answer_coverage` alone cannot see
 hallucination, `faithfulness` is the gate for that.
 
-## Phase 4 — Chunking (structural only, 2 new runs / ~2-3h)
+## Phase 4 — Chunking (structural only, 2 new runs / ~2h)
 
 **This phase could not have run as written before 2026-08-26 — read this
 before editing `config.yaml`.** `eval/ingest_hybridqa.py` does not read
@@ -453,7 +486,7 @@ setting is needed for this phase.
 
 `eval/tune_params.py --phase retrieval` and `--phase agentic` run the full
 4×4 grids (`RETRIEVAL_GRID` / `AGENTIC_GRID`) instead of the reduced set
-above — 16 runs each, ~15h serial per phase. Only reach for this if the
+above — 16 runs each, ~10h serial per phase. Only reach for this if the
 reduced grids above leave a real question open (e.g. an axis winner
 contradicts Branch D's `top_k=10/candidates=30`); the interaction effects a
 full grid buys are not worth ~30h against a coordinate-descent result that
@@ -481,7 +514,7 @@ corrupt. Two things need fixing first if this is attempted:
 `tune_params.py` has no built-in shard flag; splitting the grid means editing
 `RETRIEVAL_GRID` per shard or writing explicit `run_eval.py` command batches.
 Given the fixes required and that coordinate descent already answers the
-question in ~6h serial, this is a fallback, not a recommendation.
+question in ~4h serial, this is a fallback, not a recommendation.
 
 ## Recording
 
