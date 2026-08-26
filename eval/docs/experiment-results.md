@@ -401,6 +401,15 @@ agreed 2026-08-24: p50 under ~6-8s, p90 under ~15-20s, nothing silent for more t
 **Current p90 already fails that, before any accuracy change.** Any future comparison in this file
 must report latency alongside accuracy — a coverage win that pushes p90 past target is not a win.
 
+**Target revised 2026-08-26: p90 ~35s is acceptable.** Owner's call, superseding the
+15-20s figure above. The post-move p90 of 34.24s therefore *clears* the bar rather than
+missing it by 1.7x, and latency stops being the binding constraint on tuning. Two things
+this does not change, both worth keeping in view when reading any row here: p90 is not a
+ceiling — the slowest case in that run was **84.2s** (an out-of-corpus question, where the
+fan-out keeps hunting for material that does not exist) — and the blocking-spinner UX above
+is untouched, so a 35s p90 still means occasional minute-plus stalls with nothing on screen.
+Latency remains a **reported** number on every comparison; it is no longer a veto.
+
 **Where that latency actually goes (2026-08-26).** Profiled after a smoke run came in at
 ~84s/case under the current `candidates=30/top_k=10`. The reranker, not the LLM, is the
 dominant cost: during a run the app container sat at ~1390% CPU while Ollama sat at 0.1%
@@ -454,9 +463,10 @@ No accuracy figure from `20260826-110031` appears here or anywhere in this file 
 `golden_subset20.yaml`, which the 2026-08-25 subset false-signal entry rules out as a tuning
 signal. Latency is recorded because cost per case is a property of the configuration, not of
 which questions were asked; the caveat is that this set is 25% out-of-corpus and those cases
-sit at both extremes (3.1s and 84.2s). p90 against the production target is still an open
-question — the pre-move 125-case p90 was 58.65s and the post-move 20-case p90 was 34.24s,
-both far outside the ~15-20s target agreed 2026-08-24.
+sit at both extremes (3.1s and 84.2s). On the production target: the pre-move 125-case p90
+was 58.65s and the post-move 20-case p90 was 34.24s. Against the original ~15-20s both
+missed; against the revised ~35s (owner, 2026-08-26, see above) the post-move figure
+clears and the pre-move one does not.
 
 **Deictic phrasing predicts difficulty better than the system's own confidence signal** (same
 report): questions using "this X" / "the X that..." phrasing score 33% (15/45) vs 64% (29/45) for
@@ -580,13 +590,31 @@ Together those close most of the grid:
 remain, one of which (`3, 3`) is the already-measured baseline — **5 new
 runs, ~4.5h**, not 16 runs and ~20h.
 
-**The question inverts.** The runbook originally framed this phase as
-"marginal gain per hop / query variant vs latency" — but more of either is
-unaffordable at the current baseline. What's actually open is how far *down*
-these parameters can go before coverage breaks: `max_hops=2` or
-`multi_query_count=2` is a latency *win* against a budget already being
-missed, not a tradeoff against a coverage gain. Latency is this phase's
-objective, not its constraint.
+**Both of those reasons expired on 2026-08-26; the grid stays at six anyway.**
+Read the table above as a scope decision, not a latency verdict — the
+justifications behind it no longer hold:
+
+- The **+47s/case** that killed `mq` 5 and 7 was measured with the reranker
+  on container CPU. `multi_query_count` is a direct multiplier on rerank
+  count, and a rerank went 10.34s → 1.48s. That penalty is stale by
+  construction and would be a fraction of +47s today.
+- `max_hops=4` was dead for missing a p90 target that has since been relaxed
+  to ~35s (see "Latency reality" above).
+
+Owner's call 2026-08-26, asked and answered explicitly: **keep the six-combo
+grid.** The latency headroom is real but is being spent on finishing the
+sweep rather than on re-deriving pruned cells. Reopening `mq=5` across
+`max_hops` 1-3 (9 combos, ~6h) is the cheapest way back in if a later result
+makes the question live again; the full 16-combo grid is ~10h for this phase
+alone.
+
+**The question no longer inverts.** This phase was reframed as "how far
+*down* can these go before coverage breaks" precisely because more of either
+was unaffordable — latency was the objective, not the constraint. With the
+target at ~35s and the baseline at 34.24s, that inversion is off: the six
+open combos are again a genuine coverage-vs-latency tradeoff, and a config
+that costs seconds for real coverage is now allowed to win. Report latency on
+every row; stop treating it as a veto.
 
 **This phase cannot be run in parallel.** Sharding combos across one Ollama
 makes per-request latency a function of contention, and contention scales
@@ -596,7 +624,7 @@ parallelism isn't re-proposed here later.
 
 | max_hops | multi_query_count | answer_coverage | multi_hop_citation_accuracy | latency_mean | ragas_faithfulness | ragas_answer_correctness | ragas_context_precision | note |
 |---|---|---|---|---|---|---|---|---|
-| 3 | 3 | TBD | TBD | 23.2s (p90 53.5s) | — | — | — | current default, over budget |
+| 3 | 3 | TBD | TBD | 23.2s (p90 53.5s) | — | — | — | current default; pre-move figures, over the old 15-20s target |
 | 3 | 2 | TBD | TBD | TBD | | | | cheaper fan-out |
 | 2 | 3 | TBD | TBD | TBD | | | | cheaper hops |
 | 2 | 2 | TBD | TBD | TBD | | | | both cheaper |

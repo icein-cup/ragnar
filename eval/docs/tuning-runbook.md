@@ -203,9 +203,12 @@ found `top_k=10/candidates=30` = +9pts over the old `candidates=25/top_k=5`
 default (see `config.yaml` retrieval comments) — this phase is about
 confirming/refining around that point, not re-deriving it from scratch.
 
-`top_k=12` is dropped from the grid: it pushes more context into an
-already-over-latency-budget generation call (see Phase 2 below) for headroom
-Branch D's own numbers show flattening past `top_k=10`.
+`top_k=12` is dropped from the grid, on Branch D's own numbers showing
+coverage flattening past `top_k=10`. The secondary argument once made here —
+that it pushes more context into an already-over-latency-budget generation
+call — no longer applies, since the p90 target was relaxed to ~35s on
+2026-08-26. Confirmed dropped anyway (owner, 2026-08-26): the flattening is
+the load-bearing reason and is unaffected by latency.
 
 Coordinate descent, not the full grid — hold one axis at default, sweep the
 other, take the winner, sweep the second axis against it:
@@ -249,10 +252,21 @@ in the originally-planned grid before a single new run: `multi_query_count`
 5/7 on the +47s measurement, `max_hops=4` because `max_hops=3` already misses
 the p90 target 3x. See experiment-results.md Phase 2 for the full grid table.
 
-The question this phase actually answers is **how far down these parameters
-can go before coverage breaks** — `max_hops=2` or `multi_query_count=2` is a
-latency *win* against a budget already being missed, not a tradeoff to weigh
-against a coverage gain.
+**Both disqualifying reasons expired 2026-08-26; the grid stays at six by
+choice.** The +47s was measured with the reranker on container CPU, and
+`multi_query_count` multiplies rerank count — a rerank now costs 1.48s, not
+10.34s, so that penalty is stale by construction. And the p90 target was
+relaxed to ~35s (owner, 2026-08-26), which the post-move baseline of 34.24s
+clears. Keeping six combos was asked and answered explicitly: spend the
+headroom on finishing the sweep, not on re-deriving pruned cells. If a later
+result makes it live again, reopening `mq=5` across `max_hops` 1-3 is 9
+combos / ~6h; the full grid is ~10h for this phase alone.
+
+So the phase is **a genuine coverage-vs-latency tradeoff again**, not the
+"how far down can these go before coverage breaks" question it was reframed
+as while the baseline was 3x over budget. A config that costs seconds and
+buys real coverage is now allowed to win. Report `latency_p90` on every row —
+it is still a number every comparison must carry, just no longer a veto.
 
 Run the full remaining grid (small enough that coordinate descent isn't
 needed):

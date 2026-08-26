@@ -2,6 +2,50 @@
 
 Running log of discoveries, patterns, and decisions. Updated each iteration.
 
+## 2026-08-26 — Latency target relaxed to p90 ~35s; pruned grid cells stay pruned by choice
+
+Owner's call, superseding the p50 6-8s / p90 15-20s target agreed 2026-08-24.
+The post-move p90 of 34.24s clears ~35s, so **latency stops being the binding
+constraint on tuning** and becomes a reported number rather than a veto.
+
+**This retroactively invalidated the reasoning behind 10 of 16 pruned Phase 2
+cells — the conclusions were kept, the justifications were not.** Both
+disqualifying arguments had expired:
+
+- `multi_query_count` 5 and 7 were killed on a **+47s/case** measurement
+  (commit `256c051`). That was measured with the reranker on container CPU,
+  and `mq` is a direct multiplier on rerank count — a rerank went 10.34s →
+  1.48s the same week. The penalty is stale by construction.
+- `max_hops=4` was killed for missing a p90 target that no longer exists.
+
+Asked explicitly and answered: **keep the six-combo grid, keep `top_k=12`
+dropped.** The headroom goes to finishing the sweep, not re-deriving pruned
+cells. Reopening `mq=5` across `max_hops` 1-3 is 9 combos / ~6h; the full
+16-combo grid is ~10h for Phase 2 alone. `top_k=12` stays out on Branch D's
+coverage-flattening past `top_k=10`, which was always the load-bearing reason
+— latency was only ever the secondary one.
+
+**Phase 2's framing reverts.** While the baseline sat 3x over budget the
+phase had been reframed as "how far *down* can these parameters go before
+coverage breaks", with latency as its objective. That inversion is off: the
+six open combos are a genuine coverage-vs-latency tradeoff again, and a
+config costing seconds for real coverage is allowed to win.
+
+**Two caveats recorded alongside the new target, neither resolved by it.**
+p90 is not a ceiling — the slowest case in the measured run was **84.2s**, an
+out-of-corpus question where the fan-out keeps hunting for material that does
+not exist. And the pipeline still runs inside a static `st.spinner()`
+([ui/app.py:303](ui/app.py#L303)) with zero visible output, so ~35s p90 in
+practice means occasional minute-plus stalls with nothing on screen. The UX
+problem is untouched by the target change.
+
+**Pattern worth naming, third instance this week.** A conclusion outlived the
+measurement it rested on, and would have been carried into the sweep unexamined
+had the target not been questioned — same shape as the thread-oversubscription
+retraction and the projected-vs-measured budget row. When a foundational number
+moves (a 7x speedup, a relaxed target), the decisions derived from it need
+re-checking, not just the number itself.
+
 ## 2026-08-26 — Smoke test passes; the sweep budget was wrong twice and is now measured
 
 First completed run with the host reranker actually serving. 20 cases,
