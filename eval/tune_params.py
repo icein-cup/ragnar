@@ -101,9 +101,14 @@ def _run_eval(overrides: dict[str, str], collection: str | None,
     return row
 
 
-def _run_grid(phase: str, collection: str | None,
-              golden: Path | None) -> list[dict]:
-    grid = {"retrieval": RETRIEVAL_GRID, "agentic": AGENTIC_GRID}[phase]
+def _run_grid(phase: str, collection: str | None, golden: Path | None,
+              grid_override: dict[str, list[int]] | None = None) -> list[dict]:
+    grid = dict({"retrieval": RETRIEVAL_GRID, "agentic": AGENTIC_GRID}[phase])
+    for axis, values in (grid_override or {}).items():
+        if axis not in grid:
+            raise SystemExit(f"unknown {phase} axis {axis!r}; "
+                             f"expected one of {sorted(grid)}")
+        grid[axis] = values
     keys = list(grid.keys())
     combos = list(product(*grid.values()))
     rows = []
@@ -157,13 +162,26 @@ def main() -> None:
                         required=True)
     parser.add_argument("--collection", default=None,
                         help="Qdrant collection override")
+    parser.add_argument("--grid", action="append", default=[],
+                        metavar="AXIS=V1,V2",
+                        help="pin a grid axis to specific values, e.g. "
+                             "--grid top_k=5,8,10. Repeatable. The runbook's "
+                             "Phase 1 is coordinate descent, not the full "
+                             "product, so it drives this one axis at a time.")
     parser.add_argument("--golden", type=Path, default=None,
                         help="golden set YAML matching --collection "
                              "(e.g. eval/golden_hybridqa_draft.yaml for "
                              "--collection hybridqa)")
     args = parser.parse_args()
 
-    rows = _run_grid(args.phase, args.collection, args.golden)
+    override = {}
+    for spec in args.grid:
+        axis, sep, values = spec.partition("=")
+        if not sep or not values:
+            raise SystemExit(f"--grid needs AXIS=V1,V2, got {spec!r}")
+        override[axis] = [int(v) for v in values.split(",")]
+
+    rows = _run_grid(args.phase, args.collection, args.golden, override)
 
     _save(rows, args.phase)
     _summarize(rows, args.phase)
