@@ -666,6 +666,85 @@ measured: Branch D's own recall numbers show the gain flattening past
 `--grid AXIS=V1,V2` flag to pin one axis per invocation, since its module
 grid hardcodes the full 4x4 product the runbook does not call for.
 
+### Answer temperature (`--temperature`) — REJECTED on latency
+
+Not a runbook phase. Added after Phase 1 showed the coverage ceiling is
+refusal rather than retrieval, on the hypothesis that greedy decoding at
+temperature 0 reproduces the same refusal every time and a small temperature
+would let the model escape it.
+
+Run at Phase 1's recommended `candidates=20/top_k=10`, so the temperature 0.0
+row is that exact config's Phase 1 result (`20260826-150718.json`). The 0.2
+run (`20260826-170957`, `2c84cc6-nogit`) was **stopped at 77 of 125 cases**
+once the outcome was unambiguous; both columns below are the same first 77
+cases, in-corpus only for refusal and coverage.
+
+| | temp 0.0 | temp 0.2 |
+|---|---|---|
+| in-corpus refused | 40/78 | **44/78** |
+| answer_coverage | 0.359 | **0.333** |
+| answer_accuracy | 0.737 | 0.765 |
+| latency mean | 9.26s | **11.72s** |
+| latency p90 | 18.26s | **21.09s** |
+| latency max | 26.45s | **48.86s** |
+| cases over the 35s ceiling | 0 | **3** |
+| `budget_exhausted` | 0 | 2 |
+
+**Finding — a small answer temperature costs latency badly and does not buy
+back a single refusal.** The 48.86s worst case is against a hard max ≤35s
+target, and three breaches in 77 cases follow 750 consecutive Phase 1 cases
+with zero. That alone rules it out: a ceiling on every case cannot be traded
+against a distribution improvement elsewhere. There was no improvement to
+trade anyway — 0.2 refused four MORE of the same questions and converted two
+fewer into correct answers. Only `answer_accuracy` rose, and only because
+refusals shrank its denominator, which is exactly the artefact
+`answer_coverage` exists to expose.
+
+**Mechanism, from the case data.** Sampling makes generation run longer
+before it stops. The breaching cases show `budget_exhausted: true` — they
+blew through `agentic.latency_budget_s` (25s), and generation after that
+carried them past 35s. One case ran 39.4s at temp 0.2 against 21.0s at 0.0
+while doing *less* work (7 queries and 0 hops, versus 10 queries and 3 hops).
+`models.seed` pins sampling; it does not pin decode length.
+
+`--temperature 0.5` was planned as a follow-up conditional on 0.2 improving
+coverage. Dropped without running (owner, 2026-08-26): 0.5 amplifies the
+exact mechanism producing the latency damage.
+
+**`query_temperature` not swept.** RAGAS puts `context_recall` at 0.889 on
+this config (see below), so query diversity is competing for the ~11% of
+cases where evidence is genuinely missing, while roughly half of all
+answerable cases are being declined with the evidence present. The useful
+direction would be *downward*, as a cost reduction — and Phase 2 already
+sweeps `multi_query_count`, the same lever, on the runbook's budget.
+
+### RAGAS finalist check — `candidates=20/top_k=10`
+
+`eval/reports/ragas-20260826-170955.json`, judged by `glm-5.2:cloud`, scoring
+`20260826-150718.json` as a post-process (no pipeline re-run).
+
+| metric | score |
+|---|---|
+| context_recall | 0.889 |
+| no_invented_numbers | 0.978 |
+| faithfulness | 0.793 |
+| context_precision | 0.676 |
+| answer_similarity | 0.664 |
+| answer_relevancy | 0.646 |
+| context_entity_recall | 0.621 |
+| answer_correctness | 0.559 |
+
+**Finding — `context_recall` 0.889 against `answer_coverage` 0.367 is the
+whole Phase 1 story in two numbers.** An independent judge says the retrieved
+context supports the expected answer in ~89% of in-corpus cases; the pipeline
+produces the right answer in 37%. The evidence is arriving and not being
+used. That is why widening `candidates` and `top_k` across six runs moved
+nothing, and it is where the remaining coverage lives.
+
+`no_invented_numbers` 0.978 and `faithfulness` 0.793 confirm the system is
+not compensating by fabricating — consistent with a model tuned hard toward
+caution, which is the same posture the refusal count measures.
+
 ### Phase 2: Agentic parameters (`max_hops` × `multi_query_count`)
 
 **Finding — 12 of the originally-planned 16 combos are disqualified on

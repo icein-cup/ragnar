@@ -2,6 +2,33 @@
 
 Running log of discoveries, patterns, and decisions. Updated each iteration.
 
+## 2026-08-26 — Answer temperature rejected; RAGAS confirms the refusal ceiling
+
+Two results after Phase 1, both pointing at the same conclusion.
+
+**Answer temperature 0.2 is rejected on latency.** Tested at
+`candidates=20/top_k=10` against that config's own Phase 1 run as the
+temperature 0.0 baseline. Stopped at 77 of 125 cases once the outcome was
+clear: three cases over the max ≤35s ceiling (worst 48.9s) where Phase 1 had
+zero in 750, mean latency 9.26s → 11.72s, and **no** improvement in the thing
+it was meant to fix — 44 refusals against 40 on the same cases. `--temperature
+0.5` dropped without running; it amplifies the same mechanism. Full table in
+experiment-results.md.
+
+The mechanism matters more than the verdict: sampling lengthens generation,
+breaching cases carry `budget_exhausted: true`, and `models.seed` pins
+sampling but not decode length. Any future decoding-parameter experiment
+needs to watch `latency_max`, not just the quality metrics.
+
+**RAGAS says retrieval is doing its job.** On the same finalist report,
+`context_recall` 0.889 against `answer_coverage` 0.367. An external judge
+confirms the needed evidence reaches the model in ~9 of 10 in-corpus cases
+and the pipeline answers correctly in fewer than 4. `no_invented_numbers`
+0.978 and `faithfulness` 0.793 rule out fabrication as the alternative
+failure. The gap is refusal, not retrieval, and no retrieval-side or
+decoding-side parameter tried so far reaches it — the remaining candidates
+are the prompt and the model.
+
 ## 2026-08-26 — Phase 1 closed: retrieval width is not the lever
 
 Ran the tuning runbook's Phase 1 as specified — coordinate descent,
