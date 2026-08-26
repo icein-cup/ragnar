@@ -97,6 +97,10 @@ def _run_eval(overrides: dict[str, str], collection: str | None,
     row = {k: summary.get(k) for k in METRICS}
     row["latency_mean_s"] = summary.get("latency", {}).get("mean_s")
     row["latency_p90_s"] = summary.get("latency", {}).get("p90_s")
+    # The agentic phase ranks on the ceiling, not a percentile: the target is
+    # max <=35s on every case, and a config with a better p90 and a worse max
+    # is a regression under it (see eval/docs/tuning-runbook.md Phase 2).
+    row["latency_max_s"] = summary.get("latency", {}).get("max_s")
     row.update(overrides)
     return row
 
@@ -149,12 +153,14 @@ def _summarize(rows: list[dict], phase: str) -> None:
           f"(refusal_accuracy >= {MIN_REFUSAL}) ===")
     for i, r in enumerate(ranked[:5], 1):
         params = ", ".join(f"{k}={v}" for k, v in r.items()
-                           if k not in METRICS + ["latency_mean_s", "latency_p90_s"])
+                           if k not in METRICS + ["latency_mean_s", "latency_p90_s",
+                                                  "latency_max_s"])
         print(f"{i}. {params}")
         print(f"   coverage={r.get('answer_coverage'):.2f} "
               f"refusal={r.get('refusal_accuracy'):.2f} "
               f"cit_prec={r.get('citation_precision'):.2f} "
-              f"p90={r.get('latency_p90_s')}s")
+              f"p90={r.get('latency_p90_s')}s "
+              f"max={r.get('latency_max_s')}s")
 
 
 def main() -> None:

@@ -11,7 +11,8 @@ def test_run_eval_parses_report_json_before_trailing_wrote_line():
     that combined stdout straight to json.loads raises "Extra data" — this
     is the bug that killed every tuning sweep at combo 1."""
     fake_stdout = (
-        '{"answer_coverage": 0.5, "refusal_accuracy": 0.9}\n'
+        '{"answer_coverage": 0.5, "refusal_accuracy": 0.9,'
+        ' "latency": {"mean_s": 9.4, "p90_s": 18.0, "max_s": 26.5}}\n'
         "\nwrote eval/reports/20260825-000000.json\n"
     )
     with patch("subprocess.run") as run:
@@ -21,6 +22,8 @@ def test_run_eval_parses_report_json_before_trailing_wrote_line():
 
     assert row["answer_coverage"] == 0.5
     assert row["top_k"] == 10
+    # Phase 2 ranks on the ceiling, so max_s must survive the parse.
+    assert row["latency_max_s"] == 26.5
 
 
 def test_run_grid_override_pins_one_axis_and_leaves_the_module_grid_alone():
