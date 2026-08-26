@@ -6,6 +6,7 @@ from __future__ import annotations
 import functools
 import logging
 import re
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from typing import Callable
@@ -49,6 +50,30 @@ FALLBACK_SCORE_FLOOR = 0.55
 # caller's temperature — see the note where the partials are built.
 QUERY_TEMPERATURE = 0.7
 
+# Wall-clock budget for the agentic retrieval phase, in seconds. Past it,
+# no NEW expansion starts — no multi-query fan-out, no further hop, no
+# self-correction — and the pipeline answers with what it has.
+#
+# Why a deadline exists at all: the target is max <=35s per request, a
+# ceiling on every case rather than a percentile, and tuning cannot deliver a
+# ceiling. Parameters shift a distribution; only a clock bounds a tail.
+# Measured (eval/docs/experiment-results.md, 2026-08-26): 30/125 cases over
+# 35s pre-move with a max of 182.7s, and every violator was a high-fan-out
+# case (7-13 generated queries), most of them out-of-corpus — the search kept
+# generating queries hunting for material that does not exist, paying a full
+# rerank per query. Checking between expansions is what cuts that.
+#
+# 25s, not 35s, because this bounds retrieval only and answer generation
+# still runs after it. Generation was observed at ~1.5-11s on this corpus at
+# top_k=10, so ~10s of reserve is what keeps the end-to-end number under the
+# ceiling. That reserve is a measured margin, NOT a guarantee: nothing here
+# bounds the generation call itself, so a pathologically long answer can
+# still overshoot. Bounding that needs a timeout on the LLM call, which is a
+# separate change.
+#
+# 0 disables the deadline entirely (unbounded, the pre-2026-08-26 behaviour).
+LATENCY_BUDGET_S = 25.0
+
 # Strips leading bullets/numbering ("1.", "-", "*", "1)") that a model adds
 # despite being told not to.
 _BULLET_RE = re.compile(r"^\s*(?:[-*•]|\d+[.)])\s*")
@@ -78,6 +103,11 @@ class AgenticSearchOutcome(SearchOutcome):
     self_corrected: bool = False
     correction_notes: str | None = None
     fast_path: bool = False  # True when expensive stages were skipped
+    # True when the latency budget ran out and an expansion stage was skipped
+    # because of it. Distinguishes "the pipeline decided it had enough" from
+    # "the clock stopped it" — without this, a truncated run is
+    # indistinguishable from a fast one in any report.
+    budget_exhausted: bool = False
     # Draft answer generated during self-correction. Reused by the UI to
     # avoid a duplicate LLM call when self-correction deemed the answer
     # complete. None when self-correction didn't run or triggered a
@@ -112,6 +142,7 @@ class AgenticSearch:
         enable_self_correction: bool = True,
         fast_path_min_results: int = FAST_PATH_MIN_RESULTS,
         query_temperature: float = QUERY_TEMPERATURE,
+        latency_budget_s: float = LATENCY_BUDGET_S,
     ):
         self._base_search = base_search
         self._llm = llm
@@ -123,6 +154,7 @@ class AgenticSearch:
         self._enable_self_correction = enable_self_correction
         self._fast_path_min_results = fast_path_min_results
         self._query_temperature = query_temperature
+        self._latency_budget_s = latency_budget_s
 
     # ------------------------------------------------------------------
     # Public API
@@ -207,6 +239,21 @@ class AgenticSearch:
                                       temperature=self._query_temperature)
         outcome = AgenticSearchOutcome()
 
+        # The clock starts before the first LLM call, so the budget covers
+        # everything this method does. Checked only at stage boundaries: a
+        # deadline cannot interrupt a call already in flight, and it does not
+        # need to — the measured tail comes from doing many expansions, not
+        # from one slow one.
+        deadline = (time.monotonic() + self._latency_budget_s
+                    if self._latency_budget_s > 0 else None)
+
+        def out_of_time() -> bool:
+            """True once the budget is spent, recording that on the outcome."""
+            if deadline is None or time.monotonic() < deadline:
+                return False
+            outcome.budget_exhausted = True
+            return True
+
         # 1. Query rewriting
         if enable_rewrite:
             notify("Rewriting your question…")
@@ -231,7 +278,7 @@ class AgenticSearch:
         all_results: list[SearchResult] = list(base_result.results)
 
         # 3. Multi-query retrieval (parallel, only if enabled and base wasn't great)
-        if enable_multi_query and not self._is_fast_path(
+        if enable_multi_query and not out_of_time() and not self._is_fast_path(
                 all_results, score_floor, vector_floor, use_reranker):
             notify("Expanding the search…")
             extra = self._retrieve_multi_query(
@@ -250,11 +297,12 @@ class AgenticSearch:
             )
 
         # 5. Multi-hop retrieval (expensive — only if needed)
-        if enable_multi_hop:
+        if enable_multi_hop and not out_of_time():
             notify("Looking deeper…")
             all_results = self._multi_hop(
                 question, all_results, doc_ids, score_floor, vector_floor,
                 use_reranker, context_summary, outcome, gen,
+                out_of_time=out_of_time,
             )
 
         # 6. Deduplicate, sort, and apply floors
@@ -271,7 +319,8 @@ class AgenticSearch:
         # 7. Self-correction check (expensive — only if multi-hop didn't
         # already run), evaluated against outcome.results — the floored
         # set the user will actually see cited.
-        if enable_self_correction and outcome.hops_performed == 0 and outcome.results:
+        if (enable_self_correction and outcome.hops_performed == 0
+                and outcome.results and not out_of_time()):
             notify("Double-checking the answer…")
             correction = self._self_correct(
                 question, outcome.results, gen,
@@ -481,11 +530,24 @@ class AgenticSearch:
         context_summary: str | None,
         outcome: AgenticSearchOutcome,
         gen: Callable[..., str],
+        out_of_time: Callable[[], bool] | None = None,
     ) -> list[SearchResult]:
-        """Iteratively retrieve additional information if gaps remain."""
+        """Iteratively retrieve additional information if gaps remain.
+
+        out_of_time, when given, is checked at the top of every hop — this is
+        the loop the latency budget exists for. Each hop costs an LLM call
+        plus a full search-and-rerank, and the measured >35s cases ran 7-13
+        queries, so stopping between hops is where a ceiling actually bites.
+        Hops already completed are kept; the accumulated results are returned
+        exactly as a natural stop would return them.
+        """
         accumulated = list(current_results)
 
         for hop in range(1, self._max_hops + 1):
+            if out_of_time is not None and out_of_time():
+                logger.info("Latency budget spent — stopping after %d hop(s)",
+                            hop - 1)
+                break
             system, user = build_multi_hop_prompt(
                 original_question, build_excerpts(accumulated))
             try:

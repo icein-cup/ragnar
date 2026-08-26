@@ -127,6 +127,16 @@ agentic:
   enable_self_correction: true
   max_hops: 3
   multi_query_count: 3
+  # Wall-clock ceiling for the retrieval phase, in seconds. Past it no NEW
+  # expansion starts (no fan-out, no further hop, no self-correction) and the
+  # pipeline answers with what it already has. This exists because the target
+  # is max <=35s per request — a ceiling on every case, not a percentile —
+  # and no parameter value can deliver a ceiling: tuning shifts a
+  # distribution, only a clock bounds a tail. 25 rather than 35 because
+  # answer generation still runs after this and was measured at ~1.5-11s;
+  # the ~10s difference is that reserve. Set 0 to disable (unbounded).
+  # See retrieval/agentic.py:LATENCY_BUDGET_S for the measurements.
+  latency_budget_s: 25
   # Temperature for the two calls that emit a retrieval query (query rewrite
   # and multi-query fan-out). Those want lexical variety — three "different
   # ways to ask the same question" generated greedily come out nearly

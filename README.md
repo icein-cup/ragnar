@@ -217,6 +217,13 @@ The agentic path pays that once per generated query, so a question that fans out
 seven phrasings spends over a minute reranking alone. Starting the host service is
 optional but worth roughly **7x**:
 
+Those figures assume ordinary chunks. A cross-encoder pads every pair in a batch to
+the longest sequence in it, so **one oversized chunk makes all 30 candidates cost as
+if every one were that long** — the same batch takes 1.74s with a 1750-char longest
+chunk and 9.00s with a 6648-char one. `retrieval/reranker.py` caps input at 512
+tokens (`RERANKER_MAX_LENGTH`) to keep that bounded; on this corpus that truncates
+5 chunks out of 2846 and leaves the rest scored identically.
+
 ```bash
 .venv/bin/python retrieval/rerank_server.py     # leave running; loads on Metal
 ```
@@ -251,6 +258,15 @@ The four agentic toggles each cost at least one extra LLM call per question, and
 compound — a question that misses the fast path can spend six or more round-trips
 before a word is streamed. On a 3B local model that is the difference between a
 snappy answer and a slow one. Turn them off to feel the floor of the pipeline.
+
+`agentic.latency_budget_s` (25s) is what stops that compounding from running away.
+Past it no *new* expansion starts — no fan-out, no further hop, no self-correction —
+and the pipeline answers with what it already retrieved. Work already done is kept
+and a hit is never turned into a refusal. It exists because no parameter value can
+give you a ceiling: tuning shifts a distribution, only a clock bounds a tail. 25
+rather than 35 because answer generation still runs after it; that ~10s difference is
+a measured margin, not a guarantee, since nothing yet bounds the generation call
+itself. Set `0` to disable.
 
 The floors are the ones to understand before touching. Both are **stopgaps, not a
 calibration**: on a real corpus, out-of-corpus questions scored 0.50–0.503 on the
@@ -308,6 +324,7 @@ Environment (`.env`):
 | `OLLAMA_BASE_URL` | Yes | `http://host.docker.internal:11434` — Ollama on the host |
 | `QDRANT_URL` | Yes | `http://qdrant:6333` — the sibling container |
 | `RERANKER_URL` | No | `http://host.docker.internal:8007` — the host reranker service (see Install). Set empty to score in-container on CPU instead |
+| `RERANKER_MAX_LENGTH` | No | `512`. Token cap per (query, chunk) pair. Bounds rerank cost, which a batch's longest chunk otherwise sets for every candidate in it |
 | `HF_TOKEN` | No | Raises the HuggingFace rate limit while the reranker downloads |
 | `FILE_SERVER_HOST` | No | Bind address for the archive file server. `0.0.0.0` by default, which is required under Docker — set `127.0.0.1` when running the app natively |
 | `RAGAS_JUDGE_BASE_URL` | No | Eval only. OpenAI-compatible judge endpoint |

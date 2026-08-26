@@ -440,6 +440,35 @@ query:
 | 4 | ~103s |
 | 7 | 116-198s |
 
+**Rerank cost is set by the longest chunk in the batch, not by the candidate
+count (2026-08-26).** A cross-encoder pads every pair in a batch to the
+longest sequence in it, so one oversized chunk makes all 30 candidates cost
+as if every one were that long. Measured with near-identical total text
+(39,845 vs 42,349 chars across the 30 candidates):
+
+| longest chunk | rerank |
+|---|---|
+| 1750 chars | 1.74s |
+| 6648 chars | **9.00s** |
+
+**Five chunks out of 2846 (0.2%) set the latency ceiling for the whole
+system.** Corpus: median 648, p90 1750, p99 1750, **max 10409** chars. Any
+query retrieving one of the five pays ~5x on *every rerank in its fan-out* —
+which is why query count predicts latency so badly here: one case ran 11
+queries in 28.9s while another ran 9 in 107.5s. `CrossEncoder` was built
+with no `max_length`, so sentence-transformers used the model's own 8192
+limit and nothing truncated; it is now capped at 512 tokens
+(`retrieval/reranker.py:MAX_LENGTH`), which truncates only those five and
+leaves 99.8% of chunks scored as before.
+
+All five are **table** chunks. Four carry exactly 21 newlines — 20 rows plus
+header, i.e. the ingester's `ROWS_PER_GROUP=20`. Prose is already bounded:
+258 chunks sit at exactly 1750 chars (`TARGET_TOKENS=500` × 3.5 chars/token)
+and only 28 chunks corpus-wide exceed 1750, all tables. Phase 4's
+`--rows-per-group` would shrink four of them but **cannot bound them** — the
+fifth is 9804 chars from only 9 rows of long cell content, and that
+parameter counts rows, not characters.
+
 Measured cost of a single 30-candidate rerank, by where it runs (M5 Pro):
 
 | Location | Per rerank | Notes |

@@ -25,6 +25,27 @@ ONNX_DIR = Path(
     os.environ.get("RERANKER_ONNX_DIR", "/app/data/models/bge-reranker-v2-m3-onnx")
 )
 
+# Token cap per (query, chunk) pair. Left unset, sentence-transformers uses
+# the model's own limit (8192 for bge-reranker-v2-m3) and nothing truncates.
+#
+# That matters because a cross-encoder pads every pair in a batch to the
+# longest sequence in it, so ONE long chunk makes all 30 candidates cost as
+# if they were that long. Measured on the HybridQA corpus (2026-08-26), same
+# query count and near-identical total text in both cases:
+#
+#     longest chunk 1750 chars -> rerank 1.74s
+#     longest chunk 6648 chars -> rerank 9.00s
+#
+# 5 chunks out of 2846 (0.2%) exceed 4000 chars, and those five set the
+# latency ceiling for the whole system: any query retrieving one pays ~5x on
+# every rerank in its fan-out. The corpus p99 is 1750 chars (~500 tokens),
+# so a 512-token cap truncates only those outliers and leaves 99.8% of
+# chunks scored exactly as before.
+#
+# This bounds rerank cost; it does not fix the oversized chunks themselves,
+# which are an ingestion concern (see eval/docs/tuning-runbook.md Phase 4).
+MAX_LENGTH = int(os.environ.get("RERANKER_MAX_LENGTH", "512"))
+
 
 class BGEReranker:
     """Cross-encoder reranker running on CPU inside the container.
@@ -84,9 +105,12 @@ class BGEReranker:
                 if self._model is None:
                     from sentence_transformers import CrossEncoder
                     if ONNX_DIR.is_dir():
-                        self._model = CrossEncoder(str(ONNX_DIR), backend="onnx")
+                        self._model = CrossEncoder(str(ONNX_DIR),
+                                                   backend="onnx",
+                                                   max_length=MAX_LENGTH)
                     else:
-                        self._model = CrossEncoder(self._model_name)
+                        self._model = CrossEncoder(self._model_name,
+                                                   max_length=MAX_LENGTH)
         return self._model
 
     def rerank(self, query: str, candidates: list[SearchResult],

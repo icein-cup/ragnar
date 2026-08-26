@@ -2,6 +2,83 @@
 
 Running log of discoveries, patterns, and decisions. Updated each iteration.
 
+## 2026-08-26 — The latency tail is five chunks, not the fan-out
+
+Built a wall-clock deadline for the max ≤35s ceiling, measured it, and found
+it did not fix the case it was built for. Chasing that produced the actual
+root cause.
+
+**The deadline (`agentic.latency_budget_s`, default 25s).** Checked before
+the multi-query fan-out, at the top of every hop, and before
+self-correction: past the budget no NEW expansion starts and the pipeline
+answers with what it has. Work already done is kept; it never turns a hit
+into a refusal. `budget_exhausted` is recorded on the outcome and in every
+report's `stages`, so a truncated case is distinguishable from a fast one.
+25s rather than 35s because generation still runs after it (~1.5-11s
+measured), and that reserve is a margin, not a guarantee — nothing bounds
+the generation call itself.
+
+Measured on the 20-case subset, before vs with:
+
+| | mean | p90 | max | over 35s | cuts |
+|---|---|---|---|---|---|
+| before | 17.9 | 34.2 | 84.2 | 1/20 | — |
+| with deadline | 19.6 | **31.6** | **107.5** | 1/20 | 2 |
+
+Two cuts fired correctly (both stopped mid-hop at ~30s) and p90 improved,
+but **max got worse and the over-35s case stayed over**. The deadline checks
+at stage boundaries and cannot interrupt a stage in flight — stated as a
+known limitation when it was built, justified by "the tail comes from many
+expansions, not one slow one." That justification was wrong for exactly the
+case that motivated the work: `fast_path=true, queries=9, hops=0`, so all
+107s sat inside the multi-query fan-out, one uninterruptible stage.
+
+**The real cause: a cross-encoder pads every pair in a batch to the longest
+sequence in it.** Measured, same query count and near-identical total text:
+
+| longest chunk in the 30 candidates | rerank |
+|---|---|
+| 1750 chars | 1.74s |
+| 6648 chars | **9.00s** |
+
+Total candidate text was 39,845 vs 42,349 chars — nearly identical. Only the
+single longest chunk differs. One oversized chunk makes all 30 pairs cost as
+if every one were that long.
+
+**Five chunks out of 2846 (0.2%) set the ceiling for the whole system.**
+Corpus: median 648, p90 1750, p99 1750, max 10409 chars. Any query that
+happens to retrieve one of the five pays ~5x on *every rerank in its
+fan-out*. This also explains why query count predicted latency so poorly —
+11 queries took 28.9s in one case while 9 took 107.5s in another.
+
+**Fix: `CrossEncoder(..., max_length=512)`.** It was constructed without
+one, so sentence-transformers used the model's own 8192-token limit and
+nothing truncated. Corpus p99 is 1750 chars (~500 tokens), so a 512-token
+cap truncates only the five outliers and leaves 99.8% of chunks scored
+exactly as before. Applied to both the in-container path
+(`retrieval/reranker.py`) and the host service (`rerank_server.py`, which
+imports the constant rather than redefining it — two paths truncating
+differently would mean the same chunk scores differently depending on where
+it ran, and the floors calibrated against one would stop applying to the
+other).
+
+**All five are table chunks, and Phase 4 can only half-fix them.** Four have
+exactly 21 newlines — 20 rows plus header, i.e. `ROWS_PER_GROUP=20`. Prose
+is already bounded: 258 chunks sit at exactly 1750 chars
+(`TARGET_TOKENS=500` × 3.5 chars/token) and only 28 chunks corpus-wide
+exceed 1750, all tables. Phase 4's `--rows-per-group 20 → 10` would roughly
+halve four of them, but **cannot bound them**: the fifth is 9804 chars with
+only 9 rows — long cell content. That parameter counts rows; the problem is
+characters. A real bound needs the reranker cap above, or a character limit
+in the table chunker, which is not a parameter today.
+
+**Lesson.** The deadline is still worth having — it bounds the multi-hop
+tail, which is real — but it was built on an unverified story about where
+time went. Twenty minutes of measurement before writing it would have found
+the padding behaviour first and produced a one-line fix instead of a
+feature. Same family as the thread-oversubscription retraction: a plausible
+mechanism, adopted without measuring the specific case that motivated it.
+
 ## 2026-08-26 — Latency target is max ≤35s, a hard ceiling — corrected same day
 
 **Correcting the entry below, which recorded this as "p90 ~35s".** The owner

@@ -170,6 +170,12 @@ def run_cases(score_floor: float | None = None,
                     "self_corrected": getattr(outcome, "self_corrected", False),
                     "draft_reused": draft_reused,
                     "queries": len(getattr(outcome, "queries_executed", [])),
+                    # Whether the latency budget cut this case short. Without
+                    # it a truncated case is indistinguishable from a fast
+                    # one, and a coverage drop caused by the ceiling would
+                    # look like a retrieval regression.
+                    "budget_exhausted": getattr(outcome, "budget_exhausted",
+                                                False),
                 },
             }
             cases.append(case)
@@ -339,6 +345,8 @@ def _agentic_overrides(args) -> dict:
         overrides["max_hops"] = args.max_hops
     if args.multi_query_count is not None:
         overrides["multi_query_count"] = args.multi_query_count
+    if args.latency_budget is not None:
+        overrides["latency_budget_s"] = args.latency_budget
     return overrides
 
 
@@ -367,6 +375,10 @@ def main() -> None:
                         help="override config.yaml's agentic.max_hops")
     parser.add_argument("--multi-query-count", type=int, default=None,
                         help="override config.yaml's agentic.multi_query_count")
+    parser.add_argument("--latency-budget", type=float, default=None,
+                        help="override config.yaml's agentic.latency_budget_s "
+                             "(seconds for the retrieval phase; 0 disables "
+                             "the deadline entirely)")
     args = parser.parse_args()
 
     if args.calibrate:

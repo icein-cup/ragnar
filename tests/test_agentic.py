@@ -712,3 +712,193 @@ def test_on_progress_is_optional():
     outcome = agentic.find("question")
 
     assert not outcome.refused
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Latency budget — the max <=35s ceiling
+# ──────────────────────────────────────────────────────────────────────────────
+#
+# Tuning cannot deliver a ceiling: parameters shift a distribution, only a
+# clock bounds a tail. These cover the three places the deadline bites
+# (fan-out, each hop, self-correction), that it never costs the results
+# already retrieved, and that 0 disables it.
+
+
+class Clock:
+    """Manual monotonic clock. Time passes only when work says it does."""
+
+    def __init__(self, start=1000.0):
+        self.now = start
+
+    def __call__(self):
+        return self.now
+
+    def advance(self, seconds):
+        self.now += seconds
+
+
+class CostlyLLM(FakeLLM):
+    """A FakeLLM where every generate() burns wall-clock."""
+
+    def __init__(self, clock, seconds_per_call, responses=None):
+        super().__init__(responses)
+        self._clock = clock
+        self._cost = seconds_per_call
+
+    def generate(self, system, user, **kwargs):
+        self._clock.advance(self._cost)
+        return super().generate(system, user, **kwargs)
+
+
+class AlwaysFindsSearch(StubSearch):
+    """Returns the same results for any query, so hop loops don't stop early.
+
+    clock/seconds_per_search make a retrieval cost wall-clock too — the real
+    pipeline spends most of a slow case in search-and-rerank, not only in the
+    LLM.
+    """
+
+    def __init__(self, results, clock=None, seconds_per_search=0.0):
+        super().__init__()
+        self._always = results
+        self._clock = clock
+        self._cost = seconds_per_search
+
+    def find(self, question, **kwargs):
+        from retrieval.search import SearchOutcome
+        if self._clock is not None:
+            self._clock.advance(self._cost)
+        return SearchOutcome(results=list(self._always))
+
+
+def _use_clock(monkeypatch, clock):
+    """Swap only retrieval.agentic's `time`, never the real time module."""
+    import types
+    import retrieval.agentic as agentic_module
+    monkeypatch.setattr(agentic_module, "time",
+                        types.SimpleNamespace(monotonic=clock))
+
+
+def test_budget_does_not_fire_when_there_is_time_to_spare(monkeypatch):
+    clock = Clock()
+    _use_clock(monkeypatch, clock)
+    results = [_result("relevant content")]
+    base = AlwaysFindsSearch(results)
+    # Every call is free, so the deadline can never be reached.
+    agentic = AgenticSearch(base, CostlyLLM(clock, 0.0), latency_budget_s=25.0)
+
+    outcome = agentic.find("question")
+
+    assert outcome.budget_exhausted is False
+
+
+def test_budget_skips_the_multi_query_fan_out(monkeypatch):
+    """The fan-out is the first expansion, so it is the first thing dropped."""
+    clock = Clock()
+    _use_clock(monkeypatch, clock)
+    base = AlwaysFindsSearch([_result("relevant content")])
+    # The rewrite call alone (6s) overruns the 5s budget.
+    agentic = AgenticSearch(base, CostlyLLM(clock, 6.0), latency_budget_s=5.0)
+
+    outcome = agentic.find("question")
+
+    assert outcome.budget_exhausted is True
+    # Only the rewritten query ran — no variants were generated or searched.
+    assert len(outcome.queries_executed) == 1
+
+
+def test_budget_stops_the_hop_loop_partway_and_keeps_earlier_hops(monkeypatch):
+    """Hops already paid for are kept; only further ones are refused."""
+    clock = Clock()
+    _use_clock(monkeypatch, clock)
+    base = AlwaysFindsSearch([_result("relevant content")])
+    llm = CostlyLLM(clock, 6.0, responses={
+        "multi_hop": "Sufficient: no\nMissing: more\nFollowUp: another query",
+    })
+    agentic = AgenticSearch(
+        base, llm, max_hops=3, latency_budget_s=10.0,
+        enable_rewrite=False, enable_multi_query=False,
+        enable_self_correction=False,
+    )
+
+    outcome = agentic.find("question")
+
+    # hop1 top at t=0 (ok, LLM -> 6), hop2 top at t=6 (ok, LLM -> 12),
+    # hop3 top at t=12 >= deadline 10 -> stop with 2 hops done.
+    assert outcome.hops_performed == 2
+    assert outcome.budget_exhausted is True
+
+
+def test_budget_skips_self_correction(monkeypatch):
+    """Self-correction is the last expansion and the last thing dropped."""
+    clock = Clock()
+    _use_clock(monkeypatch, clock)
+    # The base search alone (6s) overruns the 5s budget.
+    base = AlwaysFindsSearch([_result("relevant content")],
+                             clock=clock, seconds_per_search=6.0)
+    llm = CostlyLLM(clock, 0.0)
+    agentic = AgenticSearch(
+        base, llm, latency_budget_s=5.0,
+        enable_rewrite=False, enable_multi_query=False, enable_multi_hop=False,
+    )
+
+    outcome = agentic.find("question")
+
+    assert outcome.budget_exhausted is True
+    # The self-correction call is the only LLM call this config would make.
+    assert llm._call_count == 0
+    assert outcome.draft_answer is None
+
+
+def test_self_correction_still_runs_when_the_budget_allows(monkeypatch):
+    """Control for the test above — same wiring, enough time."""
+    clock = Clock()
+    _use_clock(monkeypatch, clock)
+    base = AlwaysFindsSearch([_result("relevant content")],
+                             clock=clock, seconds_per_search=6.0)
+    llm = CostlyLLM(clock, 0.0)
+    agentic = AgenticSearch(
+        base, llm, latency_budget_s=25.0,
+        enable_rewrite=False, enable_multi_query=False, enable_multi_hop=False,
+    )
+
+    outcome = agentic.find("question")
+
+    assert outcome.budget_exhausted is False
+    # Two calls: the draft answer, then the completeness evaluation on it.
+    assert llm._call_count == 2
+
+
+def test_budget_exhausted_still_answers_rather_than_refusing(monkeypatch):
+    """A ceiling must degrade the search, never turn a hit into a refusal."""
+    clock = Clock()
+    _use_clock(monkeypatch, clock)
+    base = AlwaysFindsSearch([_result("relevant content", vector_score=0.9)])
+    agentic = AgenticSearch(base, CostlyLLM(clock, 60.0), latency_budget_s=1.0)
+
+    outcome = agentic.find("question")
+
+    assert outcome.budget_exhausted is True
+    assert outcome.refused is False
+    assert outcome.results
+
+
+def test_zero_budget_disables_the_deadline_entirely(monkeypatch):
+    """0 restores the unbounded pre-2026-08-26 behaviour."""
+    clock = Clock()
+    _use_clock(monkeypatch, clock)
+    base = AlwaysFindsSearch([_result("relevant content")])
+    llm = CostlyLLM(clock, 600.0, responses={
+        "multi_hop": "Sufficient: no\nMissing: more\nFollowUp: another query",
+    })
+    agentic = AgenticSearch(
+        base, llm, max_hops=3, latency_budget_s=0,
+        enable_rewrite=False, enable_multi_query=False,
+        enable_self_correction=False,
+    )
+
+    outcome = agentic.find("question")
+
+    # 600s per call against any real budget, yet nothing was cut short.
+    assert outcome.budget_exhausted is False
+    assert outcome.hops_performed == 3

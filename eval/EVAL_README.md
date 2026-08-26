@@ -34,6 +34,17 @@ cannot reach the GPU. Run it on the host instead — **1.48s vs 10.34s per
 generated query. A 125-case run is ~37min with it (measured 2026-08-26
 at 18.0s/case) and an estimated ~1.8h without.
 
+Those per-rerank figures hold for ordinary chunks. A cross-encoder pads every
+pair in a batch to the longest sequence in it, so **one oversized chunk makes
+all 30 candidates cost as if every one were that long** — the same batch took
+1.74s with a 1750-char longest chunk and 9.00s with a 6648-char one, on
+near-identical total text. Five chunks out of 2846 in `hybridqa` (0.2%)
+exceed 4000 chars, and any question retrieving one paid ~5x on *every* rerank
+in its fan-out. `retrieval/reranker.py` now caps input at 512 tokens
+(`RERANKER_MAX_LENGTH`); the corpus p99 is ~500 tokens, so that truncates only
+those outliers. If you start `rerank_server.py` with `--max-length`, it must
+match, or the host and in-container paths score the same chunk differently.
+
     .venv/bin/python retrieval/rerank_server.py     # leave running
     curl -s http://127.0.0.1:8007/health            # {"status": "ok", ...}
 

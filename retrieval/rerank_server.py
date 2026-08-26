@@ -31,8 +31,20 @@ Then point the container at it (docker-compose.yml already does this):
 import argparse
 import json
 import logging
+import sys
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
+
+# Run as a script from the repo root (`.venv/bin/python retrieval/rerank_server.py`),
+# so the repo itself is not on sys.path — only this file's directory is.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+# One number, not two: the host service and the in-container fallback must
+# truncate identically, or the same chunk scores differently depending on
+# where it was reranked and the floors calibrated against one stop applying
+# to the other. See reranker.py's MAX_LENGTH for why any cap exists at all.
+from retrieval.reranker import MAX_LENGTH
 
 logger = logging.getLogger(__name__)
 
@@ -48,11 +60,15 @@ _model = None
 _lock = threading.Lock()
 
 
-def load_model(model_name: str, device: str):
+def load_model(model_name: str, device: str, max_length: int = MAX_LENGTH):
     global _model
     from sentence_transformers import CrossEncoder
-    logger.info("loading %s on %s ...", model_name, device)
-    _model = CrossEncoder(model_name, device=device)
+    logger.info("loading %s on %s (max_length=%d) ...",
+                model_name, device, max_length)
+    # max_length must match retrieval/reranker.py's cap, or the host service
+    # and the in-container fallback score the same chunk differently and the
+    # floors calibrated against one stop applying to the other.
+    _model = CrossEncoder(model_name, device=device, max_length=max_length)
     # Warm up: the first forward pass compiles Metal kernels and allocates
     # buffers, and is several times slower than steady state. Doing it here
     # means the first real query does not eat that cost.
@@ -132,6 +148,10 @@ def main() -> None:
                         help="mps (Apple GPU), cpu, or cuda")
     parser.add_argument("--model", default=None,
                         help="defaults to config.yaml's models.reranker")
+    parser.add_argument("--max-length", type=int, default=MAX_LENGTH,
+                        help="token cap per (query, chunk) pair. Must match "
+                             "retrieval/reranker.py's MAX_LENGTH or the two "
+                             "paths score differently.")
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO,
@@ -142,7 +162,7 @@ def main() -> None:
         from core.config import Config
         model_name = Config().reranker_model
 
-    load_model(model_name, args.device)
+    load_model(model_name, args.device, args.max_length)
     server = ThreadingHTTPServer((args.host, args.port), Handler)
     logger.info("listening on http://%s:%d", args.host, args.port)
     try:

@@ -456,6 +456,25 @@ now-parameterized, path: `--target-tokens` / `--overlap-tokens` /
 `--rows-per-group` flags (defaults 500/0/20, matching every existing
 report). Use those flags, not `config.yaml`, to vary this phase.
 
+**`--rows-per-group` now has a measured latency consequence, and it is the
+only phase that touches the latency tail's actual cause.** Five chunks out of
+2846 (0.2%) exceed 4000 chars, max 10409, and they set the ceiling for the
+whole system: a cross-encoder pads every pair in a batch to the longest
+sequence in it, so a query retrieving one of them pays ~5x on *every* rerank
+in its fan-out (1.74s → 9.00s, measured 2026-08-26). All five are table
+chunks, and four carry exactly 21 newlines — 20 rows plus header, i.e. this
+script's `ROWS_PER_GROUP=20` default. Prose is already bounded: 258 chunks
+sit at exactly 1750 chars (`TARGET_TOKENS=500` × 3.5) and only 28 chunks
+corpus-wide exceed 1750, all tables.
+
+So `--rows-per-group 10` would roughly halve four of the five. It **cannot
+bound them**: the fifth is 9804 chars from only 9 rows of long cell content,
+and the parameter counts rows, not characters. `retrieval/reranker.py`'s
+512-token cap is what actually bounds rerank cost; this phase reduces the
+cause rather than capping the symptom. Report `latency_max` on every row here
+— before 2026-08-26 that effect was invisible, so any earlier chunking
+comparison measured quality while silently varying latency.
+
 Strategy is settled (semantic vs structural was a 1-point wash, Branch G);
 only the token budget is open. 81% of retrieved contexts on this corpus are
 prose passages, only 19% are table rows (measured on
