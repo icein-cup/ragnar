@@ -2,6 +2,54 @@
 
 Running log of discoveries, patterns, and decisions. Updated each iteration.
 
+## 2026-08-26 — Phase 1 closed: retrieval width is not the lever
+
+Ran the tuning runbook's Phase 1 as specified — coordinate descent,
+six 125-case agentic runs, ~2h55m. Full table and reasoning in
+experiment-results.md "Phase 1: Retrieval volume".
+
+**Decision: recommend `candidates=20, top_k=10`** (config.yaml currently
+`candidates=30`). Not shipped yet — Phase 2 runs against whatever Phase 1
+settles, and the RAGAS finalist check on `20260826-150718.json` has not been
+run (it calls the external paid judge).
+
+**What the six runs actually showed.** `answer_coverage` never left
+0.289-0.367 on any setting. The runbook's tie threshold is 10 points and the
+entire measured range is 7.8, so every cell ties every other on the primary
+metric. `top_k` 5/8/10 was non-monotonic (0.367/0.322/0.344), so the
+incumbent held. `candidates` 20/25/30/40 declined monotonically above 20
+(0.367/0.344/0.344/0.289). The recommendation rests on latency, where the
+differences are real: `candidates=20` is 2.6s/case faster than
+`candidates=40` at the mean and 5.3s faster at p90.
+
+**Branch D's +9pts did not reproduce.** That number came from retrieval-only
+recall plus a single non-agentic generation call; on the full agentic
+pipeline the effect is not there. This repo already had one lesson recorded
+about subset results not surviving the full benchmark — this extends it:
+proving a document *can* be retrieved says nothing about whether the model
+will use it to answer.
+
+**The real ceiling is refusal.** Across all six runs the model declined
+42-47 of the 90 answerable questions, moving by at most five cases while the
+reranked candidate pool tripled. `answer_accuracy` held at 0.61-0.73, so the
+answers it does give are mostly right — it is the declining that caps
+coverage. No retrieval parameter touches this. Next experiment is answer
+temperature (0.0 vs 0.2, sequentially, 0.5 only if 0.2 moves the number),
+on the theory that greedy decoding at temperature 0 reproduces the same
+refusal every time.
+
+**Latency target met, for the first time on record.** All 750 cases landed
+under the max ≤35s ceiling; worst single case 31.3s against a 144.9s
+baseline max. That is the host-GPU reranker move (commit `5bff87a`) showing
+up end to end, not a tuning result.
+
+**Harness change.** `eval/tune_params.py` gained `--grid AXIS=V1,V2` so one
+axis can be pinned per invocation. Its module grid hardcodes the full 4x4
+product (16 runs, ~10h); the runbook's Phase 1 is coordinate descent (6 runs,
+~4h). Without the flag the documented phase could only be run by editing a
+module constant between steps, which dirties the tree the same runbook
+requires clean for report provenance.
+
 ## 2026-08-26 — The latency tail is five chunks, not the fan-out
 
 Built a wall-clock deadline for the max ≤35s ceiling, measured it, and found

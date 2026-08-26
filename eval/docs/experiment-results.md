@@ -593,20 +593,78 @@ contain the right words (see tuning-runbook.md "RAGAS finalist check").
 
 ### Phase 1: Retrieval volume (`candidates` × `top_k`)
 
-| candidates | top_k | answer_coverage | citation_precision | latency_max | latency_p90 | ragas_faithfulness | ragas_answer_correctness | ragas_context_precision | note |
-|---|---|---|---|---|---|---|---|---|
-| 30 | 10 | TBD | TBD | TBD | — | — | — | current default (Branch D, pending full confirmation) |
-| ... | ... | ... | ... | ... | | | | |
+| candidates | top_k | answer_coverage | answer_accuracy | refusal_accuracy | citation_precision | latency_max | latency_p90 | ragas_* | note |
+|---|---|---|---|---|---|---|---|---|---|
+| 30 | 5 | 0.367 | 0.688 | 0.640 | 0.452 | 30.17 | 20.97 | — | step 1 |
+| 30 | 8 | 0.322 | 0.617 | 0.640 | 0.407 | 30.21 | 20.71 | — | step 1 |
+| 30 | 10 | 0.344 | 0.646 | 0.648 | 0.368 | 30.88 | 21.41 | — | step 1, incumbent default |
+| **20** | **10** | **0.367** | **0.733** | 0.624 | 0.435 | **26.45** | **17.97** | pending | step 2, recommended |
+| 25 | 10 | 0.344 | 0.674 | 0.632 | 0.413 | 29.89 | 18.78 | — | step 2 |
+| 40 | 10 | 0.289 | 0.605 | 0.608 | 0.336 | 31.32 | 23.22 | — | step 2, rejected |
+
+Six 125-case agentic runs, 2026-08-26, ~2h55m wall clock. All stamped
+`9cf13ec-nogit`, golden `228db7ac68da` (125 cases: 90 in-corpus, 35 probes),
+seed 42, host reranker serving. Reports:
+`20260826-{131456,142015,144322,150718,152657,154836}.json`; sweep output
+`tuning-retrieval-20260826-{150654,161340}.csv`.
 
 `top_k=12` dropped from the swept range — see Finding below. `ragas_*`
 columns filled only for the finalist row, per the RAGAS finalist check.
 
-**Finding —** `top_k=12` excluded from this sweep rather than measured: it
-adds context on a generation call already over the latency budget the
-agentic phase measures (see Phase 2 below), and Branch D's own recall numbers
-already show the gain flattening past `top_k=10`. Coordinate descent used
-instead of the full `candidates × top_k` grid — see tuning-runbook.md Phase 1.
-[remainder pending measurement]
+**Finding — neither retrieval axis moves `answer_coverage`, and Branch D's
++9pts did not reproduce.** Coverage spans 0.289-0.367 across all six cells,
+a 7.8-point total range on parameters that vary retrieval work by 2x. The
+runbook's tie threshold is 10 points, so *every* cell ties every other one
+on the primary metric. `top_k` at fixed `candidates=30` gives
+0.367/0.322/0.344 for 5/8/10 — not even monotonic, so the incumbent
+`top_k=10` holds. `candidates` at fixed `top_k=10` gives
+0.367/0.344/0.344/0.289 for 20/25/30/40: monotonically *down* as candidates
+rise above 20, the only clean direction in the phase, and the cheapest
+setting leads it.
+
+Branch D measured `candidates=30/top_k=10` at +9pts over
+`candidates=25/top_k=5` using retrieval-only recall plus one non-agentic
+generation call. On the full agentic pipeline at 125 cases that gain is
+absent: those two configs land at 0.344 and (interpolating the two adjacent
+cells measured here) the same 0.34-0.37 band. The lesson already recorded
+in this file about subset-vs-full-set false signals applies to
+retrieval-only recall as well — recall that a document *can* be retrieved
+does not predict whether the model will use it.
+
+**The binding constraint is refusal, not retrieval.** In-corpus refusals
+were 42/45/44/42/47/43 of 90 across the six runs — the model declines
+roughly half of the questions it has evidence for, and tripling the reranked
+candidate pool changes that by at most five cases. `answer_accuracy` stays
+at 0.61-0.73 throughout, so when it does commit it is usually right. No
+retrieval-side parameter reaches this; it is a generation-side property.
+This is what motivates the answer-temperature experiment queued after this
+phase — at temperature 0 decoding is greedy, so a prompt that leans toward
+declining produces the identical decline every time.
+
+**Latency is where the phase paid off, and it is now inside target.** Every
+one of 750 cases finished under the max ≤35s ceiling; the worst single case
+across all six runs was 31.3s, against a 144.9s baseline max. `candidates=20`
+is the cheapest cell on every latency measure — mean 9.43s, p90 17.97s,
+max 26.45s — beating `candidates=40` by 2.6s/case mean and 5.3s at p90.
+Unlike the coverage differences, this gap is far outside noise.
+
+**Recommendation: `candidates=20, top_k=10`** (from the current
+`candidates=30`). Coverage ties the best cell measured at 0.367 with the
+highest `answer_accuracy` of the six (0.733), and it is the fastest
+configuration by a clear margin on a target the system was missing 3x as
+recently as the baseline. `candidates=40` is rejected: worst coverage, worst
+refusal accuracy, worst citation precision, slowest. Caveat that belongs on
+every row here — these are single runs, and no repeat-run variance has ever
+been measured in this repo, so the coverage column should be read as "all
+tied" rather than as a ranking.
+
+**Method note.** Coordinate descent, not the full `candidates × top_k` grid
+— see tuning-runbook.md Phase 1. `top_k=12` was excluded rather than
+measured: Branch D's own recall numbers show the gain flattening past
+`top_k=10`, and the results above (where `top_k=8` and `10` both trail
+`top_k=5`) give no reason to revisit that. `eval/tune_params.py` gained a
+`--grid AXIS=V1,V2` flag to pin one axis per invocation, since its module
+grid hardcodes the full 4x4 product the runbook does not call for.
 
 ### Phase 2: Agentic parameters (`max_hops` × `multi_query_count`)
 
