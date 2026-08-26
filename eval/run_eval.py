@@ -43,7 +43,9 @@ ROOT = Path(__file__).parent
 
 
 def resolve_answer(question: str, outcome, mode: AnswerMode,
-                   answerer: Answerer) -> tuple[str, list[str], bool, bool]:
+                   answerer: Answerer,
+                   temperature: float | None = None
+                   ) -> tuple[str, list[str], bool, bool]:
     """One case's (answer text, citations, refused, draft_reused).
 
     Extracted from the run loop so the draft-reuse branch below is testable
@@ -68,7 +70,8 @@ def resolve_answer(question: str, outcome, mode: AnswerMode,
         stripped = strip_no_answer(draft)
         return stripped, citation_labels(outcome.results, stripped), False, True
 
-    answer = answerer.answer(question, outcome.results)
+    answer = answerer.answer(question, outcome.results,
+                             temperature=temperature)
     return answer.text, answer.citations, answer.refused, False
 
 
@@ -80,7 +83,8 @@ def run_cases(score_floor: float | None = None,
               sink: Path | None = None,
               candidates: int | None = None,
               top_k: int | None = None,
-              agentic_overrides: dict | None = None) -> list[dict]:
+              agentic_overrides: dict | None = None,
+              temperature: float | None = None) -> list[dict]:
     """Run the golden set through retrieval + answering.
 
     Both floors must be passed: retrieval.search.clears_floor keeps a result
@@ -122,6 +126,9 @@ def run_cases(score_floor: float | None = None,
         search = AgenticSearch(search, llm, **agentic_cfg)
     answerer = Answerer(llm)
 
+    find_kwargs = ({"temperature": temperature}
+                   if agentic and temperature is not None else {})
+
     golden_entries = yaml.safe_load(golden.read_text())
     cases = []
     sink_file = sink.open("w") if sink else None
@@ -134,11 +141,13 @@ def run_cases(score_floor: float | None = None,
     try:
         for n, entry in enumerate(golden_entries, 1):
             case_started = time.monotonic()
-            outcome = search.find(entry["question"])
+            # Only AgenticSearch.find takes a temperature; the base Search
+            # never generates, so passing it there would be a TypeError.
+            outcome = search.find(entry["question"], **find_kwargs)
             mode = classify(entry["question"], outcome.refused, outcome.results)
 
             answer_text, citations, refused, draft_reused = resolve_answer(
-                entry["question"], outcome, mode, answerer)
+                entry["question"], outcome, mode, answerer, temperature)
 
             case = {
                 **entry,
@@ -258,7 +267,8 @@ def provenance(cfg: Config, golden: Path, *, agentic: bool,
                collection: str, score_floor: float,
                vector_floor: float, candidates: int | None = None,
                top_k: int | None = None,
-               agentic_overrides: dict | None = None) -> dict:
+               agentic_overrides: dict | None = None,
+               temperature: float | None = None) -> dict:
     """Everything needed to say what produced a set of numbers.
 
     Without this a report is five metrics and a timestamp, and two runs that
@@ -280,6 +290,9 @@ def provenance(cfg: Config, golden: Path, *, agentic: bool,
         "agentic": agentic,
         "agentic_config": cfg.agentic if agentic else None,
         "agentic_overrides": agentic_overrides or None,
+        # None means the LLM client default (0.0). Recorded because above 0
+        # the run is no longer reproducible from seed alone.
+        "temperature": temperature,
         "score_floor": score_floor,
         "vector_floor": vector_floor,
         "candidates": cfg.candidates if candidates is None else candidates,
@@ -347,6 +360,8 @@ def _agentic_overrides(args) -> dict:
         overrides["multi_query_count"] = args.multi_query_count
     if args.latency_budget is not None:
         overrides["latency_budget_s"] = args.latency_budget
+    if args.query_temperature is not None:
+        overrides["query_temperature"] = args.query_temperature
     return overrides
 
 
@@ -375,6 +390,14 @@ def main() -> None:
                         help="override config.yaml's agentic.max_hops")
     parser.add_argument("--multi-query-count", type=int, default=None,
                         help="override config.yaml's agentic.multi_query_count")
+    parser.add_argument("--temperature", type=float, default=None,
+                        help="answer-generation temperature (default: the "
+                             "LLM client's 0.0). Above 0 the run stops being "
+                             "reproducible — models.seed pins sampling, not "
+                             "the decode path, so two runs will disagree.")
+    parser.add_argument("--query-temperature", type=float, default=None,
+                        help="override config.yaml's agentic.query_temperature "
+                             "(the rewrite and fan-out calls only)")
     parser.add_argument("--latency-budget", type=float, default=None,
                         help="override config.yaml's agentic.latency_budget_s "
                              "(seconds for the retrieval phase; 0 disables "
@@ -403,7 +426,8 @@ def main() -> None:
                       collection=collection, score_floor=floor,
                       vector_floor=vfloor,
                       candidates=args.candidates, top_k=args.top_k,
-                      agentic_overrides=_agentic_overrides(args))
+                      agentic_overrides=_agentic_overrides(args),
+                      temperature=args.temperature)
     # Written before run_cases, not after: a killed/crashed run (Ctrl-C,
     # exception) never reaches the write below, and previously left its
     # .jsonl cases with NO provenance anywhere on disk — invisible to
@@ -420,7 +444,8 @@ def main() -> None:
                       collection=collection, golden=golden,
                       sink=reports / f"{stamp}.jsonl",
                       candidates=args.candidates, top_k=args.top_k,
-                      agentic_overrides=_agentic_overrides(args))
+                      agentic_overrides=_agentic_overrides(args),
+                      temperature=args.temperature)
     report = {
         "timestamp": datetime.now().isoformat(timespec="seconds"),
         "n_cases": len(cases),

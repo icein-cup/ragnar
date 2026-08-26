@@ -102,7 +102,8 @@ def _run_eval(overrides: dict[str, str], collection: str | None,
 
 
 def _run_grid(phase: str, collection: str | None, golden: Path | None,
-              grid_override: dict[str, list[int]] | None = None) -> list[dict]:
+              grid_override: dict[str, list[float]] | None = None
+              ) -> list[dict]:
     grid = dict({"retrieval": RETRIEVAL_GRID, "agentic": AGENTIC_GRID}[phase])
     for axis, values in (grid_override or {}).items():
         if axis not in grid:
@@ -179,7 +180,10 @@ def main() -> None:
         axis, sep, values = spec.partition("=")
         if not sep or not values:
             raise SystemExit(f"--grid needs AXIS=V1,V2, got {spec!r}")
-        override[axis] = [int(v) for v in values.split(",")]
+        # float() not int(): the temperature axes are fractional, and an
+        # int-only parser silently rejects the values that matter (0.2, 0.5).
+        override[axis] = [float(v) if "." in v else int(v)
+                          for v in values.split(",")]
 
     rows = _run_grid(args.phase, args.collection, args.golden, override)
 

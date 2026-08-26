@@ -167,9 +167,11 @@ class _CountingAnswerer:
     def __init__(self, text="regenerated"):
         self.text = text
         self.calls = 0
+        self.kwargs = []
 
     def answer(self, question, results, **kwargs):
         self.calls += 1
+        self.kwargs.append(kwargs)
         return Answer(text=self.text, citations=["a.pdf, p. 1"])
 
 
@@ -275,3 +277,16 @@ def test_a_refusal_never_counts_as_correct_even_if_it_echoes_the_answer():
     cases = [_case("Three", "NO_ANSWER The excerpts list three tables but "
                             "not the figure asked for.", refused=True)]
     assert answer_coverage(cases) == 0.0
+
+
+def test_the_answer_temperature_reaches_the_generation_call():
+    """A temperature sweep is meaningless if the value never leaves argparse.
+    None must still be passed through — the LLM client's own default (0.0)
+    is what it means, and forcing a number here would hide that."""
+    answerer = _CountingAnswerer()
+    outcome = _Outcome(draft=None, results=[_chunk_result()])
+
+    resolve_answer("q?", outcome, AnswerMode.ANSWER, answerer, 0.2)
+    resolve_answer("q?", outcome, AnswerMode.ANSWER, answerer)
+
+    assert answerer.kwargs == [{"temperature": 0.2}, {"temperature": None}]
