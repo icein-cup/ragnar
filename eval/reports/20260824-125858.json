@@ -1,0 +1,399 @@
+{
+  "summary": {
+    "timestamp": "2026-08-24T13:00:21",
+    "n_cases": 5,
+    "answer_accuracy": 0.0,
+    "refusal_accuracy": 0.4,
+    "citation_accuracy": 0.0,
+    "citation_precision": 0.0,
+    "multi_hop_citation_accuracy": 0.0,
+    "provenance": {
+      "git": "0bec26a-dirty",
+      "model": "Qwen3.8-27-mlx-nv4-thinking:latest",
+      "think": false,
+      "seed": 42,
+      "embedding_model": "bge-m3",
+      "reranker_model": "BAAI/bge-reranker-v2-m3",
+      "collection": "hybridqa",
+      "agentic": true,
+      "agentic_config": {
+        "enable_rewrite": true,
+        "enable_multi_query": true,
+        "enable_multi_hop": true,
+        "enable_self_correction": true,
+        "max_hops": 3,
+        "multi_query_count": 3,
+        "query_temperature": 0.7
+      },
+      "score_floor": 0.0,
+      "vector_floor": 0.0,
+      "candidates": 25,
+      "top_k": 5,
+      "golden": "probe5.yaml",
+      "golden_sha256": "d8e31bdb1351",
+      "golden_cases": 5
+    }
+  },
+  "cases": [
+    {
+      "question": "Which aircraft are the planes of the squadron known as the Nightdippers based on ?",
+      "expected_answer": "United States Army UH-60 Black Hawk",
+      "expected_sources": [
+        "Carrier Air Wing Seven",
+        "SH-60 Seahawk"
+      ],
+      "out_of_corpus": false,
+      "multihop": true,
+      "table_id": "Carrier_Air_Wing_Seven_0",
+      "answer": "",
+      "citations": [],
+      "refused": true,
+      "contexts": [
+        "Helicopter Sea Combat Squadron FIVE ( HSC-5 ) ( previously Helicopter Anti-Submarine Squadron FIVE ( HS-5 ) ) , also known as the Nightdippers , is a helicopter squadron of the United States Navy based at Naval Station Norfolk operating the Sikorsky MH-60S Seahawk . The Nightdippers are a part of Carrier Air Wing Seven and deploy aboard USS Harry S. Truman ( CVN-75 ) to provide anti-surface warfare , search and rescue , vertical replenishment , Combat Search and Rescue and Naval Special Warfare Support capabilities to the carrier strike group .",
+        "| Code | Squadron | Nickname | Assigned Aircraft |\n| --- | --- | --- | --- |\n| VFA-143 | Strike Fighter Squadron 143 | Pukin Dogs | F/A-18E Super Hornet |\n| VFA-103 | Strike Fighter Squadron 103 | Jolly Rogers | F/A-18F Super Hornet |\n| VFA-86 | Strike Fighter Squadron 86 | Sidewinders | F/A-18E Super Hornet |\n| VFA-25 | Strike Fighter Squadron 25 | Fist of the Fleet | F/A-18E Super Hornet |\n| VAQ-140 | Electronic Attack Squadron 140 | Patriots | EA-18G Growler |\n| VAW-121 | Airborne Early Warning Squadron 121 | Bluetails | E2D Advanced Hawkeye |\n| HSC-5 | Helicopter Sea Combat Squadron 5 | Nightdippers | MH-60S Seahawk |\n| HSM-79 | Helicopter Maritime Strike Squadron 79 | Griffins | MH-60R Seahawk |\n| VRC-40 | Fleet Logistics Support Squadron 40 Det . 3 | Rawhides | C-2A Greyhound |",
+        "The Lockheed U-2 , nicknamed Dragon Lady , is an American single-jet engine , ultra-high altitude reconnaissance aircraft operated by the United States Air Force ( USAF ) and previously flown by the Central Intelligence Agency ( CIA ) . It provides day and night , high-altitude ( 70,000 feet ; 21,000 m ) , all-weather intelligence gathering . Lockheed Corporation originally proposed it in 1953 , it was approved in 1954 , and its first test flight was in 1955 . It was flown during the Cold War over the Soviet Union , China , Vietnam , and Cuba . In 1960 , Gary Powers was shot down in a CIA U-2A over the Soviet Union by a surface-to-air missile ( SAM ) . Major Rudolf Anderson Jr. was shot down in a U-2 during the Cuban Missile Crisis in 1962 . U-2s have taken part in post-Cold War conflicts in Afghanistan and Iraq , and supported several multinational NATO operations . The U-2 has also been used for electronic sensor research , satellite calibration , scientific research , and communications purposes . The U-2 is one of a handful of aircraft types to have served the USAF for over 50 years , along with the Boeing B-52 and Boeing KC-135 . The newest models ( TR-1 , U-2R , U-2S ) entered service in the 1980s , and the latest model , the U-2S , had a technical upgrade in 2012 .",
+        "Electronic Attack Squadron 140 ( VAQ-140 ) is a US Navy electronic attack squadron . Known as the Patriots , the squadron operates the EA-18G Growler . The squadron is home ported at NAS Whidbey Island , Washington . They are attached to Carrier Air Wing Seven , and deploy aboard USS Harry S. Truman . The squadron 's radio callsign is Talon . The Patriots are widely regarded as the best VAQ squadron in the United States Navy .",
+        "Strike Fighter Squadron 103 ( VFA-103 ) , nicknamed the Jolly Rogers is an aviation unit of the United States Navy established in 1952 . VFA-103 flies the F/A-18F Super Hornet and is based at Naval Air Station Oceana , Virginia ( US ) . The squadron 's radio callsign is Victory and it is assigned to Carrier Air Wing Seven .",
+        "Carrier Airborne Early Warning Squadron 121 ( VAW-121 ) , also known as the Bluetails , is an Airborne Early Warning ( AEW ) and Command and control ( C2 ) squadron of the United States Navy , operating the E-2D Hawkeye . Established in 1967 , the squadron is based at NAS Norfolk . It is currently assigned to Carrier Air Wing 7 and deploys aboard the aircraft carrier USS Abraham Lincoln .",
+        "Strike Fighter Squadron 86 ( VFA-86 ) is a strike fighter squadron of the United States Navy based at Naval Air Station Lemoore , California . The squadron is nicknamed Sidewinders , leading to the call sign Winder . The unit currently flies the F/A-18E Super Hornet and is assigned to Carrier Air Wing Seven , tail code AG .",
+        "The McDonnell Douglas F-4 Phantom II [ N 1 ] is a tandem two-seat , twin-engine , all-weather , long-range supersonic jet interceptor and fighter-bomber originally developed for the United States Navy by McDonnell Aircraft . It first entered service in 1960 with the Navy . Proving highly adaptable , it was also adopted by the United States Marine Corps and the United States Air Force , and by the mid-1960s had become a major part of their air arms . The Phantom is a large fighter with a top speed of over Mach 2.2 . It can carry more than 18,000 pounds ( 8,400 kg ) of weapons on nine external hardpoints , including air-to-air missiles , air-to-ground missiles , and various bombs . The F-4 , like other interceptors of its time , was initially designed without an internal cannon . Later models incorporated an M61 Vulcan rotary cannon . Beginning in 1959 , it set 15 world records for in-flight performance , including an absolute speed record and an absolute altitude record . The F-4 was used extensively during the Vietnam War . It served as the principal air superiority fighter for the U.S. Air Force , Navy , and Marine Corps and became important in the ground-attack and aerial reconnaissance roles late in the war . During the Vietnam War , one U.S. Air Force pilot , two weapon systems officers ( WSOs ) , one U.S. Navy pilot and one radar intercept officer ( RIO ) became aces by achieving five aerial kills against enemy fighter aircraft . The F-4 continued to form a major part of U.S. military air power throughout the 1970s and 1980s , being gradually replaced by more modern aircraft such as the F-15 Eagle and F-16 Fighting Falcon in the U.S. Air Force , the F-14 Tomcat in the U.S. Navy , and the F/A-18 Hornet in the U.S. Na",
+        "Strike Fighter Squadron 25 ( VFA-25 ) is an aviation unit of the United States Navy based at Naval Air Station Lemoore , California . The squadron flies the Boeing F/A-18E Super Hornet and is currently assigned to Carrier Air Wing Seven , tail code AG . Its callsign is Fist ."
+      ],
+      "scores": [
+        {
+          "label": "HS-5",
+          "rerank": 0.7310042811109106,
+          "vector": 0.671721
+        },
+        {
+          "label": "Carrier Air Wing Seven",
+          "rerank": 0.7138592953182781,
+          "vector": 0.60067636
+        },
+        {
+          "label": "Lockheed U-2",
+          "rerank": 0.5574819190772603,
+          "vector": 0.50765103
+        },
+        {
+          "label": "VAQ-140",
+          "rerank": 0.5411643436714557,
+          "vector": 0.49647674
+        },
+        {
+          "label": "VFA-103",
+          "rerank": 0.5378352626764634,
+          "vector": 0.4891861
+        },
+        {
+          "label": "VAW-121",
+          "rerank": 0.5153362089829633,
+          "vector": 0.48699582
+        },
+        {
+          "label": "VFA-86",
+          "rerank": 0.5091225047638691,
+          "vector": 0.519398
+        },
+        {
+          "label": "F-4 Phantom II",
+          "rerank": 0.5055289035807518,
+          "vector": 0.45303863
+        },
+        {
+          "label": "VFA-25",
+          "rerank": 0.5017541287445723,
+          "vector": 0.46313697
+        }
+      ],
+      "stages": {
+        "seconds": 31.53,
+        "fast_path": true,
+        "hops": 0,
+        "self_corrected": false,
+        "draft_reused": false,
+        "queries": 4
+      }
+    },
+    {
+      "question": "Who is the author of the novel the 1995 film in which Tim Daly played Doctor Richard Jacks is based on ?",
+      "expected_answer": "Robert Louis Stevenson",
+      "expected_sources": [
+        "Tim Daly",
+        "Dr. Jekyll and Ms. Hyde"
+      ],
+      "out_of_corpus": false,
+      "multihop": true,
+      "table_id": "Tim_Daly_0",
+      "answer": "",
+      "citations": [],
+      "refused": true,
+      "contexts": [
+        "Dr. Jekyll and Ms. Hyde is a 1995 British-Canadian-American comedy film starring Tim Daly , Sean Young and Lysette Anthony . The film is based on Robert Louis Stevenson 's classic horror novel Strange Case of Dr. Jekyll and Mr. Hyde . The story takes place in modern times and concerns a bumbling chemist who tampers with his great-grandfather 's formula , accidentally transforming himself into a beautiful businesswoman who is hellbent on taking over his life .",
+        "| Year | Title | Role |\n| --- | --- | --- |\n| 1982 | Diner | William Billy Howard |\n| 1984 | Just the Way You Are | Frank Bantam |\n| 1987 | Made in Heaven | Tom Donnelly |\n| 1988 | Spellbinder | Jeff Mills |\n| 1990 | Love or Money | Chris Murdoch |\n| 1989 | The More You Know | Himself |\n| 1992 | Year of the Comet | Oliver Plexico |\n| 1994 | Caroline at Midnight | Detective Ray Dillon |\n| 1995 | Denise Calls Up | Frank Oliver |\n| 1995 | Dr. Jekyll and Ms. Hyde | Doctor Richard Jacks |\n| 1996 | The Associate | Frank Peterson |\n| 1998 | The Object of My Affection | Dr. Robert Joley |\n| 1998 | The Batman/Superman Movie | Clark Kent / Superman |\n| 1999 | Seven Girlfriends | Jesse Campbell |\n| 2003 | Basic | Colonel Bill Styles |\n| 2004 | Against the Ropes | Gavin Reese |\n| 2004 | Bereft | Uncle 'Happy ' |\n| 2004 | Return to Sender | Martin North |\n| 2005 | My Neighbor Totoro ( Tonari no Totoro ) | Professor Tatsuo Kusakabe ( father ) |\n| 2006 | Superman : Brainiac Attacks | Clark Kent / Superman |",
+        "Ashley Judd ( born Ashley Tyler Ciminella ; April 19 , 1968 ) is an American actress and a political activist . She grew up in a family of performing artists : she is the daughter of country music singer Naomi Judd and the sister of Wynonna Judd . Her acting career has spanned more than three decades , and she has also become increasingly involved in global humanitarian efforts and political activism . Judd has starred in several films that have been well received as well as films that have been box office successes including : Ruby in Paradise ( 1993 ) , Heat ( 1995 ) , Norma Jean & Marilyn ( 1996 ) , A Time to Kill ( 1996 ) , Kiss the Girls ( 1997 ) , Double Jeopardy ( 1999 ) , Where the Heart Is ( 2000 ) , Frida ( 2002 ) , High Crimes ( 2002 ) , De-Lovely ( 2004 ) , Bug ( 2006 ) , Dolphin Tale ( 2011 ) , Olympus Has Fallen ( 2013 ) , Divergent ( 2014 ) , Barry ( 2016 ) and A Dog 's Way Home ( 2019 ) . She starred as Rebecca Winstone in the 2012 television series Missing , for which she was nominated for a Primetime Emmy Award for Outstanding Lead Actress in a Miniseries or a Movie .",
+        "Samuel Shepard Rogers III ( November 5 , 1943 - July 27 , 2017 ) , known professionally as Sam Shepard , was an American actor , playwright , author , screenwriter , and director whose career spanned half a century . He won ten Obie Awards for writing and directing , the most won by any writer or director . He wrote 44 plays as well as several books of short stories , essays , and memoirs . Shepard received the Pulitzer Prize for Drama in 1979 for his play Buried Child and was nominated for an Academy Award for Best Supporting Actor for his portrayal of pilot Chuck Yeager in the 1983 film The Right Stuff . He received the PEN/Laura Pels Theater Award as a master American dramatist in 2009 . New York magazine described Shepard as the greatest American playwright of his generation . Shepard 's plays are known for their bleak , poetic , surrealist elements , black comedy , and rootless characters living on the outskirts of American society . His style evolved from the absurdism of his early off-off-Broadway work to the realism of later plays like Buried Child and Curse of the Starving Class .",
+        "Diner is a 1982 American comedy-drama film written and directed by Barry Levinson . It is Levinson 's screen-directing debut , and the first of his tetralogy , Baltimore Films , set in his hometown during the 1940s , 1950s , and 1960s . Tin Men ( 1987 ) , Avalon ( 1990 ) , and Liberty Heights ( 1999 ) are the other three . It stars Steve Guttenberg , Daniel Stern , Mickey Rourke , Paul Reiser , Kevin Bacon , Timothy Daly and Ellen Barkin and was released on March 5 , 1982 .",
+        "Spellbinder is a 1988 American witchcraft-themed thriller film directed by Janet Greek , starring Timothy Daly and Kelly Preston . The screenplay was written by Tracy Tormé . The original music score was written by Basil Poledouris . The film was marketed with the tagline A nightmare of illusion and betrayal .",
+        "The Last Picture Show is a 1971 American drama film directed and co-written by Peter Bogdanovich , adapted from a semi-autobiographical 1966 novel The Last Picture Show by Larry McMurtry . Set in a small town in north Texas from November 1951 to October 1952 , it is about the coming of age of Sonny Crawford ( Timothy Bottoms ) and his friend Duane Jackson ( Jeff Bridges ) . The cast also includes Cybill Shepherd in her film debut , Ellen Burstyn , Ben Johnson , and Cloris Leachman , and features Eileen Brennan , Clu Gulager , and Randy Quaid . For aesthetic reasons , it was shot in black and white , which was unusual for the time . The film features many songs of Hank Williams Sr. and other recording artists . The film was nominated for eight Academy Awards , including Best Picture , Best Director , Ben Johnson and Jeff Bridges for Best Supporting Actor , and Ellen Burstyn and Cloris Leachman for Best Supporting Actress , with Johnson and Leachman winning . In 1998 the film was deemed culturally , historically , or aesthetically significant by the United States Library of Congress and selected for preservation in the National Film Registry .",
+        "Camille is a 1936 American romantic drama film from Metro-Goldwyn-Mayer directed by George Cukor , and produced by Irving Thalberg and Bernard H. Hyman , from a screenplay by James Hilton , Zoë Akins , and Frances Marion . The picture is based on the 1848 novel and 1852 play , La Dame aux Camélias , by Alexandre Dumas , fils . The film stars Greta Garbo , Robert Taylor , Lionel Barrymore , Elizabeth Allan , Jessie Ralph , Henry Daniell , and Laura Hope Crews . It grossed $ 2,842,000 . The film inspired Milton Benjamin to write and publish a song called I 'll Love Like Robert Taylor , Be My Greta Garbo . Camille was included in Time Magazine 's All-Time 100 Movies in 2005 . It was also included at # 33 in AFI 's 100 Years.100 Passions .",
+        "Denise Calls Up is an American comedy released by Sony Pictures Classics in 1996 . Written and directed by Hal Salwen , it has an ensemble cast which includes Liev Schreiber , Timothy Daly , and Alanna Ubach . The plot revolves around a group of friends in New York City who , while working at their PCs and laptops and keeping in touch by phone and fax , never seem to be able to get together .",
+        "| Title | Director | Year | Starring | Notes |\n| --- | --- | --- | --- | --- |\n| Days of Heaven | Terrence Malick | 1978 | Richard Gere , Brooke Adams , Sam Shepard , Linda Manz | Post-film Q & A included Haskell Wexler ( cinematographer ) |\n| I Remember ( short ) | Grace Wang | 2012 | Lily Huang , Chris Chang | Pre-film introduction included Wang and June Kim ( director of photography ) |\n| Vincent : The Life and Death of Vincent Van Gogh | Paul Cox | 1989 | John Hurt , Marika Rivera , Gabriella Trsek |  |\n| To Music ( short ) | Sophie Kohn , Feike Santbergen | 2013 | Paul Cox , Roger Glanville-Hicks , Henriett Tunyogi , Tamás Vásáry | Pre-film introduction included Kohn and Santbergen |\n| In the Family | Patrick Wang | 2012 | Sebastian Banes , Patrick Wang , Trevor St. John | Post-film Q & A included Wang and St. John |\n| Bernie | Richard Linklater | 2011 | Jack Black , Shirley MacLaine , Matthew McConaughey | Post-film Q & A included Linklater and Black ( via conference call ) |\n| Oslo , August 31st | Joachim Trier | 2011 | Anders Danielsen Lie | Post-film Q & A included Trier |\n| The Ballad of Narayama | Keisuke Kinoshita | 1958 | Kinuyo Tanaka , Teiji Takahashi , Yūko Mochizuki | Post-film Q & A included David Bordwell ( film historian ) |\n| Julia | Erick Zonca | 2008 | Tilda Swinton , Aidan Gould , Saul Rubinek , Kate del Castillo | Post-film Q & A included Swinton |\n| Blancanieves | Pablo Berger | 2012 | Maribel Verdú | Post-film Q & A included Berger |\n| Kumaré | Vikram Gandhi | 2011 | Vikram Gandhi | Post-film Q & A included Gandhi |\n| Escape from Tomorrow | Randy Moore | 2013 | Roy Abramsohn , Elena Schuber , Katelynn Rodriguez , Annet Mahendru , Danielle Safady , Alison Lees-Taylor | Post-film Q & A included Moore , Soojin Chung ( producer ) , Abramsohn , Schuber , Mahendru |\n| The Spectacular Now | James Ponsoldt | 2013 | Miles Teller , Shailene Woodley , Brie Larson , Jennifer Jason Leigh , Mary Elizabeth Winstead , Kyle Chandler | Post-film Q & A included Ponsoldt and Woodley |\n| Not Yet Begun to Fight | Sabrina Lee , Shasta Grenier | 2012 | Navy SEAL Elliott Miller , Sgt . Erik Goodge , Col. Eric Hastings | Post-film Q & A included Lee and Goodge |"
+      ],
+      "scores": [
+        {
+          "label": "Dr. Jekyll and Ms. Hyde",
+          "rerank": 0.7198699241778257,
+          "vector": 0.54488117
+        },
+        {
+          "label": "Tim Daly",
+          "rerank": 0.6646142266806563,
+          "vector": 0.46882668
+        },
+        {
+          "label": "Ashley Judd",
+          "rerank": 0.5159474220235566,
+          "vector": 0.4120185
+        },
+        {
+          "label": "Sam Shepard",
+          "rerank": 0.5109271598374239,
+          "vector": 0.40922743
+        },
+        {
+          "label": "Diner (film)",
+          "rerank": 0.5076252884738991,
+          "vector": 0.40602547
+        },
+        {
+          "label": "Spellbinder (film)",
+          "rerank": 0.5069210308790566,
+          "vector": 0.42845654
+        },
+        {
+          "label": "The Last Picture Show",
+          "rerank": 0.5064844443538716,
+          "vector": 0.41453752
+        },
+        {
+          "label": "Camille (1936 film)",
+          "rerank": 0.5040942032289004,
+          "vector": 0.39410388
+        },
+        {
+          "label": "Denise Calls Up",
+          "rerank": 0.5040262886806876,
+          "vector": 0.4171863
+        },
+        {
+          "label": "Ebertfest",
+          "rerank": 0.5007244264294585,
+          "vector": 0.42777795
+        }
+      ],
+      "stages": {
+        "seconds": 19.02,
+        "fast_path": true,
+        "hops": 0,
+        "self_corrected": false,
+        "draft_reused": false,
+        "queries": 4
+      }
+    },
+    {
+      "question": "Which peninsula is the home country of Mariya Shatalova in a dispute with Russia over ?",
+      "expected_answer": "Crimean Peninsula",
+      "expected_sources": [
+        "2010 European Team Championships Super League",
+        "Ukraine"
+      ],
+      "out_of_corpus": false,
+      "multihop": true,
+      "table_id": "2010_European_Team_Championships_Super_League_27",
+      "answer": "",
+      "citations": [],
+      "refused": true,
+      "contexts": [
+        "Ukraine ( Ukrainian : Україна , romanized : Ukrayina , pronounced [ ʊkrɐˈjinɐ ] ( listen ) ) is a country in Eastern Europe . It is bordered by Russia to the north-east ; Belarus to the north ; Poland , Slovakia and Hungary to the west ; and Romania , Moldova , and the Black Sea to the south . Ukraine is currently in a territorial dispute with Russia over the Crimean Peninsula , which Russia annexed in 2014 . Including Crimea , Ukraine has an area of 603,628 km2 ( 233,062 sq mi ) , making it both the largest country entirely within Europe and the 46th largest country in the world . Excluding Crimea , Ukraine has a population of about 42 million , making it the 32nd most populous country in the world . Its capital and largest city is Kiev . Ukrainian is the official language and its alphabet is Cyrillic . The dominant religion in the country is Eastern Orthodoxy . The territory of modern Ukraine has been inhabited since 32,000 BC . During the Middle Ages , the area was a key centre of East Slavic culture , with the powerful state of Kievan Rus ' forming the basis of Ukrainian identity . Following its fragmentation in the 13th century , the territory was contested , ruled and divided by a variety of powers , including the Polish-Lithuanian Commonwealth , Austria-Hungary , the Ottoman Empire and Russia . A Cossack republic emerged and prospered during the 17th and 18th centuries , but its territory was eventually split between Poland and the Russian Empire .",
+        "Mariya Shatalova ( born 1 March 1989 ) is a Ukrainian middle-distance runner . She competed in the 3000 metres steeplechase event at the 2015 World Championships in Athletics in Beijing , China .",
+        "Russia ( Russian : Росси́я , tr . Rossiya , IPA : [ rɐˈsʲijə ] ) , or the Russian Federation , [ e ] is a European country located in Eastern Europe with a vast expanse of territory that stretches across Northern Asia . At 17,125,200 square kilometres ( 6,612,100 sq mi ) , it is by far the largest country in the world by area , covering more than one-eighth of the Earth 's inhabited land area , spanning eleven time zones , and bordering 16 sovereign nations . The territory of Russia extends from the Baltic Sea in the west to the Pacific Ocean in the east , and from the Arctic Ocean in the north to the Black Sea and the Caucasus in the south . With 146.7 million inhabitants living in the country 's 85 federal subjects as of 2020 , Russia is the most populous nation in Europe and the ninth-most populous nation in the world . Russia 's capital and largest city is Moscow ; other major urban areas include Saint Petersburg , Novosibirsk , Yekaterinburg , Nizhny Novgorod , Kazan and Chelyabinsk . The East Slavs emerged as a recognizable group in Europe between the 3rd and 8th centuries AD . Founded and ruled by a Varangian warrior elite and their descendants , the medieval state of Rus arose in the 9th century . In 988 it adopted Orthodox Christianity from the Byzantine Empire , beginning the synthesis of Byzantine and Slavic cultures that defined Russian culture for the next millennium . Rus ultimately disintegrated into a number of smaller states , until it was finally reunified by the Grand Duchy of Moscow in the 15th century . By the 18th century , the nation had greatly expanded through conquest , annexation , and exploration to become the Russian Empire , which was the third largest empire in history , stretching from Pol",
+        "Azerbaijan ( UK : /ˌæzərbaɪˈdʒɑːn , -ˈʒɑːn/ ( listen ) , US : /ˌɑːzərbaɪˈdʒɑːn , ˌæz-/ ; Azerbaijani : Azərbaycan [ ɑːzæɾbɑjˈd͡ʒɑn ] ) , officially the Republic of Azerbaijan ( Azerbaijani : Azərbaycan Respublikası [ ɑːzæɾbɑjˈd͡ʒɑn ɾespublikɑˈsɯ ] ) , is a landlocked country in the South Caucasus region of Eurasia at the crossroads of Eastern Europe and Central Asia . It is bounded by the Caspian Sea to the east , Russia to the north , Georgia to the northwest , Armenia to the west and Iran to the south . The exclave of Nakhchivan is bounded by Armenia to the north and east , Iran to the south and west , and has an 11 km ( 6.8 mi ) long border with Turkey in the northwest . The Azerbaijan Democratic Republic proclaimed its independence in 1918 and became the first secular democratic Muslim-majority state . In 1920 the country was incorporated into the Soviet Union as the Azerbaijan Soviet Socialist Republic . The modern Republic of Azerbaijan proclaimed its independence on 30 August 1991 , shortly before the dissolution of the USSR in the same year . In September 1991 , the Armenian majority of the disputed Nagorno-Karabakh region seceded to form the Republic of Artsakh . The region and seven adjacent districts outside it became de facto independent with the end of the Nagorno-Karabakh War in 1994 . These regions are internationally recognized as part of Azerbaijan pending a solution to the status of the Nagorno-Karabakh through negotiations facilitated by the OSCE . Azerbaijan is a unitary semi-presidential republic . It is one of six independent Turkic states and an active member of the Turkic Council and the TÜRKSOY community . Azerbaijan has diplomatic relations with 158 countries and holds membership in 38 internati",
+        "Greece ( Greek : Ελλάδα ) , officially the Hellenic Republic ( Greek : Ελληνική Δημοκρατία ) , historically also known as Hellas , is a country located in Southeast Europe . Its population is approximately 10.7 million as of 2018 ; Athens , the nation 's capital , is its largest city , followed by Thessaloniki . Situated on the southern tip of the Balkan Peninsula , Greece is located at the crossroads of Europe , Asia , and Africa . It shares land borders with Albania to the northwest , North Macedonia and Bulgaria to the north , and Turkey to the northeast . The Aegean Sea lies to the east of the mainland , the Ionian Sea to the west , the Cretan Sea and the Mediterranean Sea to the south . Greece has the longest coastline on the Mediterranean Basin and the 11th longest coastline in the world at 13,676 km ( 8,498 mi ) in length , featuring many islands , of which 227 are inhabited . Eighty percent of Greece is mountainous , with Mount Olympus being the highest peak at 2,918 metres ( 9,573 ft ) . The country consists of nine traditional geographic regions : Macedonia , Central Greece , the Peloponnese , Thessaly , Epirus , the Aegean Islands ( including the Dodecanese and Cyclades ) , Thrace , Crete , and the Ionian Islands . Greece is considered the cradle of Western civilisation , being the birthplace of democracy , Western philosophy , Western literature , historiography , political science , major scientific and mathematical principles , Western drama and the Olympic Games . From the eighth century B.C. , the Greeks were organised into various independent city-states , known as poleis ( singular polis ) , which spanned the entire Mediterranean region and the Black Sea . Philip of Macedon united most of the Greek main",
+        "The 2018 FIFA World Cup was the 21st FIFA World Cup , an international football tournament contested by the men 's national teams of the member associations of FIFA once every four years . It took place in Russia from 14 June to 15 July 2018 . It was the first World Cup to be held in Eastern Europe , and the 11th time that it had been held in Europe . At an estimated cost of over $ 14.2 billion , it was the most expensive World Cup . It was also the first World Cup to use the video assistant referee ( VAR ) system . The finals involved 32 teams , of which 31 came through qualifying competitions , while the host nation qualified automatically . Of the 32 teams , 20 had also appeared in the previous tournament in 2014 , while both Iceland and Panama made their first appearances at a FIFA World Cup . A total of 64 matches were played in 12 venues across 11 cities . Germany were the defending champions , but were eliminated in the group stage . Host nation Russia were eliminated in the quarter-finals . The final took place on 15 July at the Luzhniki Stadium in Moscow , between France and Croatia . France won the match 4-2 to claim their second World Cup title , marking the fourth consecutive title won by a European team .",
+        "Norway ( Norwegian : Norge ( Bokmål ) or Noreg ( Nynorsk ) ; Northern Sami : Norga ; Lule Sami : Vuodna ; Southern Sami : Nöörje ) , officially the Kingdom of Norway , is a Nordic country in Northwestern Europe whose territory comprises the western and northernmost portion of the Scandinavian Peninsula ; the remote island of Jan Mayen and the archipelago of Svalbard are also part of the Kingdom of Norway . [ note 2 ] The sub-Antarctic Bouvet Island is a dependent territory and thus not considered part of the kingdom . Norway also lays claim to the Antarctic territories of Queen Maud Land and Peter I Island . Norway has a total area of 385,207 square kilometres ( 148,729 sq mi ) and a population of 5,312,300 ( as of August 2018 ) . The country shares a long eastern border with Sweden ( 1,619 km or 1,006 mi long ) . Norway is bordered by Finland and Russia to the north-east , and the Skagerrak strait to the south , with Denmark on the other side . Norway has an extensive coastline , facing the North Atlantic Ocean and the Barents Sea . The maritime influence also dominates Norway 's climate with mild lowland temperatures on the sea coasts , whereas the interior , while colder , is also a lot milder than areas elsewhere in the world on such northerly latitudes . Even during polar night in the north , temperatures above freezing are commonplace on the coastline . The maritime influence brings high rainfall and snowfall to some areas of the country . Harald V of the House of Glücksburg is the current King of Norway . Erna Solberg has been prime minister since 2013 when she replaced Jens Stoltenberg .",
+        "Spain ( Spanish : España [ esˈpaɲa ] ( listen ) ) , officially the Kingdom of Spain ( Spanish : Reino de España ) , [ a ] [ b ] is a country in Southwestern Europe with some pockets of Spanish territory across the Strait of Gibraltar and the Atlantic Ocean . Its continental European territory is situated on the Iberian Peninsula . Its territory also includes two archipelagoes : the Canary Islands off the coast of Africa , and the Balearic Islands in the Mediterranean Sea . The African enclaves of Ceuta , Melilla , and Peñón de Vélez de la Gomera make Spain the only European country to have a physical border with an African country ( Morocco ) . [ h ] Several small islands in the Alboran Sea are also part of Spanish territory . The country 's mainland is bordered to the south and east by the Mediterranean Sea except for a small land boundary with Gibraltar ; to the north and northeast by France , Andorra , and the Bay of Biscay ; and to the west and northwest by Portugal and the Atlantic Ocean . With an area of 505,990 km2 ( 195,360 sq mi ) , Spain is the largest country in Southern Europe , the second largest country in Western Europe and the European Union , and the fourth largest country in the European continent . By population ( about 47 million ) , Spain is the sixth largest in Europe and the fifth in the European Union . Spain 's capital and largest city is Madrid ; other major urban areas include Barcelona , Valencia , Seville , Zaragoza , Málaga and Bilbao . Modern humans first arrived in the Iberian Peninsula around 35,000 years ago . Iberian cultures along with ancient Phoenician , Greek , Celtic and Carthaginian settlements developed on the peninsula until it came under Roman rule around 200 BCE , after which "
+      ],
+      "scores": [
+        {
+          "label": "Ukraine",
+          "rerank": 0.7308139800419278,
+          "vector": 0.49507236
+        },
+        {
+          "label": "Mariya Shatalova",
+          "rerank": 0.7298250497712382,
+          "vector": 0.47313607
+        },
+        {
+          "label": "Russia",
+          "rerank": 0.5471390349149351,
+          "vector": 0.56331724
+        },
+        {
+          "label": "Azerbaijan",
+          "rerank": 0.533486111227161,
+          "vector": 0.4872578
+        },
+        {
+          "label": "Greece",
+          "rerank": 0.5259012121882737,
+          "vector": 0.39716694
+        },
+        {
+          "label": "FIFA World Cup 2018",
+          "rerank": 0.5250373558010922,
+          "vector": 0.44231704
+        },
+        {
+          "label": "Norway",
+          "rerank": 0.5247120417376253,
+          "vector": 0.43196446
+        },
+        {
+          "label": "Spain",
+          "rerank": 0.5162893590072735,
+          "vector": 0.41869473
+        }
+      ],
+      "stages": {
+        "seconds": 16.9,
+        "fast_path": true,
+        "hops": 0,
+        "self_corrected": false,
+        "draft_reused": false,
+        "queries": 4
+      }
+    },
+    {
+      "question": "Which supermarket chain has the most stores in Finland ?",
+      "expected_answer": "",
+      "expected_sources": [],
+      "out_of_corpus": true,
+      "answer": "",
+      "citations": [],
+      "refused": true,
+      "contexts": [
+        "| Name | Stores | Type of store | Parent |\n| --- | --- | --- | --- |\n| SPAR | 120 | convenience | Dagrofa |\n| Min købmand ( SPAR ) | 200 | convenience | Dagrofa |\n| Meny | 190 | full service | Dagrofa |\n| 7-Eleven | 177 | convenience | Reitan Group |\n| Netto | 500 | discount | Salling Group |\n| DøgnNetto | 45 | convenience | Dansk Supermarked A/S |\n| Kvickly | 81 | full service | Coop Danmark |\n| Aldi | 244 | discount | Aldi |\n| Bilka | 18 | hypermarket | Dansk Supermarked A/S |\n| Dagli'Brugsen | 375 ( including LokalBrugsen ) |  | Coop Danmark |\n| SuperBrugsen | 230 |  | Coop Danmark |\n| Fakta | 420 | discount | Coop Danmark |\n| FaktaQ |  | convenience | Coop Danmark |\n| føtex | 88 | department store | Dansk Supermarked A/S |\n| Irma | 71 | full-service , organic food | Coop Danmark |\n| Irma City |  | convenience | Coop Danmark |\n| Kiwi | 0 | discount | Dagrofa |\n| Lidl | 98 | discount | Lidl |\n| LokalBrugsen | 375 ( including Dagli'Brugsen ) | convenience | Coop Danmark |\n| Let-Køb | 100 |  | Dagrofa |",
+        "Finland ( Finnish : Suomi [ ˈsuo̯mi ] ( listen ) ; Swedish : Finland [ ˈfɪ̌nland ] ( listen ) , Finland Swedish : [ ˈfinlɑnd ] ) , officially the Republic of Finland ( Finnish : Suomen tasavalta , Swedish : Republiken Finland ( listen to all ) ) , [ note 1 ] is a Nordic country in Northern Europe bordering the Baltic Sea , Gulf of Bothnia , and Gulf of Finland , between Sweden to the west , Russia to the east , Estonia to the south , and north-eastern Norway to the north . The capital and largest city is Helsinki . Other major cities are Espoo , Tampere , Vantaa , Oulu , Turku , Jyväskylä , Lahti and Kuopio . Finland 's population is 5.52 million as of July 2019 , the majority of whom live in the central and south of the country and speak Finnish , a Finnic language from the Uralic language family , unrelated to the Scandinavian languages . Finland is the eighth-largest country in Europe and the most sparsely populated country in the European Union . It is a parliamentary republic of 310 municipalities , and includes an autonomous region , the Åland Islands . Over 1.4 million people live in the Greater Helsinki metropolitan area , which produces one third of the country 's GDP . Swedish is the second official language of Finland , which is mainly spoken in certain coastal areas and on Åland . A large majority of Finns are members of the Evangelical Lutheran Church . Finland was inhabited when the last ice age ended , approximately 9000 BC . Comb Ceramic culture introduced pottery 5200 BC and Corded Ware culture coincided with the start of agriculture between 3000 and 2500 BC . The Bronze Age and Iron Age were characterised by extensive contacts with other cultures in the Fennoscandian and Baltic regions .",
+        "Lidl Stiftung & Co. KG ( German pronunciation : [ ˈliːdl̩ ] ; UK : /ˈlɪdəl/ LID-əl ) is a German global discount supermarket chain , based in Neckarsulm , Germany , that operates over 10,000 stores across Europe and the United States . It belongs to Dieter Schwarz , who also owns the store chains Handelshof and hypermarket Kaufland . Lidl is the chief competitor of a similar German discount chain Aldi in several markets , including the United States . There are Lidl stores in almost every member state of the European Union . [ citation needed ] Lidl stores are also present in Switzerland , Serbia , the United Kingdom and the United States .",
+        "Aldi ( stylised as ALDI ) is the common brand of two German family-owned discount supermarket chains with over 10,000 stores in 20 countries , and an estimated combined turnover of more than €50 billion . Based in Germany , the chain was founded by brothers Karl and Theo Albrecht in 1946 when they took over their mother 's store in Essen . The business was split into two separate groups in 1960 , that later became Aldi Nord , headquartered in Essen , and Aldi Süd , headquartered in Mülheim . In 1962 , they introduced the name Aldi ( a syllabic abbreviation for Albrecht Diskont ) , which is pronounced [ ˈaldiː ] ( listen ) . In Germany , Aldi Nord and Aldi Süd have been financially and legally separate since 1966 , although both divisions ' names may appear as if they were a single enterprise with certain store brands or when negotiating with contractor companies . The formal business name is Aldi Einkauf GmbH & Compagnie , oHG . Aldi 's German operations consist of Aldi Nord 's 35 individual regional companies with about 2,500 stores in western , northern , and eastern Germany , and Aldi Süd 's 32 regional companies with 1,600 stores in western and southern Germany . Internationally , Aldi Nord operates in Denmark , France , the Benelux countries , Portugal , Spain and Poland , while Aldi Süd operates in Ireland , Great Britain , Hungary , Switzerland , Australia , China , Italy , Austria and Slovenia . Both Aldi Nord and Aldi Süd also operate in the United States with 1,600 stores as of 2017 ( and is the only country to have both of Aldi 's subsidiaries operating outside of Germany ) .",
+        "Netto is a Danish discount supermarket operating in Denmark , Germany , Poland , and previously in Sweden and the United Kingdom both as a stand alone venture , until its sale in May 2010 to Asda , and via a joint venture with Sainsbury 's between June 2014 and July 2016 . Netto is owned by Salling Group . Netto also operates an express version of the store in Denmark , known as Døgn Netto ( [ 24 hour ] Day Netto ) . Døgn stores offer the same service as regular Netto stores with fewer products , but longer opening hours and higher prices . As of 2016 , all Døgn Nettos are being revised to normal Nettos or Føtex Food convenience concept stores .",
+        "7-Eleven Inc. ( stylized as 7ELEVEn ) is a Japanese-American international chain of convenience stores , headquartered in Dallas , Texas . The chain was founded in 1927 as an ice house storefront in Dallas . It was named Tote 'm Stores between 1928 and 1946 . After 70% of the company was acquired by Japanese affiliate Ito-Yokado in 1991 , it was reorganized as a subsidiary of Seven-Eleven Japan Co. , Ltd in 2005 , and is now held by Chiyoda , Tokyo-based Seven & I Holdings Co. , Ltd. 7-Eleven operates , franchises , and licenses 68,236 stores in 17 countries as of June 2019 .",
+        "Reitan Group or Reitangruppen is a Norwegian wholesaler and retail franchiser . Included in its portfolio is REMA 1000 , 7-Eleven , HydroTexaco , Easy24 , Narvesen , Spaceworld and Pressbyrån . The company has most of its 1,979 stores in Norway , but also some in Sweden , Denmark , Lithuania and Latvia . The company also has a large real estate portfolio with 813,000 square meters of real estate , especially in Trondheim , in addition to owning half of Nordenfjeldske Dampskibsselskab . The Reitan Group is owned by the Reitan Family and led by Odd Reitan and has its headquarters at Lade Gaard at Lade in Trondheim .",
+        "SPAR , originally DESPAR , is a Dutch multinational franchise that manages independently owned and operated food retail stores . It was founded in the Netherlands in 1932 , by Adriaan van Well , and now consists of more than 13,112 stores in 48 countries . The company 's name is an acronym of the slogan Door Eendrachtig Samenwerken Profiteren Allen Regelmatig , which was used by van Well to describe the brand and translates as Everyone works better together . Its headquarters are located in Amsterdam . The company operates a partnership programme and has a presence in most European countries , as well as many others throughout Asia , Africa and Oceania . In fiscal year 2017 , SPAR achieved €34.5 billion ( $ 40.1 billion ) in global sales , which represented a 5.3 percent increase over 2016 ."
+      ],
+      "scores": [
+        {
+          "label": "List of supermarket chains in Denmark",
+          "rerank": 0.595950560505876,
+          "vector": 0.55405277
+        },
+        {
+          "label": "Finland",
+          "rerank": 0.5336882382359117,
+          "vector": 0.5212749
+        },
+        {
+          "label": "Lidl",
+          "rerank": 0.5204236853073783,
+          "vector": 0.52716243
+        },
+        {
+          "label": "Aldi",
+          "rerank": 0.5189951595575264,
+          "vector": 0.4751714
+        },
+        {
+          "label": "Netto (store)",
+          "rerank": 0.505235609617352,
+          "vector": 0.46675837
+        },
+        {
+          "label": "7-Eleven",
+          "rerank": 0.5047597392580022,
+          "vector": 0.48701835
+        },
+        {
+          "label": "Reitan Group",
+          "rerank": 0.5047417188618496,
+          "vector": 0.42825088
+        },
+        {
+          "label": "SPAR",
+          "rerank": 0.5045098789714887,
+          "vector": 0.5081345
+        }
+      ],
+      "stages": {
+        "seconds": 12.91,
+        "fast_path": true,
+        "hops": 0,
+        "self_corrected": false,
+        "draft_reused": false,
+        "queries": 4
+      }
+    },
+    {
+      "question": "Who won the Juno Award for Breakthrough Group of the Year in 2022 ?",
+      "expected_answer": "",
+      "expected_sources": [],
+      "out_of_corpus": true,
+      "answer": "",
+      "citations": [],
+      "refused": true,
+      "contexts": [
+        "The Dirty Nil is a Canadian alternative rock band from Hamilton , Ontario , who won the Juno Award for Breakthrough Group of the Year at the Juno Awards of 2017 . The band consists of singer and guitarist Luke Bentham , bassist Ross Miller and drummer Kyle Fisher .",
+        "Valley are a Canadian indie pop group , originally from Oakville , Ontario and currently based in Toronto . They are most noted for receiving a Juno Award nomination for Breakthrough Group of the Year at the Juno Awards of 2020 . The band 's current members are Rob Laska on vocals , Michael Brandolino on guitar , Alex Dimauro on bass and Karah James on drums . The band was formed in 2014 after the members of two other bands , Cars & Guitars and National Parks , met and decided to unite when they accidentally got double-booked for the same time slot at a local recording studio . They released their debut EP , Car Test , in 2015 , and followed up with This Room Is White in 2016 . In 2018 they released Maybe Side A , the first of two EPs featuring tracks planned for their full-length debut album ; the second EP , Maybe Side B , followed in spring 2019 , and the full album Maybe was released in September .",
+        "The Franklin Electric are a Canadian indie folk collective formed by singer-songwriter Jon Matte from Montreal , Quebec , most noted for receiving a Juno Award nomination for Breakthrough Group of the Year at the Juno Awards of 2018 . The band 's core member is singer and guitarist Jon Matte , with supporting musicians that include Ken Pressé on guitar , Martin Desrosby on bass , and Adam Passalacqua on drums .",
+        "Dizzy is a Canadian indie pop band from Oshawa , Ontario , whose debut album Baby Teeth won the Juno Award for Alternative Album of the Year at the Juno Awards of 2019 . Consisting of vocalist Katie Munshaw and instrumentalists Alex , Mackenzie and Charlie Spencer , the group released Baby Teeth in 2018 . The album was promoted with a concert tour in Canada , the United States and Europe , and the tracks Swim , Pretty Thing and Backstroke were released as singles . In addition to the Alternative Album of the Year category , the group were also nominated for Breakthrough Group of the Year .",
+        "Dear Rouge is a Juno award-winning Vancouver-based electronic rock band formed in 2012 by Drew and Danielle McTaggart ."
+      ],
+      "scores": [
+        {
+          "label": "The Dirty Nil",
+          "rerank": 0.6131454869525244,
+          "vector": 0.45762113
+        },
+        {
+          "label": "Valley (band)",
+          "rerank": 0.6003029125938638,
+          "vector": 0.40918222
+        },
+        {
+          "label": "The Franklin Electric",
+          "rerank": 0.5931623617384651,
+          "vector": 0.43010747
+        },
+        {
+          "label": "Dizzy (band)",
+          "rerank": 0.5505018340014467,
+          "vector": 0.39987665
+        },
+        {
+          "label": "Dear Rouge",
+          "rerank": 0.5442579441501286,
+          "vector": 0.44308096
+        }
+      ],
+      "stages": {
+        "seconds": 3.41,
+        "fast_path": true,
+        "hops": 0,
+        "self_corrected": false,
+        "draft_reused": false,
+        "queries": 1
+      }
+    }
+  ]
+}

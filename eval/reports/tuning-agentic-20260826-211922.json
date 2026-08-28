@@ -1,0 +1,29 @@
+{
+  "phase": "agentic",
+  "results": [
+    {
+      "answer_coverage": 0.3888888888888889,
+      "refusal_accuracy": 0.64,
+      "citation_accuracy": 0.5,
+      "citation_precision": 0.4190011698772649,
+      "multi_hop_citation_accuracy": 0.22727272727272727,
+      "latency_mean_s": 8.48,
+      "latency_p90_s": 15.36,
+      "latency_max_s": 21.93,
+      "max_hops": 1,
+      "multi_query_count": 2
+    },
+    {
+      "answer_coverage": 0.35555555555555557,
+      "refusal_accuracy": 0.616,
+      "citation_accuracy": 0.4777777777777778,
+      "citation_precision": 0.4357097763347763,
+      "multi_hop_citation_accuracy": 0.26136363636363635,
+      "latency_mean_s": 8.85,
+      "latency_p90_s": 15.69,
+      "latency_max_s": 22.75,
+      "max_hops": 1,
+      "multi_query_count": 3
+    }
+  ]
+}
