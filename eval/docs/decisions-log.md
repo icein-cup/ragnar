@@ -29,6 +29,43 @@ failure. The gap is refusal, not retrieval, and no retrieval-side or
 decoding-side parameter tried so far reaches it — the remaining candidates
 are the prompt and the model.
 
+## 2026-08-28 — Phase 3 closed: the floors hold, and the replay script cannot rank cells
+
+Re-swept the floors against the settled pipeline and confirmed the winner
+live. `config.yaml` is unchanged: `score_floor: 0.55`, `vector_floor: 0.42`.
+Full table in experiment-results.md "Phase 3".
+
+**The earlier recommendation (`vector_floor: 0.42 → 0.50`) is withdrawn.** It
+came from a replay over reports at `candidates=25/top_k=5`; floors filter the
+population retrieval produces, so Phases 1 and 2 invalidated it. A fresh
+uncensored run (`20260828-200425`) at the shipped pipeline put the grid's best
+cells at 0.48 and 0.50, tied. The confirm run at 0.48
+(`20260828-203220`) lost on the primary metric: coverage 0.389 → 0.378,
+refusal accuracy 0.640 → 0.632, and one probe *fewer* refused, against a
+prediction of +2 points of refusal accuracy at no coverage cost.
+
+**`replay_floor.py` cannot be used to rank cells, only to count wiped cases.**
+`apply_floor` overwrites the model's own refusal with the floor's verdict, and
+76 of 125 cases in the uncensored report were model-refusals. The file already
+documented this as a directional bias (coverage an upper bound, refusal a
+lower bound); what the confirm run shows is that the bias is not uniform
+across cells, so the ranking it produces is not reliable either. Its
+trustworthy outputs are the wiped-case counts, the chunks-kept percentages,
+and the score distributions.
+
+**The floors are a thin backstop, not the refusal mechanism.** With both
+floors at 0.0 the pipeline still refused 33 of 35 probes. The shipped floors
+add one probe refusal and two correct answers over having none at all. This
+corroborates the score-distribution finding already in the file: probes
+out-score in-corpus questions on cosine, because a HybridQA probe retrieves
+the right table and only lacks the fact — no threshold can see that, only the
+model reading the text.
+
+**Worth remembering for later:** `vector_floor=0.48` moved
+`citation_precision` 0.419 → 0.477, the largest single-metric change of the
+phase, for about 1 point of coverage. If citation quality becomes the target
+instead of coverage, that is the knob.
+
 ## 2026-08-28 — Phase 2 closed: hops are inert, and the benchmark is deterministic
 
 Six 125-case runs at the Phase 1 selection. Full table in

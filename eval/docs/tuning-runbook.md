@@ -9,6 +9,31 @@ cheapest phase to redo (one run + arithmetic). Record every result in
 `eval/docs/experiment-results.md` before moving on, and a dated entry in
 `eval/docs/decisions-log.md` per phase.
 
+**STATUS 2026-08-28 — Phases 1-3 are complete. Only Phase 4 (chunking)
+remains.** What they settled, all against the 125-case HybridQA draft set:
+
+| Phase | Outcome | Shipped |
+|---|---|---|
+| 1 retrieval | 6 runs. Neither axis moves coverage (7.8-point spread against a 10-point tie threshold). Branch D's +9pts did not reproduce. | `candidates: 30 → 20`, `top_k: 10` held |
+| 2 agentic | 6 runs. `max_hops` inert on quality, ~2s of tail per hop. `multi_query_count` trades coverage against multi-hop citations. | `max_hops: 3 → 1`, `multi_query_count: 3 → 2` |
+| 3 floors | Uncensored run + 30-cell replay + 1 confirm. The replay's winner lost live. | unchanged (`0.55` / `0.42`) |
+
+Two results from that work change how the rest of this document should be read:
+
+1. **The benchmark is deterministic.** The same configuration re-run two days
+   apart, across a Docker restart, classified all 90 in-corpus cases
+   identically — zero flips. The tie threshold below is sampling error over
+   *which questions are in the golden set*, which is still the right question
+   for generalisation; it was never about re-running the same config.
+   Differences between configs are real and reproducible, just small.
+2. **Latency is inside target and coverage is not the axis these knobs move.**
+   Every case of the shipped configuration finishes under the max ≤35s
+   ceiling (8.5s mean, 21.9s max) against a 144.9s baseline worst case, while
+   `answer_coverage` sat in a 0.29-0.39 band across all 13 runs. The remaining
+   coverage ceiling is refusal — the model declines ~half the answerable
+   questions with the evidence in front of it (RAGAS `context_recall` 0.889).
+   That is a prompt-and-model problem, not a parameter one.
+
 **Total budget, all four phases (measured 2026-08-26 — see decisions-log.md):**
 
 | Phase | Pipeline runs | Approx |

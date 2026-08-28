@@ -39,7 +39,7 @@ You drag a PDF into the sidebar and ask a question. In between, RAGnar:
    also selectable, cutting on meaning instead of headings — better suited to
    scanned or heading-poor documents, worth comparing on your own corpus.
 3. **Embeds and stores** — BGE-M3 vectors in Qdrant.
-4. **Retrieves and narrows** — 30 candidates, reranked by a cross-encoder down to 10,
+4. **Retrieves and narrows** — 20 candidates, reranked by a cross-encoder down to 10,
    then measured against a similarity floor.
 5. **Works the question, when one pass isn't enough** — the query is rewritten for
    retrieval, fanned out into variants, and followed up on where excerpts leave a gap.
@@ -204,7 +204,8 @@ SIGKILL the app, and without that line it stays dead until you notice — but a 
 
 The same GPU constraint that keeps Ollama on the host applies to the cross-encoder
 reranker, and it is the most expensive thing in the pipeline. Measured on an M5 Pro,
-30 candidates per rerank:
+30 candidates per rerank (the sweep later settled `candidates` at 20, so today's
+per-rerank cost is lower still):
 
 | Where it runs | Per rerank |
 |---|---|
@@ -215,7 +216,8 @@ reranker, and it is the most expensive thing in the pipeline. Measured on an M5 
 
 The agentic path pays that once per generated query, so a question that fans out to
 seven phrasings spends over a minute reranking alone. Starting the host service is
-optional but worth roughly **7x**:
+optional but worth roughly **7x** per rerank — about 1.5x end to end, since reranks
+inside one question's fan-out run concurrently:
 
 Those figures assume ordinary chunks. A cross-encoder pads every pair in a batch to
 the longest sequence in it, so **one oversized chunk makes all 30 candidates cost as
@@ -223,6 +225,10 @@ if every one were that long** — the same batch takes 1.74s with a 1750-char lo
 chunk and 9.00s with a 6648-char one. `retrieval/reranker.py` caps input at 512
 tokens (`RERANKER_MAX_LENGTH`) to keep that bounded; on this corpus that truncates
 5 chunks out of 2846 and leaves the rest scored identically.
+
+With the host reranker running and the tuned defaults, the full 125-case benchmark
+measures **8.5s mean, 15.4s p90, 21.9s max** per question — inside the max ≤35s
+target on every case, against a 144.9s worst case before this work.
 
 ```bash
 .venv/bin/python retrieval/rerank_server.py     # leave running; loads on Metal
@@ -312,10 +318,22 @@ corpus — see `eval/EVAL_README.md`.
 | `models.reranker` | `BAAI/bge-reranker-v2-m3` | Cross-encoder, downloaded once |
 | `chunking.target_tokens` | `350` | 50-token overlap |
 | `chunking.table_rows_per_group` | `10` | Header repeated per group |
-| `retrieval.candidates` | `30` | Fetched before reranking |
+| `retrieval.candidates` | `20` | Fetched before reranking |
 | `retrieval.top_k` | `10` | Kept after reranking |
 | `retrieval.score_floor` | `0.55` | Rerank-score floor |
 | `retrieval.vector_floor` | `0.42` | Vector-similarity floor — either clearing its own floor keeps a chunk |
+| `agentic.max_hops` | `1` | Follow-up retrieval rounds for bridge questions |
+| `agentic.multi_query_count` | `2` | Reworded queries per question in the fan-out |
+| `agentic.latency_budget_s` | `25` | Past it no new expansion starts |
+
+Every value in that table above the environment section was chosen from a measured
+sweep over the 125-case HybridQA benchmark, not from intuition — see
+[eval/docs/experiment-results.md](eval/docs/experiment-results.md). Two findings worth
+knowing before changing them: `answer_coverage` moved less than 4 points across every
+retrieval and agentic setting tried, and the same configuration re-run two days apart
+classified all 90 in-corpus cases identically, so differences that small are
+reproducible rather than noise. Raising `candidates`, `top_k`, `max_hops`, or
+`multi_query_count` buys latency, not answers.
 
 Environment (`.env`):
 

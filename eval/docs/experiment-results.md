@@ -960,6 +960,78 @@ the uncensored run the runbook calls for already exists three times over.
 0.52, 0.55]` (was topping out at 0.45) since 0.50 is the useful point and the
 old range only bracketed it.
 
+**RESULTS — re-run against the settled pipeline, 2026-08-28. The
+recommendation above did NOT survive its confirm run; `vector_floor` stays
+at 0.42.**
+
+The replay table above was built on three reports at `candidates=25/top_k=5`
+with the old agentic defaults. Floors filter the score population that
+retrieval and agentic settings produce, so once Phases 1 and 2 settled
+(`candidates=20/top_k=10`, `max_hops=1/multi_query_count=2`) that population
+no longer existed and the sweep had to be redone. A fresh uncensored run was
+made at the shipped pipeline: `20260828-200425.json` (both floors 0.0,
+coverage 0.367, refusal 0.640).
+
+Re-swept over that report, the grid's best cells were `0.55/0.48` and
+`0.55/0.50`, tied at replayed refusal 0.744 against 0.720 for the shipped
+`0.55/0.42`, with replayed coverage identical (0.433) at every one of the 30
+cells and at most 3 of 125 cases ever losing their last chunk.
+
+**Confirm run `20260828-203220.json` at `0.55/0.48` — the challenger lost on
+the primary metric:**
+
+| metric | 0.55/**0.42** (shipped) | 0.55/**0.48** (confirm) |
+|---|---|---|
+| answer_coverage | **0.389** | 0.378 |
+| answer_accuracy | **0.745** | 0.739 |
+| refusal_accuracy | **0.640** | 0.632 |
+| citation_accuracy | **0.500** | 0.489 |
+| citation_precision | 0.419 | **0.477** |
+| multi_hop_citation_accuracy | **0.227** | 0.216 |
+| probes correctly refused | **34/35** | 33/35 |
+| p90 / max latency | 15.36s / 21.93s | **13.21s / 20.24s** |
+
+The replay predicted +2 points of `refusal_accuracy` at zero coverage cost.
+Live, the higher floor lost 0.8 points of refusal accuracy, lost 1.1 points
+of coverage, and refused one probe *fewer*. Every gap is inside the tie
+threshold, so the operative rule is the incumbent's: **`vector_floor: 0.42`
+holds, `score_floor: 0.55` holds.**
+
+**Why the replay mispredicted — a bug worth fixing before this script is
+trusted again.** `apply_floor` sets `refused = not kept`, overwriting whatever
+the model decided with what the floor decides. In `20260828-200425` **76 of
+125 cases were model-refusals**, so the replay was ranking cells on a quantity
+the live pipeline does not compute; that is also why its coverage column reads
+0.433 against the run's actual 0.367. The section above already flagged the
+direction of this bias as upper/lower bounds — what this confirm run adds is
+that the bias is not uniform across cells either, so **cell-to-cell ranking
+does not survive it**. The script's value is the wiped-case counts and the
+score distributions, not its metric columns.
+
+**The floors are nearly inert on this corpus, which the uncensored run now
+shows directly.** With *both floors at 0.0* the pipeline still refused 33 of
+35 probes and scored coverage 0.367. Against that, the shipped floors buy one
+extra probe refusal and two correct answers. Refusal is carried by the
+`NO_ANSWER` sentinel in the prompt, not by retrieval thresholds — consistent
+with the score distributions above, where probes out-score in-corpus questions
+on cosine.
+
+**The one real effect is citation precision: 0.419 → 0.477 at
+`vector_floor=0.48`**, the largest single-metric move in the phase, because a
+stricter vector floor prunes marginal chunks that were being cited. If
+citation quality ever becomes the target rather than coverage, that is the
+lever — and it costs about 1 point of coverage to pull.
+
+`0.55/0.50` was tied with `0.55/0.48` in the replay and was not run live. Given
+that its twin lost and that the whole axis moves ~1 case, it is not worth a
+run on current evidence.
+
+**Phase 3 closes with `config.yaml` unchanged** — but the two values now rest
+on a sweep against the settled pipeline plus a live confirm, instead of the
+broken `--calibrate` sweep the comments describe. The `NOT VALIDLY CALIBRATED`
+warnings in `config.yaml` should be read as "confirmed adequate, effect size
+~1 case" rather than "unknown".
+
 ### Phase 4: Chunking token budget (structural only)
 
 Chunking *strategy* is settled — semantic vs structural was measured and closed as a 1-point wash
