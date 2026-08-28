@@ -147,11 +147,23 @@ def _summarize(rows: list[dict], phase: str) -> None:
     # Primary metric: answer_coverage. Constraint: refusal_accuracy >= MIN_REFUSAL.
     viable = [r for r in rows if r.get("refusal_accuracy", 0) >= MIN_REFUSAL]
     pool = viable or rows  # if nothing clears the bar, show the best refusal
-    ranked = sorted(pool, key=lambda r: r.get("answer_coverage", 0), reverse=True)
+    # The agentic phase ranks on the ceiling, not the primary metric: the
+    # target is max <=35s on every case, and hops/queries were measured flat
+    # on coverage and monotonic on the tail (tuning-runbook.md Phase 2). Any
+    # other phase keeps answer_coverage as the sort key.
+    by_ceiling = phase == "agentic"
+    if by_ceiling:
+        ranked = sorted(pool, key=lambda r: (r.get("latency_max_s") or float("inf")))
+    else:
+        ranked = sorted(pool, key=lambda r: r.get("answer_coverage", 0),
+                        reverse=True)
 
-    print(f"\n=== {phase}: top 5 by answer_coverage "
+    # Every row, not a top-5 slice: these grids are 6-16 cells, and a
+    # truncated ranking hid a row the first time this ran.
+    criterion = "latency_max (ascending)" if by_ceiling else "answer_coverage"
+    print(f"\n=== {phase}: {len(ranked)} configs by {criterion} "
           f"(refusal_accuracy >= {MIN_REFUSAL}) ===")
-    for i, r in enumerate(ranked[:5], 1):
+    for i, r in enumerate(ranked, 1):
         params = ", ".join(f"{k}={v}" for k, v in r.items()
                            if k not in METRICS + ["latency_mean_s", "latency_p90_s",
                                                   "latency_max_s"])

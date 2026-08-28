@@ -45,3 +45,28 @@ def test_run_grid_override_pins_one_axis_and_leaves_the_module_grid_alone():
 def test_run_grid_rejects_an_unknown_axis():
     with pytest.raises(SystemExit):
         _run_grid("retrieval", None, None, {"topk": [5]})
+
+
+def test_the_agentic_phase_ranks_on_the_ceiling_not_coverage(capsys):
+    """Phase 2's criterion is max <=35s on every case. Ranking it by
+    answer_coverage named the wrong winner and, at top-5, hid a row."""
+    from eval.tune_params import _summarize
+    rows = [
+        {"answer_coverage": 0.389, "refusal_accuracy": 0.63, "citation_precision": 0.44,
+         "latency_p90_s": 17.4, "latency_max_s": 23.99, "max_hops": 2, "multi_query_count": 2},
+        {"answer_coverage": 0.389, "refusal_accuracy": 0.64, "citation_precision": 0.42,
+         "latency_p90_s": 15.36, "latency_max_s": 21.93, "max_hops": 1, "multi_query_count": 2},
+        {"answer_coverage": 0.356, "refusal_accuracy": 0.62, "citation_precision": 0.44,
+         "latency_p90_s": 16.64, "latency_max_s": 25.01, "max_hops": 2, "multi_query_count": 3},
+        {"answer_coverage": 0.378, "refusal_accuracy": 0.62, "citation_precision": 0.43,
+         "latency_p90_s": 18.88, "latency_max_s": 25.82, "max_hops": 3, "multi_query_count": 2},
+        {"answer_coverage": 0.367, "refusal_accuracy": 0.62, "citation_precision": 0.43,
+         "latency_p90_s": 18.29, "latency_max_s": 26.74, "max_hops": 3, "multi_query_count": 3},
+        {"answer_coverage": 0.356, "refusal_accuracy": 0.62, "citation_precision": 0.44,
+         "latency_p90_s": 15.69, "latency_max_s": 22.75, "max_hops": 1, "multi_query_count": 3},
+    ]
+    _summarize(rows, "agentic")
+    out = capsys.readouterr().out
+
+    assert out.index("max_hops=1, multi_query_count=2") < out.index("max_hops=2")
+    assert out.count("max_hops=") == 6, "every cell must appear, not a top-5 slice"

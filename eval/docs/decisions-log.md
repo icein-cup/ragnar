@@ -29,6 +29,41 @@ failure. The gap is refusal, not retrieval, and no retrieval-side or
 decoding-side parameter tried so far reaches it — the remaining candidates
 are the prompt and the model.
 
+## 2026-08-28 — Phase 2 closed: hops are inert, and the benchmark is deterministic
+
+Six 125-case runs at the Phase 1 selection. Full table in
+experiment-results.md "Phase 2".
+
+**Decision: `max_hops=1, multi_query_count=2`** (from `3, 3`). Coverage
+0.367 → 0.389, worst-case latency 26.74s → 21.93s, best refusal accuracy and
+citation accuracy of the six cells. Shipped to config.yaml.
+
+**`max_hops` does nothing.** Holding query count, hops 1/2/3 give
+0.389/0.389/0.378 (mq=2) and 0.356/0.356/0.367 (mq=3) — no trend either way,
+about 2s of tail per added hop. Even `multi_hop_citation_accuracy`, the metric
+the hop machinery exists to serve, tracks `multi_query_count` instead: 0.227
+at every mq=2 cell, 0.261-0.273 at every mq=3 cell. Bridge questions are
+being resolved by asking the corpus several ways, not by chaining retrieval
+rounds.
+
+**`multi_query_count` is the one axis that trades.** mq=2 for coverage and
+refusal accuracy, mq=3 for multi-hop citations. Everything else tuned this
+week only cost.
+
+**The benchmark is deterministic — measured, not assumed.** The `3, 3` cell
+repeats Phase 1's `20260826-150718` exactly: same config, two days apart,
+across a Docker restart. All 90 in-corpus cases classified identically, zero
+flips. This repo has never had that number, and it changes how every tie in
+the tuning docs should be read: the 10-point threshold is sampling error over
+which questions are in the golden set, not run-to-run noise. Small
+differences between configs are real; they are just small.
+
+**Operational note.** Four combos were lost mid-sweep to `ollama serve` being
+killed (accidentally, by the owner) — `run_eval.py` has no retry around LLM
+calls, so a single transient `ConnectError` discards every completed case in
+that run. A bounded connect-retry in the Ollama client would make long sweeps
+survivable; not done yet.
+
 ## 2026-08-26 — Phase 1 closed: retrieval width is not the lever
 
 Ran the tuning runbook's Phase 1 as specified — coordinate descent,

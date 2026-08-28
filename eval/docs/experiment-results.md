@@ -813,6 +813,66 @@ parallelism isn't re-proposed here later.
 | 1 | 3 | TBD | TBD | TBD | | | | single hop |
 | 1 | 2 | TBD | TBD | TBD | | | | floor of the shippable region |
 
+**RESULTS — six runs, 2026-08-26 and 2026-08-28.** Reports
+`20260826-{180713,182453}.json` and `20260828-{180336,182222,184151,190114}.json`;
+sweep output `tuning-agentic-20260826-211922.csv` and
+`tuning-agentic-20260828-192118.csv`. All at the Phase 1 selection
+(`candidates=20/top_k=10`), golden `228db7ac68da`, seed 42, host reranker.
+Ranked on `latency_max` per this phase's criterion:
+
+| max_hops | mq | coverage | refusal | cit_acc | cit_prec | mhop_cit | mean | p90 | latency_max |
+|---|---|---|---|---|---|---|---|---|---|
+| **1** | **2** | **0.389** | **0.640** | **0.500** | 0.419 | 0.227 | **8.48s** | **15.36s** | **21.93s** |
+| 1 | 3 | 0.356 | 0.616 | 0.478 | 0.436 | 0.261 | 8.85s | 15.69s | 22.75s |
+| 2 | 2 | **0.389** | 0.632 | **0.500** | **0.438** | 0.227 | 9.01s | 17.40s | 23.99s |
+| 2 | 3 | 0.356 | 0.616 | 0.478 | 0.435 | 0.261 | 9.35s | 16.64s | 25.01s |
+| 3 | 2 | 0.378 | 0.624 | 0.489 | 0.426 | 0.227 | 9.30s | 18.88s | 25.82s |
+| 3 | 3 | 0.367 | 0.624 | 0.489 | 0.435 | 0.273 | 9.63s | 18.29s | 26.74s |
+
+**Finding — `max_hops` is inert on quality and monotonic on cost.** Hold
+`multi_query_count` and walk hops 1 → 2 → 3: coverage goes 0.389 / 0.389 /
+0.378 at mq=2, and 0.356 / 0.356 / 0.367 at mq=3. Neither walk shows a trend,
+and both pay about 2s of `latency_max` per added hop. The bridge-resolution
+machinery `max_hops` exists for does show up in `multi_hop_citation_accuracy`
+— but as a function of `multi_query_count`, not of hops: every mq=2 cell
+scores 0.227 and every mq=3 cell 0.261-0.273, regardless of hop count.
+
+**`multi_query_count` is the only live axis, and it is a genuine trade.**
+mq=2 buys +3.3 points of `answer_coverage` and +2.4 of `refusal_accuracy`;
+mq=3 buys +3.4 points of `multi_hop_citation_accuracy` and a little
+`citation_precision`. Coverage is the documented primary metric, so mq=2
+wins — but this is the first parameter all session that trades rather than
+simply costing.
+
+**Selected: `max_hops=1, multi_query_count=2`.** Best coverage, best refusal
+accuracy, best citation accuracy, and the fastest cell on mean, p90 and max.
+Against the shipped `3, 3`: **+2.2 points coverage and −4.8s of worst-case
+latency**. The phase's inverted question — how far down can these go before
+coverage breaks — answers: all the way down, and coverage improves slightly
+on the way.
+
+**Repeat-run variance, measured for the first time in this repo.** The `3, 3`
+cell re-runs the exact configuration measured in Phase 1
+(`20260826-150718.json`) two days earlier, on a different Docker daemon
+instance after a full restart. The two runs agree on **all 90 in-corpus
+cases — zero flips** (45 refused, 33 right, 12 wrong in both). At
+temperature 0 with `models.seed` pinned, this pipeline is deterministic
+end to end.
+
+That retires a caveat attached to every tuning result in this file. The
+10-point tie threshold in tuning-runbook.md is binomial sampling error over
+n=90 — it answers "would a different set of 90 questions rank these
+differently", which is still the right question for generalisation. It was
+never a statement about re-running the same config, and the honest reading of
+these six rows is now: the differences are small but **real and
+reproducible**, not noise.
+
+**Harness note.** `tune_params.py`'s `_summarize` sorts by `answer_coverage`
+and prints the top 5, so its ranked output for this phase named `2, 2` first
+and omitted a row. The runbook ranks this phase on `latency_max`. The CSV
+carries the truth; the summary did not reflect the criterion (fixed in the
+same commit as this entry).
+
 ### Phase 3: Floor calibration (`score_floor` × `vector_floor`)
 
 **Read before trusting this table.** `replay_floor.py`'s grid re-derives
