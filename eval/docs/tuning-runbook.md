@@ -9,7 +9,7 @@ cheapest phase to redo (one run + arithmetic). Record every result in
 `eval/docs/experiment-results.md` before moving on, and a dated entry in
 `eval/docs/decisions-log.md` per phase.
 
-**STATUS 2026-08-28 — Phases 1-3 are complete. Only Phase 4 (chunking)
+**STATUS 2026-08-31 — Phases 1-3 are complete. Only Phase 4 (chunking)
 remains.** What they settled, all against the 125-case HybridQA draft set:
 
 | Phase | Outcome | Shipped |
@@ -17,6 +17,19 @@ remains.** What they settled, all against the 125-case HybridQA draft set:
 | 1 retrieval | 6 runs. Neither axis moves coverage (7.8-point spread against a 10-point tie threshold). Branch D's +9pts did not reproduce. | `candidates: 30 → 20`, `top_k: 10` held |
 | 2 agentic | 6 runs. `max_hops` inert on quality, ~2s of tail per hop. `multi_query_count` trades coverage against multi-hop citations. | `max_hops: 3 → 1`, `multi_query_count: 3 → 2` |
 | 3 floors | Uncensored run + 30-cell replay + 1 confirm. The replay's winner lost live. | unchanged (`0.55` / `0.42`) |
+
+**The shipped pipeline, and the report Phase 4 compares against.**
+`candidates=20`, `top_k=10`, `max_hops=1`, `multi_query_count=2`,
+`score_floor=0.55`, `vector_floor=0.42` — all live in `config.yaml`, so a
+Phase 4 run needs no agentic flags at all. Phase 4's baseline row is
+`eval/reports/20260826-180713.json`: the Phase 2 sweep cell that shipped,
+coverage 0.389, latency mean 8.48s / max 21.93s, 17.7min wall-clock.
+**Not Phase 3's confirm run** — that one is `vector_floor=0.48`, a
+configuration this repo rejected, and using it as the baseline would compare
+every chunking result against a pipeline that is not shipped. Corrected
+2026-08-31. Phase 4's commands are written out with these values; the
+`<C*>`/`<TK*>` placeholders that remain below are inside the closed phases'
+re-derivation procedures, where they still belong.
 
 Two results from that work change how the rest of this document should be read:
 
@@ -34,36 +47,37 @@ Two results from that work change how the rest of this document should be read:
    questions with the evidence in front of it (RAGAS `context_recall` 0.889).
    That is a prompt-and-model problem, not a parameter one.
 
-**Total budget, all four phases (measured 2026-08-26 — see decisions-log.md):**
+**Budget — what these phases cost, now measured rather than projected.**
+Phases 1-3 are done; only the Phase 4 row is still an estimate.
 
-| Phase | Pipeline runs | Approx |
+| Phase | Pipeline runs | Cost |
 |---|---|---|
-| 1 retrieval | 6-7 sweep runs (the finalist is one of them, no separate confirm) | ~4h |
-| 2 agentic | 6 new runs — baseline is NOT reusable (see Phase 2), finalist is one of the 6 | ~4h |
-| 3 floors | **Answered from existing reports** (see Phase 3) — 1 confirm run only | ~40min |
-| 4 chunking | 2 new configs + Phase 3's confirm run as the baseline row, each new config requiring re-ingestion | ~2h |
+| 1 retrieval | 6 | done |
+| 2 agentic | 6 | done |
+| 3 floors | 1 uncensored run + 30-cell offline replay + 1 confirm | done |
+| 4 chunking | 2 new runs, baseline row reused | ~35min + 2 re-ingestions (unmeasured) |
 
-~10-11h serial with the host reranker running. Each phase's RAGAS finalist
-check (see below) adds external judge-call time, not another pipeline run —
-`run_ragas.py --report` scores a report already on disk.
+**A 125-case run costs 16-20 min, not the ~37min this document projected.**
+Across every completed 125-case run since the reranker moved to the host:
+16.1-20.1min for thirteen of the fifteen, 25.1min at the widest cell
+(`candidates=40`). The two outside that band are explained — 65.3min for
+`20260826-131456`, the first run after the move, and 35.5min for
+`20260826-170957`, the rejected `temperature=0.2` experiment. At the shipped
+configuration specifically: 16.1min, 17.7min, 18.4min.
 
-These are ~37min per 125-case run, from a measured 18.0s/case (see Setup).
-If the total matters more than the completeness of the grid, the cheapest
-reductions are `multi_query_count` (Phase 2) and `candidates` (Phase 1) —
-both directly multiply rerank cost, and both are already axes those phases
-sweep.
+**Wall-clock is the one number here that is not deterministic.** The same
+configuration re-run classified all 90 in-corpus cases identically (see
+below) while its runtime moved 19.6min → 20.1min; the spread across the
+whole Phase 2 grid is ~2.5min end to end. Budget from the band, not from a
+single run's stopwatch.
 
-**This budget has been wrong twice; trust it only as far as its basis.** The
-document originally claimed ~55min/run (~15h total) with nothing measured
-behind it. On 2026-08-26 that was revised to ~1.8h/run (~28h) — but only the
-*in-container* half of that revision was measured; the host-reranker figure
-was projected from it and was the furthest off of the three. The numbers
-above come from a completed 20-case run at `candidates=30/top_k=10` with the
-host reranker actually serving: 18.0s/case, 4.05 queries/case. The residual
-risk is composition, not rate — that run was 25% out-of-corpus, and the
-125-case draft set's mix differs. Phase 3's single confirm run is a real
-125-case run and settles it in ~40min; treat its wall-clock as the number
-that replaces this table.
+**This budget was wrong three times before it was measured**, each revision
+moving it further than the quantity it was estimating: ~55min/run with
+nothing behind it, then ~1.8h/run from an in-container measurement, then
+~37min back-projected from a 20-case run at 18.0s/case. That last one named
+its own residual risk — the 20-case mix differing from the 125-case set —
+and it resolved in the optimistic direction. Phase 4's ingestion time is now
+the only un-measured number in this document. Treat it the same way.
 
 **Tie threshold — read before ranking any grid.** No repeat-run variance has
 ever been measured in this repo. `answer_coverage` at n=90 in-corpus cases has
@@ -75,7 +89,10 @@ and Phase 2's ranking both.
 
 ## Before you launch
 
-Five checks, in order, before Phase 1 starts. All were verified live against
+Five checks, in order. Written for Phase 1, and all five still apply to
+Phase 4 — checks 1 and 5 are the load-bearing ones (untraceable numbers, and
+a 7x latency cliff), and check 4 needs re-reading because Phase 4 creates new
+collections rather than querying `hybridqa`. All were verified live against
 this repo's actual environment (services, models, RAM) on 2026-08-25, and
 check 5 was added 2026-08-26 — the numbers below are measured, not estimated.
 
@@ -98,11 +115,13 @@ git status --short   # must be empty
 never re-dirties the tree mid-run — this is a one-time check before Phase 1,
 not something to repeat between phases.
 
-**2. Smoke test — required, ~4 min, not a measurement.** `tune_params.py` and
-`run_ragas.py` have only run against mocked subprocesses in unit tests; their
-live paths (actually reaching Qdrant and Ollama) have not executed even once.
-Discovering a wiring problem at hour 6 of an unattended sweep is expensive;
-catching it here costs 4 minutes:
+**2. Smoke test — required, ~4 min, not a measurement.** The original reason
+is spent: `tune_params.py` and `run_ragas.py` had never executed a live path
+when this was written, and Phases 1-3 have since run both many times over.
+What Phase 4 needs it for instead is the *collection* — its runs query
+`hybridqa_500_75` / `hybridqa_350_50`, built minutes earlier by a script
+whose chunking flags have never been exercised. Point the smoke test at the
+new collection, not at `hybridqa`, and it still costs 4 minutes:
 
 ```bash
 docker compose exec app python eval/run_eval.py --agentic \
@@ -182,18 +201,18 @@ docker compose up -d
 --collection hybridqa --golden eval/golden_hybridqa_draft.yaml
 ```
 
-**Run time, measured 2026-08-26.** The old "≈55 min (~10s/case)" figure was
-measured at `candidates=25/top_k=5` and no longer holds.
+**Run time, measured 2026-08-26, superseded by 125-case actuals 2026-08-31.**
 
-| Reranker location | Per rerank | Per case | 125-case run |
-|---|---|---|---|
-| In-container CPU | 10.34s | ~52s (est.) | ~1.8h (est.) |
-| Host GPU (Metal) | 1.48s | **18.0s (measured)** | **~37min** |
+| Reranker location | Per rerank | 125-case run |
+|---|---|---|
+| In-container CPU | 10.34s | ~1.8h (est., never run to completion) |
+| Host GPU (Metal) | 1.48s | **16-20min (measured, 13 runs)** |
 
-Only the host-GPU row is measured end-to-end — a completed 20-case agentic
-run at `candidates=30/top_k=10`, 4.05 queries/case. The in-container row is
-back-estimated from the same run and the per-rerank rates; treat it as an
-order of magnitude, not a number.
+The host-GPU row is now the wall-clock of completed 125-case runs, not a
+projection from a 20-case one — see the budget section above for the full
+band and its two explained outliers. The in-container row was always
+back-estimated from per-rerank rates; nothing has been run that way since,
+so treat it as an order of magnitude, not a number.
 
 **The 7x reranker speedup is not a 7x run speedup.** Reranks inside a case's
 multi-query fan-out run concurrently, so the component gain does not
@@ -221,7 +240,10 @@ roughly seven times a 1-query case.
 they agree, and a mismatched pair silently scores the wrong questions against
 the wrong corpus.
 
-## Phase 1 — Retrieval (candidates × top_k, ~6-7 runs / ~4h)
+## Phase 1 — Retrieval (candidates × top_k) — CLOSED 2026-08-26
+
+**Shipped `candidates=20`, `top_k=10`; neither axis moved coverage.** Kept
+below as the procedure to re-run if the corpus or golden set changes.
 
 Does more candidate/top_k headroom buy recall without noise? Branch D already
 found `top_k=10/candidates=30` = +9pts over the old `candidates=25/top_k=5`
@@ -266,7 +288,10 @@ is "confirms Branch D", not a new finding.
 an `eval/reports/<stamp>.json` — score that file with RAGAS (see "RAGAS
 finalist check" below) before it's considered done. No extra pipeline run.
 
-## Phase 2 — Agentic (max_hops × multi_query_count, 6 runs / ~4h)
+## Phase 2 — Agentic (max_hops × multi_query_count) — CLOSED 2026-08-28
+
+**Shipped `max_hops=1`, `multi_query_count=2`.** `max_hops` is inert on
+quality and costs ~2s of tail per hop. Procedure kept for re-derivation.
 
 **Latency, not coverage, is the open question here** — read this before
 running anything. The current default `max_hops=3, multi_query_count=3`
@@ -338,43 +363,50 @@ isn't re-proposed here later.
 **Finalist check:** same as Phase 1 — the winning combo's own run already
 wrote a report; score that file with RAGAS, no extra run.
 
-## Phase 3 — Floors (score_floor × vector_floor, 1 pipeline run, ~40min)
+## Phase 3 — Floors (score_floor × vector_floor) — CLOSED 2026-08-28
 
-**Already answered as of 2026-08-26 — this phase needs a confirm run, not a
-fresh sweep.** Three uncensored (`score_floor=0.0`/`vector_floor=0.0`)
-125-case reports already exist on the same golden hash (`228db7ac68da`):
-`20260824-132940`, `20260825-152139`, `20260825-165051`. Replaying all three
-agreed to within one case per grid cell (that agreement is itself the
-cross-check that this is a retrieval-side signal, not LLM noise). Full
-writeup in experiment-results.md Phase 3; headline:
+**Floors unchanged at `0.55` / `0.42`.** The replay's winner (`0.48`) lost
+its live confirm, which is also why `replay_floor.py` cannot rank cells —
+only count wiped cases. Procedure kept for re-derivation.
 
-- The shipped `0.55/0.42` wipes 0 of 125 cases at any cell — the floors do no
-  refusal work on this corpus. Refusal is carried entirely by the model's
-  `NO_ANSWER`.
+**What this phase established.** Full writeup in experiment-results.md Phase
+3; headline:
+
+- The shipped `0.55/0.42` wipes 0 of 125 cases at any swept cell — the floors
+  do no refusal work on this corpus. Refusal is carried entirely by the
+  model's `NO_ANSWER`. The uncensored run shows it directly: with *both floors
+  at 0.0* the pipeline still refused 33 of 35 probes.
 - Probe and in-corpus score distributions overlap and do not separate
   cleanly — probes score *higher* on cosine (median 0.642 vs 0.558), because
   a probe like "average annual rainfall in Multan" retrieves the correct,
   relevant, fact-less table. No retrieval threshold sees that; only the
   model reading the content can.
-- The floor's one live effect is context pruning. `vector_floor: 0.42 → 0.50`
-  (keep `score_floor: 0.55`) wipes +4 probes / 0 in-corpus cases, cuts
-  context from 74%→42% of retrieved chunks.
+- The floor's one live effect is citation precision: 0.419 → 0.477 at
+  `vector_floor=0.48`, the largest single-metric move in the phase, at a cost
+  of ~1 point of coverage. That is the lever if citation quality ever
+  displaces coverage as the target.
 
-Skip step 1 below — no new uncensored run is needed, it already exists three
-times over. Go straight to the confirm:
+**A sweep against a stale pipeline had to be thrown away — don't repeat it.**
+The phase was first answered on 2026-08-26 by replaying three uncensored
+reports that already existed (`20260824-132940`, `20260825-152139`,
+`20260825-165051`). Those were all at `candidates=25/top_k=5` with the old
+agentic defaults. Floors filter the score population that retrieval and
+agentic settings produce, so the moment Phases 1 and 2 settled that population
+no longer existed and the whole sweep was redone against a fresh uncensored
+run at the shipped pipeline (`20260828-200425.json`). **This is why the phase
+order at the top of this document puts floors after retrieval and agentic** —
+running it early does not save the run, it wastes it.
 
-```bash
-# confirm the recommended combo — on top of whatever Phase 1 settles on
-docker compose exec app python eval/run_eval.py --agentic \
-  --score-floor 0.55 --vector-floor 0.50 \
-  --candidates <C*> --top-k <TK*> \
-  --collection hybridqa --golden eval/golden_hybridqa_draft.yaml
-```
+**The replay's winner lost its confirm run.** Re-swept, the best cells were
+`0.55/0.48` and `0.55/0.50`, tied at replayed refusal 0.744 against 0.720 for
+the incumbent. The live confirm at `0.55/0.48` (`20260828-203220.json`) lost
+1.1 points of coverage, lost 0.8 of refusal accuracy, and refused one probe
+*fewer*. Every gap is inside the tie band, so the incumbent's rule applies and
+both floors hold. `0.55/0.50` was never run live: its twin lost and the whole
+axis moves about one case.
 
-If it holds `answer_coverage` within the tie band (see Recording) and raises
-`refusal_accuracy`, update `config.yaml`. Watch `citation_precision` and
-`latency_max` too — the 58% context cut should move both favourably, and if
-it doesn't, that's itself a finding.
+Cause of the misprediction is the `apply_floor` defect described below — it is
+not a reason to distrust the wiped-case counts, only the metric columns.
 
 If a re-derivation is ever actually needed (a corpus change, a new golden
 set), the original procedure was:
@@ -393,7 +425,7 @@ docker compose exec app python eval/replay_floor.py \
 **Read before trusting the grid.** `replay_floor.py` re-derives `refused`
 purely from whether a chunk clears the candidate floor
 (`replay_floor.py:apply_floor`), overwriting whatever the model itself
-decided, and it never re-runs generation. Two consequences:
+decided, and it never re-runs generation. Consequences:
 
 - `refusal_accuracy` in the grid is a **lower bound** — a probe the model
   correctly refused gets re-scored as answered whenever any chunk clears the
@@ -403,6 +435,16 @@ decided, and it never re-runs generation. Two consequences:
 - `citation_accuracy` / `citation_precision` columns are **not meaningful** —
   citations are never re-derived, so treat those two columns as
   informational only, not decision inputs.
+- **Cell-to-cell ranking does not survive either.** Bounds alone would still
+  preserve an ordering if the bias were uniform; it is not. In
+  `20260828-200425`, 76 of 125 cases were model refusals, all of them
+  overwritten, and the replay reported coverage 0.433 against the run's actual
+  0.367 — which is how it named a losing cell the winner. Use the grid for
+  wiped-case counts and score distributions only.
+
+The fix is one line — `out["refused"] = not kept or case["refused"]`, since a
+floor can only add refusals, never remove one the model already made. Until it
+lands, no ranking this script prints is actionable.
 
 Both biases push toward floors that look better than they are.
 
@@ -470,7 +512,10 @@ decisions-log.md's tracking table) as a reason to keep the previous default
 even if `answer_coverage` improved — `answer_coverage` alone cannot see
 hallucination, `faithfulness` is the gate for that.
 
-## Phase 4 — Chunking (structural only, 2 new runs / ~2h)
+## Phase 4 — Chunking (structural only) — THE ONLY OPEN PHASE
+
+2 new runs (~35min of eval) + 2 re-ingestions of unmeasured cost. The
+baseline row is reused, not re-run.
 
 **This phase could not have run as written before 2026-08-26 — read this
 before editing `config.yaml`.** `eval/ingest_hybridqa.py` does not read
@@ -510,8 +555,9 @@ window (mid-word, no sentence awareness) — a plausible direct cause of low
 `answer_coverage` if an answer sentence lands split across two chunks.
 
 ```bash
-# baseline row: reuse Phase 3's confirm run on the existing hybridqa
-# collection (500/0/20, today's default) — no re-ingest needed for this row.
+# baseline row: eval/reports/20260826-180713.json — the shipped pipeline on
+# the existing hybridqa collection (500/0/20). No re-ingest, no re-run.
+# NOT Phase 3's confirm run: that one is vector_floor=0.48, which lost.
 
 # overlap only — isolates the mid-sentence-split hypothesis
 docker compose exec app python eval/ingest_hybridqa.py \
@@ -519,7 +565,7 @@ docker compose exec app python eval/ingest_hybridqa.py \
   --target-tokens 500 --overlap-tokens 75 --rows-per-group 20
 docker compose exec app python eval/run_eval.py --agentic \
   --collection hybridqa_500_75 --golden eval/golden_hybridqa_draft.yaml \
-  --candidates <C*> --top-k <TK*> --score-floor <winning_score> --vector-floor <winning_vector>
+  --candidates 20 --top-k 10 --score-floor 0.55 --vector-floor 0.42
 
 # config.yaml's actual production values
 docker compose exec app python eval/ingest_hybridqa.py \
@@ -527,8 +573,13 @@ docker compose exec app python eval/ingest_hybridqa.py \
   --target-tokens 350 --overlap-tokens 50 --rows-per-group 10
 docker compose exec app python eval/run_eval.py --agentic \
   --collection hybridqa_350_50 --golden eval/golden_hybridqa_draft.yaml \
-  --candidates <C*> --top-k <TK*> --score-floor <winning_score> --vector-floor <winning_vector>
+  --candidates 20 --top-k 10 --score-floor 0.55 --vector-floor 0.42
 ```
+
+`max_hops` and `multi_query_count` need no flags — `config.yaml` already
+ships `1` / `2`, which is what the baseline report ran at. The four
+retrieval/floor flags are passed explicitly as belt-and-braces against a
+`config.yaml` edit landing mid-phase.
 
 Naming each config its own collection (`hybridqa_500_75`, not overwriting
 `hybridqa`) means nothing needs re-ingesting twice and there's no
