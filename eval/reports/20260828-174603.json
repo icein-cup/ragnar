@@ -1,0 +1,37 @@
+{
+  "summary": {
+    "provenance": {
+      "git": "58859e2-nogit",
+      "model": "qwen2.5:7b",
+      "think": null,
+      "seed": 42,
+      "embedding_model": "bge-m3",
+      "reranker_model": "BAAI/bge-reranker-v2-m3",
+      "collection": "hybridqa",
+      "agentic": true,
+      "agentic_config": {
+        "enable_rewrite": true,
+        "enable_multi_query": true,
+        "enable_multi_hop": true,
+        "enable_self_correction": true,
+        "max_hops": 3,
+        "multi_query_count": 3,
+        "latency_budget_s": 25,
+        "query_temperature": 0.7
+      },
+      "agentic_overrides": {
+        "max_hops": 3,
+        "multi_query_count": 3
+      },
+      "temperature": null,
+      "score_floor": 0.55,
+      "vector_floor": 0.42,
+      "candidates": 20,
+      "top_k": 10,
+      "golden": "golden_hybridqa_draft.yaml",
+      "golden_sha256": "228db7ac68da",
+      "golden_cases": 125
+    }
+  },
+  "cases": []
+}

@@ -1,0 +1,38 @@
+{
+  "phase": "retrieval",
+  "results": [
+    {
+      "answer_coverage": 0.36666666666666664,
+      "refusal_accuracy": 0.64,
+      "citation_accuracy": 0.5111111111111111,
+      "citation_precision": 0.45236187423687424,
+      "multi_hop_citation_accuracy": 0.32954545454545453,
+      "latency_mean_s": 10.84,
+      "latency_p90_s": 20.97,
+      "candidates": 30,
+      "top_k": 5
+    },
+    {
+      "answer_coverage": 0.32222222222222224,
+      "refusal_accuracy": 0.64,
+      "citation_accuracy": 0.4888888888888889,
+      "citation_precision": 0.40686680469289166,
+      "multi_hop_citation_accuracy": 0.2727272727272727,
+      "latency_mean_s": 11.09,
+      "latency_p90_s": 20.71,
+      "candidates": 30,
+      "top_k": 8
+    },
+    {
+      "answer_coverage": 0.34444444444444444,
+      "refusal_accuracy": 0.648,
+      "citation_accuracy": 0.5,
+      "citation_precision": 0.3682647217781595,
+      "multi_hop_citation_accuracy": 0.3068181818181818,
+      "latency_mean_s": 11.29,
+      "latency_p90_s": 21.41,
+      "candidates": 30,
+      "top_k": 10
+    }
+  ]
+}

@@ -1,5 +1,6 @@
 from core.models import Chunk
-from ingestion.parser import Block, ParsedDocument
+from ingestion.chunkers.grouping import group_blocks
+from ingestion.parser import ParsedDocument
 
 # Rough tokens-per-character for mixed PL/EN text. English-centric BPE
 # tokenizers compress Polish less efficiently than English, so Polish text
@@ -19,32 +20,7 @@ class StructuralChunker:
 
     def chunk(self, parsed: ParsedDocument, doc_id: str,
               filename: str) -> list[Chunk]:
-        groups: list[list[Block]] = []
-        current: list[Block] = []
-
-        def flush():
-            if current:
-                groups.append(list(current))
-                current.clear()
-
-        for block in parsed.blocks:
-            if not block.text.strip():
-                continue
-
-            if block.is_table:
-                flush()
-                groups.append([block])
-                continue
-
-            if current:
-                same_page = current[-1].page == block.page
-                size = sum(len(b.text) for b in current) + len(block.text)
-                if not same_page or size > self.target_chars:
-                    flush()
-
-            current.append(block)
-
-        flush()
+        groups = group_blocks(parsed.blocks, max_chars=self.target_chars)
 
         chunks: list[Chunk] = []
         index = 0

@@ -107,3 +107,27 @@ class QdrantStore:
                 FieldCondition(key="doc_id", match=MatchValue(value=doc_id))
             ]),
         )
+
+    def delete_stale(self, doc_id: str, keep_indices: set[int]) -> None:
+        """Remove points for ``doc_id`` whose chunk index is not in ``keep_indices``.
+
+        Because point IDs are deterministic (doc_id:chunk_index), upserting the
+        new chunk set already overwrites any old chunk with the same index.
+        This call deletes the old chunks whose indices are no longer present,
+        without touching the newly-written points.
+
+        Filtered server-side, not scrolled — a scroll+Python-diff approach
+        caps out at whatever page limit is chosen and silently stops there.
+        """
+        if not keep_indices:
+            self.delete_by_doc(doc_id)
+            return
+        self._client.delete(
+            collection_name=self.collection,
+            points_selector=Filter(
+                must=[FieldCondition(key="doc_id", match=MatchValue(value=doc_id))],
+                must_not=[FieldCondition(
+                    key="chunk_index", match=MatchAny(any=sorted(keep_indices)),
+                )],
+            ),
+        )

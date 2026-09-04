@@ -1,0 +1,7 @@
+- generic [active] [ref=e1]:
+  - main [ref=e2]
+  - generic [ref=e4]:
+    - heading "Page not found" [level=2] [ref=e8]
+    - heading "Claude can help with many things, but finding this page isn’t one of them." [level=3] [ref=e9]
+    - link "Sign in" [ref=e11] [cursor=pointer]:
+      - /url: /login?returnTo=%2Fcode%2Fartifact%2F50cd9341-08a7-4b50-b9ca-c5769de50fe9

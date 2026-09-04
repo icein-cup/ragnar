@@ -1,0 +1,457 @@
+[
+  {
+    "question": "Kto przetłumaczył oryginalny tekst poradnika?",
+    "answer": "Janek Sielicki / Janek Sielicki Publishing.",
+    "reference": "Tłumaczenie: Janek Sielicki/Janek Sielicki Publishing https://janeksielicki.wixsite.com/ janeksrpg",
+    "source_doc": "24d0e900dc000051fa6da11332403889773ef23280dbfde828b00fba1e2d7dd1",
+    "out_of_corpus": false
+  },
+  {
+    "question": "Kto jest autorem tekstu oryginalnego?",
+    "answer": "Justin Alexander The Alexandrian.",
+    "reference": "Autor tekstu oryginalnego: Justin Alexander The Alexandrian https://thealexandrian.net/",
+    "source_doc": "24d0e900dc000051fa6da11332403889773ef23280dbfde828b00fba1e2d7dd1",
+    "out_of_corpus": false
+  },
+  {
+    "question": "Do jakiej frakcji zostają powołane postacie graczy z powodu obecnego kryzysu?",
+    "answer": "Do Płomiennych Pięści.",
+    "reference": "Informuje on, że z powodu obecnego kryzysu postacie graczy zostały powołane do Płomiennych Pięści, czyli najemnej straży, która od wieków pełni we Wrotach funkcję policji i wojska.",
+    "source_doc": "24d0e900dc000051fa6da11332403889773ef23280dbfde828b00fba1e2d7dd1",
+    "out_of_corpus": false
+  },
+  {
+    "question": "Do kogo drużyna ma się zgłosić przy Bramie Bazyliszka?",
+    "answer": "Do kapitana Zodge'a.",
+    "reference": "Drużyna ma się zgłosić do kapitana Zodge'a przy Bramie Bazyliszka.",
+    "source_doc": "24d0e900dc000051fa6da11332403889773ef23280dbfde828b00fba1e2d7dd1",
+    "out_of_corpus": false
+  },
+  {
+    "question": "Jakie bóstwa wyznają kultyści wyznający Martwą Trójkę?",
+    "answer": "Bane'a, Bhaala i Myrkula.",
+    "reference": "Na koniec sceny Zodge podchodzi do BG i wyjaśnia, że kultyści wyznający Martwą Trójkę (­ Bane'a, Bhaala i Myrkula), wykorzystując chaos w mieście, rozpoczęli krwawe żniwa.",
+    "source_doc": "24d0e900dc000051fa6da11332403889773ef23280dbfde828b00fba1e2d7dd1",
+    "out_of_corpus": false
+  },
+  {
+    "question": "Jaki zakon utworzyli zbiegli do Elturelu rycerze?",
+    "answer": "Piekielnych Jeźdźców.",
+    "reference": "W międzyczasie zbiegli do Elturelu rycerze skłamali, opowiadając o doniosłej bitwie, którą stoczyli po drugiej stronie wrót. Ich zakon zyskał nazwę Piekielnych Jeźdźców.",
+    "source_doc": "24d0e900dc000051fa6da11332403889773ef23280dbfde828b00fba1e2d7dd1",
+    "out_of_corpus": false
+  },
+  {
+    "question": "Kim tak naprawdę był Najwyższy Kapłan w Elturelu?",
+    "answer": "Potężnym wampirem.",
+    "reference": "Kilkadziesiąt lat później w Elturelu pojawiło się zło innego rodzaju: Najwyższy Kapłan miasta tak naprawdę był potężnym wampirem.",
+    "source_doc": "24d0e900dc000051fa6da11332403889773ef23280dbfde828b00fba1e2d7dd1",
+    "out_of_corpus": false
+  },
+  {
+    "question": "Jaka postać stworzyła Towarzysza?",
+    "answer": "Zariel.",
+    "reference": "Było to jednak oszustwo: tak naprawdę to Zariel stworzyła Towarzysza, uprzednio zawierając pakt z kimś w Elturelu (więcej na ten temat poniżej).",
+    "source_doc": "24d0e900dc000051fa6da11332403889773ef23280dbfde828b00fba1e2d7dd1",
+    "out_of_corpus": false
+  },
+  {
+    "question": "Co Zodge zrobi, jeśli BG uciekną po odmowie wykonania rozkazu?",
+    "answer": "Zodge wyśle kolejne dwa oddziały z rozkazem zabicia drużyny.",
+    "reference": "Jeśli BG uciekną, Zodge wyśle kolejne dwa oddziały, rozkazując im zabić drużynę.",
+    "source_doc": "24d0e900dc000051fa6da11332403889773ef23280dbfde828b00fba1e2d7dd1",
+    "out_of_corpus": false
+  },
+  {
+    "question": "Gdzie uchodźcy z Elturelu szukają pomocy?",
+    "answer": "We Wrotach Baldura.",
+    "reference": "Uchodźcy z Elturelu kierują się w dół rzeki Chionthar, szukając pomocy we Wrotach Baldura.",
+    "source_doc": "24d0e900dc000051fa6da11332403889773ef23280dbfde828b00fba1e2d7dd1",
+    "out_of_corpus": false
+  },
+  {
+    "question": "Where does Klaus Pohl hold a full professorship?",
+    "answer": "At the Institute for Computer Science and Business Information Systems (ICB) at University of Duisburg-Essen, Germany.",
+    "reference": "Klaus Pohl holds a full professorship for Software Systems Engineering at the Institute for Computer Science and Business Information Systems (ICB) at University of Duisburg-Essen, Germany.",
+    "source_doc": "496af634aff24adb4dba00dfd4960511d3d1abcd8d2d1ccae4dc9572fad5875e",
+    "out_of_corpus": false
+  },
+  {
+    "question": "What is the ISBN of the 2nd edition of Requirements Engineering Fundamentals?",
+    "answer": "978-1-937538-77-4",
+    "reference": "ISBN 978-1-937538-77-4",
+    "source_doc": "496af634aff24adb4dba00dfd4960511d3d1abcd8d2d1ccae4dc9572fad5875e",
+    "out_of_corpus": false
+  },
+  {
+    "question": "Who translated the book from German into English?",
+    "answer": "Thorsten Weyer, Bastian Tenbergen, and Marta Tayeh.",
+    "reference": "Translated from German by Thorsten Weyer, Bastian Tenbergen, and Marta Tayeh.",
+    "source_doc": "496af634aff24adb4dba00dfd4960511d3d1abcd8d2d1ccae4dc9572fad5875e",
+    "out_of_corpus": false
+  },
+  {
+    "question": "What curriculum version is the 2nd edition of the book aligned with?",
+    "answer": "Curriculum version 2.2 of the International Requirements Engineering Board e.V. (IREB).",
+    "reference": "The 2nd edition of this book is aligned with the curriculum (version 2.2) of the International Requirements Engineering Board e.V. (IREB) and the IREB glossary.",
+    "source_doc": "496af634aff24adb4dba00dfd4960511d3d1abcd8d2d1ccae4dc9572fad5875e",
+    "out_of_corpus": false
+  },
+  {
+    "question": "Who is the co-founder of the IREB e.V.?",
+    "answer": "Klaus Pohl is a co-founder; Chris Rupp founded the IREB e.V. to standardize qualification for requirements engineers / business analysts.",
+    "reference": "Klaus is cofounder of the IREB e.V. (International Requirements Engineering Board).",
+    "source_doc": "496af634aff24adb4dba00dfd4960511d3d1abcd8d2d1ccae4dc9572fad5875e",
+    "out_of_corpus": false
+  },
+  {
+    "question": "Where did Klaus Pohl receive his Ph.D. and habilitation?",
+    "answer": "From RWTH Aachen, Germany.",
+    "reference": "He received his Ph.D. and his habilitation in computer science from RWTH Aachen, Germany.",
+    "source_doc": "496af634aff24adb4dba00dfd4960511d3d1abcd8d2d1ccae4dc9572fad5875e",
+    "out_of_corpus": false
+  },
+  {
+    "question": "How many peer-reviewed publications has Klaus Pohl (co-)authored?",
+    "answer": "More than 250.",
+    "reference": "Klaus is (co-)author of more than 250 peer-reviewed publications and several text books.",
+    "source_doc": "496af634aff24adb4dba00dfd4960511d3d1abcd8d2d1ccae4dc9572fad5875e",
+    "out_of_corpus": false
+  },
+  {
+    "question": "Who is the chief consultant, coach and trainer described as SOPHIST-in-chief?",
+    "answer": "Chris Rupp.",
+    "reference": "Chris Rupp -SOPHIST-in-chief (formally: founder and executive partner of the SOPHIST GmbH), chief consultant, coach and trainer.",
+    "source_doc": "496af634aff24adb4dba00dfd4960511d3d1abcd8d2d1ccae4dc9572fad5875e",
+    "out_of_corpus": false
+  },
+  {
+    "question": "What is the name of the Irish Software Engineering Research Centre where Klaus Pohl was scientific funding director?",
+    "answer": "Lero.",
+    "reference": "He was the scientific funding director of Lero, the Irish Software Engineering Research Centre.",
+    "source_doc": "496af634aff24adb4dba00dfd4960511d3d1abcd8d2d1ccae4dc9572fad5875e",
+    "out_of_corpus": false
+  },
+  {
+    "question": "Who is the publisher of the book and where is it located?",
+    "answer": "Rocky Nook Inc., located at 802 East Cota St., 3rd Floor, Santa Barbara, CA 93103.",
+    "reference": "Rocky Nook Inc. 802 East Cota St., 3rd Floor Santa Barbara, CA 93103",
+    "source_doc": "496af634aff24adb4dba00dfd4960511d3d1abcd8d2d1ccae4dc9572fad5875e",
+    "out_of_corpus": false
+  },
+  {
+    "question": "Which two best-selling German books form the basis of this collaborative work?",
+    "answer": "Klaus Pohl's 'Requirements Engineering - Grundlagen, Prinzipien, Techniken' and Chris Rupp's 'Requirements-Engineering und -Management - Aus der Praxis von klassisch bis agil'.",
+    "reference": "As a consequence, this book is based on the two best-selling books in the German language about requirements engineering by the two main authors: Foreword Klaus Pohl: Requirements Engineering - Grundlagen, Prinzipien, Techniken. Published at dpunkt.verlag, Heidelberg, 2008.",
+    "source_doc": "496af634aff24adb4dba00dfd4960511d3d1abcd8d2d1ccae4dc9572fad5875e",
+    "out_of_corpus": false
+  },
+  {
+    "question": "What role does Martin Glinz hold at the University of Zurich?",
+    "answer": "Full professor of computer science, leading the research unit Requirements Engineering.",
+    "reference": "Martin Glinz is a full professor of computer science and leads the research unit Requirements Engineering at the University of Zurich.",
+    "source_doc": "496af634aff24adb4dba00dfd4960511d3d1abcd8d2d1ccae4dc9572fad5875e",
+    "out_of_corpus": false
+  },
+  {
+    "question": "What is Rainer Grau's position at Digitec/Galaxus?",
+    "answer": "Head of Business Development.",
+    "reference": "Rainer Grau is Head of Business Development at Digitec/ Galaxus, one of Switzerland's top eCommerce companies.",
+    "source_doc": "496af634aff24adb4dba00dfd4960511d3d1abcd8d2d1ccae4dc9572fad5875e",
+    "out_of_corpus": false
+  },
+  {
+    "question": "In which year and where did Karol Frühauf found INFOGEM AG, and with whom?",
+    "answer": "In 1987, with Helmut Sandmayr.",
+    "reference": "In 1987, Frühauf founded INFOGEM AG with Helmut Sandmayr, and the company has since gained a reputation as one of the leading system engineering consulting and training addresses in Switzerland.",
+    "source_doc": "496af634aff24adb4dba00dfd4960511d3d1abcd8d2d1ccae4dc9572fad5875e",
+    "out_of_corpus": false
+  },
+  {
+    "question": "How many years of professional experience does Chris Rupp look back over?",
+    "answer": "25 years.",
+    "reference": "Looking back over 25 years of professional experience, a lot has come up: a company… 6 books… 55 employees… countless articles and presentations… and a whole lot of experience.",
+    "source_doc": "496af634aff24adb4dba00dfd4960511d3d1abcd8d2d1ccae4dc9572fad5875e",
+    "out_of_corpus": false
+  },
+  {
+    "question": "Who is the author of the book?",
+    "answer": "Malcolm Gladwell",
+    "reference": "Copyright © 2000 by Malcolm Gladwell",
+    "source_doc": "90d3795b73e97a9b49c320a34287b800ebc4e6344b3b9e0c46714bce7d3fb10d",
+    "out_of_corpus": false
+  },
+  {
+    "question": "To whom is the book dedicated?",
+    "answer": "Joyce and Graham Gladwell",
+    "reference": "To my p a r e n t s , Joyce and Graham Gl a d w e l l",
+    "source_doc": "90d3795b73e97a9b49c320a34287b800ebc4e6344b3b9e0c46714bce7d3fb10d",
+    "out_of_corpus": false
+  },
+  {
+    "question": "When did the Tipping Point come for Hush Puppies?",
+    "answer": "Somewhere between late 1994 and early 1995",
+    "reference": "For Hush Puppies - the classic American brushed-suede shoes with the lightweight crepe sole -- the Tipping Point came somewhere between  late  1994  and  early  1995.",
+    "source_doc": "90d3795b73e97a9b49c320a34287b800ebc4e6344b3b9e0c46714bce7d3fb10d",
+    "out_of_corpus": false
+  },
+  {
+    "question": "Which fashion designer was reportedly wearing the Hush Puppies shoes himself?",
+    "answer": "Isaac Mizrahi",
+    "reference": "\"We  were  told  that  Isaac  Mizrahi  was  wearing  the shoes himself,\"  Lewis  says.",
+    "source_doc": "90d3795b73e97a9b49c320a34287b800ebc4e6344b3b9e0c46714bce7d3fb10d",
+    "out_of_corpus": false
+  },
+  {
+    "question": "How many pairs of the classic Hush Puppies did the company sell in 1995?",
+    "answer": "450,000 pairs",
+    "reference": "In  1995, the company  sold 450,000 pairs of the classic Hush  Puppies,  and  the  next  year  it  sold  lour  times  that, and the year after that still  more, until  Hush Puppies were once  again  a  staple of the  wardrobe of the  young Ameri­ can  male.",
+    "source_doc": "90d3795b73e97a9b49c320a34287b800ebc4e6344b3b9e0c46714bce7d3fb10d",
+    "out_of_corpus": false
+  },
+  {
+    "question": "What prize did Hush Puppies win at the Council of Fashion Designers awards dinner in 1996?",
+    "answer": "Best accessory",
+    "reference": "In  1996,  Hush  Puppies  won  the  prize  for  best accessory at  Lincoln Center, and the president  of the firm  stood up On  the stage with  Calvin  Klein  and  Donna  Karan  and accepted an award for an  achievement that - as he would be the first to admit -  his company had almost nothing to do  with.",
+    "source_doc": "90d3795b73e97a9b49c320a34287b800ebc4e6344b3b9e0c46714bce7d3fb10d",
+    "out_of_corpus": false
+  },
+  {
+    "question": "How many serious crimes were recorded in New York City in 1992?",
+    "answer": "626,182 serious crimes",
+    "reference": "In  1992, there  were  2,154 murders  in  New  York  City  and  626,182  serious  crimes, with  the  weight  of  those  crimes  falling  hardest  in  places like  Brownsville and  Hast  New  York.",
+    "source_doc": "90d3795b73e97a9b49c320a34287b800ebc4e6344b3b9e0c46714bce7d3fb10d",
+    "out_of_corpus": false
+  },
+  {
+    "question": "Who commands the police precinct in Brownsville?",
+    "answer": "Inspector Edward Messadri",
+    "reference": "\"There was  a  time  when  it  wasn't  uncommon  to  hear  rapid  tire, like you would hear somewhere in the jungle in Vietnam,\" says  Inspector  Edward Messadri,  who  commands  the police  precinct  in  Brownsville.",
+    "source_doc": "90d3795b73e97a9b49c320a34287b800ebc4e6344b3b9e0c46714bce7d3fb10d",
+    "out_of_corpus": false
+  },
+  {
+    "question": "By what percentage did murders drop in New York City within five years?",
+    "answer": "64.3 percent",
+    "reference": "Within five' years, murders had dropped 64.3  percent to 770 and total  crimes had  fallen  by  almost  half  to  355,893.",
+    "source_doc": "90d3795b73e97a9b49c320a34287b800ebc4e6344b3b9e0c46714bce7d3fb10d",
+    "out_of_corpus": false
+  },
+  {
+    "question": "Who was the actor that walked into Joel Fitzgerald's Hollywood store while it was being turned into a Hush Puppies boutique?",
+    "answer": "Pee-wee Herman",
+    "reference": "While he was still painting and putting up shelves, the actor Pee-wee Herman  walked in  and  asked  for  a  couple  of  pairs.",
+    "source_doc": "90d3795b73e97a9b49c320a34287b800ebc4e6344b3b9e0c46714bce7d3fb10d",
+    "out_of_corpus": false
+  },
+  {
+    "question": "Who holds the copyright for the book?",
+    "answer": "The McGraw-Hill Companies, Inc.",
+    "reference": "Copyright © 2005 by The McGraw-Hill Companies, Inc. All rights reserved. Manufactured in the United States of America.",
+    "source_doc": "e357013ffe221e9ccdd6dd839029325fad5142b3b02d6fd89433a08e7d18189d",
+    "out_of_corpus": false
+  },
+  {
+    "question": "To whom is the book dedicated?",
+    "answer": "Lorena and Anthony W. Ulwick Sr.",
+    "reference": "Dedicated to my parents, Lorena and Anthony W. Ulwick Sr., my sources of strength and discipline.",
+    "source_doc": "e357013ffe221e9ccdd6dd839029325fad5142b3b02d6fd89433a08e7d18189d",
+    "out_of_corpus": false
+  },
+  {
+    "question": "Who should be contacted for information on special quantity discounts for McGraw-Hill eBooks?",
+    "answer": "George Hoare",
+    "reference": "For more information, please contact George Hoare, Special Sales, at george\\_hoare@mcgraw-hill.com or (212) 904-4069.",
+    "source_doc": "e357013ffe221e9ccdd6dd839029325fad5142b3b02d6fd89433a08e7d18189d",
+    "out_of_corpus": false
+  },
+  {
+    "question": "Under what condition may a user's right to use the work be terminated?",
+    "answer": "If they fail to comply with the terms of use.",
+    "reference": "Y our right to use the work may be terminated if you fail to comply with these terms.",
+    "source_doc": "e357013ffe221e9ccdd6dd839029325fad5142b3b02d6fd89433a08e7d18189d",
+    "out_of_corpus": false
+  },
+  {
+    "question": "What is the print version ISBN of the book?",
+    "answer": "0-07-140867-3",
+    "reference": "The material in this eBook also appears in the print version of this title: 0-07-140867-3.",
+    "source_doc": "e357013ffe221e9ccdd6dd839029325fad5142b3b02d6fd89433a08e7d18189d",
+    "out_of_corpus": false
+  },
+  {
+    "question": "What right regarding the work is permitted under the Copyright Act of 1976?",
+    "answer": "The right to store and retrieve one copy of the work.",
+    "reference": "Except as permitted under the Copyright Act of 1976 and the right to store and retrieve one copy of the work, you may not decompile, disassemble, reverse engineer, reproduce, modify, create derivative works based upon, transmit, distribute, disseminate, sell, publish or sublicense the work or any part of it without McGraw-Hill's prior consent.",
+    "source_doc": "e357013ffe221e9ccdd6dd839029325fad5142b3b02d6fd89433a08e7d18189d",
+    "out_of_corpus": false
+  },
+  {
+    "question": "What types of use are McGraw-Hill eBooks available at special quantity discounts for?",
+    "answer": "Premiums and sales promotions, or corporate training programs.",
+    "reference": "McGraw-Hill eBooks are available at special quantity discounts to use as premiums and sales promotions, or for use in corporate training programs.",
+    "source_doc": "e357013ffe221e9ccdd6dd839029325fad5142b3b02d6fd89433a08e7d18189d",
+    "out_of_corpus": false
+  },
+  {
+    "question": "What subtitle is given for the book \"WHAT CUSTOMERS WANT\"?",
+    "answer": "Using Outcome-Driven Innovation to Create Breakthrough Products and Services",
+    "reference": "[USI N G OUTCOME-DRIVEN INNOVATION T O CREATE B R E A K T H R O U G H P R O D U C T S AND SERVICES]",
+    "source_doc": "e357013ffe221e9ccdd6dd839029325fad5142b3b02d6fd89433a08e7d18189d",
+    "out_of_corpus": false
+  },
+  {
+    "question": "What is the title of Chapter 2?",
+    "answer": "Capturing Customer Inputs",
+    "reference": "Chapter 2 Capturing Customer Inputs: Silence the 'Voice of the Customer'- Let's Talk Jobs, Outcomes, and Constraints",
+    "source_doc": "e357013ffe221e9ccdd6dd839029325fad5142b3b02d6fd89433a08e7d18189d",
+    "out_of_corpus": false
+  },
+  {
+    "question": "What is the title of Chapter 6?",
+    "answer": "Positioning Current Products",
+    "reference": "Chapter 6 Positioning Current Products: Connecting Opportunities with Valued Product Features",
+    "source_doc": "e357013ffe221e9ccdd6dd839029325fad5142b3b02d6fd89433a08e7d18189d",
+    "out_of_corpus": false
+  },
+  {
+    "question": "Who owns the copyright for the book?",
+    "answer": "Roman Pichler",
+    "reference": "Copyright © 2010 Roman Pichler",
+    "source_doc": "d1fecf67ec974c256e34986b9d0ed14ec3ecba8cf38e49c3e0fca0c1cee9181c",
+    "out_of_corpus": false
+  },
+  {
+    "question": "What is the ISBN-13 of the book?",
+    "answer": "978-0-321-60578-8",
+    "reference": "ISBN-13: 978-0-321-60578-8",
+    "source_doc": "d1fecf67ec974c256e34986b9d0ed14ec3ecba8cf38e49c3e0fca0c1cee9181c",
+    "out_of_corpus": false
+  },
+  {
+    "question": "Where was the book's text printed?",
+    "answer": "Courier in Stoughton, Massachusetts",
+    "reference": "Text printed in the United States on recycled paper at Courier in Stoughton, Massachusetts.",
+    "source_doc": "d1fecf67ec974c256e34986b9d0ed14ec3ecba8cf38e49c3e0fca0c1cee9181c",
+    "out_of_corpus": false
+  },
+  {
+    "question": "Who wrote the foreword included in the book?",
+    "answer": "Jeff Sutherland",
+    "reference": "Foreword by Jeff Sutherland xv",
+    "source_doc": "d1fecf67ec974c256e34986b9d0ed14ec3ecba8cf38e49c3e0fca0c1cee9181c",
+    "out_of_corpus": false
+  },
+  {
+    "question": "What is the title of the first chapter?",
+    "answer": "Understanding the Product Owner Role",
+    "reference": "1. Understanding the Product Owner Role 1",
+    "source_doc": "d1fecf67ec974c256e34986b9d0ed14ec3ecba8cf38e49c3e0fca0c1cee9181c",
+    "out_of_corpus": false
+  },
+  {
+    "question": "What email address is provided for International Sales?",
+    "answer": "international@pearsoned.com",
+    "reference": "For sales outside the United States please contact: International Sales international@pearsoned.com",
+    "source_doc": "d1fecf67ec974c256e34986b9d0ed14ec3ecba8cf38e49c3e0fca0c1cee9181c",
+    "out_of_corpus": false
+  },
+  {
+    "question": "When was the first printing of the book?",
+    "answer": "March 2010",
+    "reference": "First printing, March 2010",
+    "source_doc": "d1fecf67ec974c256e34986b9d0ed14ec3ecba8cf38e49c3e0fca0c1cee9181c",
+    "out_of_corpus": false
+  },
+  {
+    "question": "What are the four DEEP qualities of the Product Backlog?",
+    "answer": "Detailed Appropriately, Estimated, Emergent, and Prioritized",
+    "reference": "The DEEP Qualities of the Product Backlog 48 Detailed Appropriately 48 Estimated 49 Emergent 49 Prioritized 49",
+    "source_doc": "d1fecf67ec974c256e34986b9d0ed14ec3ecba8cf38e49c3e0fca0c1cee9181c",
+    "out_of_corpus": false
+  },
+  {
+    "question": "To whom is the book dedicated?",
+    "answer": "Melissa",
+    "reference": "To Melissa",
+    "source_doc": "d1fecf67ec974c256e34986b9d0ed14ec3ecba8cf38e49c3e0fca0c1cee9181c",
+    "out_of_corpus": false
+  },
+  {
+    "question": "Which section in Chapter 1 discusses \"The Underpowered Product Owner\"?",
+    "answer": "Common Mistakes",
+    "reference": "Common Mistakes 16 The Underpowered Product Owner 17",
+    "source_doc": "d1fecf67ec974c256e34986b9d0ed14ec3ecba8cf38e49c3e0fca0c1cee9181c",
+    "out_of_corpus": false
+  },
+  {
+    "question": "Who are the authors of Python Data Analysis Third Edition?",
+    "answer": "Avinash Navlani, Armando Fandango, and Ivan Idris",
+    "reference": "Avinash Navlani Armando Fandango Ivan Idris",
+    "source_doc": "2f7a2f71bfcab2aa29db8fa4861a6d0d628c18237e9d85b0e7fdadc44cca1131",
+    "out_of_corpus": false
+  },
+  {
+    "question": "When was the third edition of the book published?",
+    "answer": "February 2021",
+    "reference": "First published: October 2014 Second edition: March 2017 Third Edition: February 2021",
+    "source_doc": "2f7a2f71bfcab2aa29db8fa4861a6d0d628c18237e9d85b0e7fdadc44cca1131",
+    "out_of_corpus": false
+  },
+  {
+    "question": "What is the ISBN of the book?",
+    "answer": "978-1-78995-524-8",
+    "reference": "ISBN 978-1-78995-524-8",
+    "source_doc": "2f7a2f71bfcab2aa29db8fa4861a6d0d628c18237e9d85b0e7fdadc44cca1131",
+    "out_of_corpus": false
+  },
+  {
+    "question": "How many years of experience does Avinash Navlani have in data science and AI?",
+    "answer": "Over 8 years",
+    "reference": "Avinash Navlani has over 8 years of experience working in data science and AI.",
+    "source_doc": "2f7a2f71bfcab2aa29db8fa4861a6d0d628c18237e9d85b0e7fdadc44cca1131",
+    "out_of_corpus": false
+  },
+  {
+    "question": "What did Alistair McMaster graduate from the University of Cambridge with?",
+    "answer": "A B.A. (Hons) in Natural Sciences specializing in Astrophysics",
+    "reference": "He graduated from the University of Cambridge in 2016 with a B.A. (Hons) in Natural Sciences specializing in Astrophysics.",
+    "source_doc": "2f7a2f71bfcab2aa29db8fa4861a6d0d628c18237e9d85b0e7fdadc44cca1131",
+    "out_of_corpus": false
+  },
+  {
+    "question": "Who is the Senior Editor of the book?",
+    "answer": "Roshan Kumar",
+    "reference": "Senior Editor: Roshan Kumar",
+    "source_doc": "2f7a2f71bfcab2aa29db8fa4861a6d0d628c18237e9d85b0e7fdadc44cca1131",
+    "out_of_corpus": false
+  },
+  {
+    "question": "What is the production reference for the book?",
+    "answer": "1070121",
+    "reference": "Production reference: 1070121",
+    "source_doc": "2f7a2f71bfcab2aa29db8fa4861a6d0d628c18237e9d85b0e7fdadc44cca1131",
+    "out_of_corpus": false
+  },
+  {
+    "question": "What are Ivan Idris's main professional interests?",
+    "answer": "Business intelligence, big data, and cloud computing",
+    "reference": "His main professional interests are business intelligence, big data, and cloud computing.",
+    "source_doc": "2f7a2f71bfcab2aa29db8fa4861a6d0d628c18237e9d85b0e7fdadc44cca1131",
+    "out_of_corpus": false
+  },
+  {
+    "question": "What expertise does Armando Fandango leverage to create AI-empowered products?",
+    "answer": "Deep learning, machine learning, distributed computing, and computational methods",
+    "reference": "Armando Fandango creates AI-empowered products by leveraging his expertise in deep learning, machine learning, distributed computing, and computational methods and has provided thought leadership roles as the chief data scientist and director at start-ups and large enterprises.",
+    "source_doc": "2f7a2f71bfcab2aa29db8fa4861a6d0d628c18237e9d85b0e7fdadc44cca1131",
+    "out_of_corpus": false
+  },
+  {
+    "question": "Which books by Packt Publishing did the former Java developer and QA analyst author?",
+    "answer": "NumPy 1.5 Beginner's Guide and NumPy Cookbook",
+    "reference": "After graduating, he worked for several companies as a Java developer, data warehouse developer, and QA analyst. Ivan Idris is the author of NumPy 1.5 Beginner's Guide and NumPy Cookbook by Packt Publishing.",
+    "source_doc": "2f7a2f71bfcab2aa29db8fa4861a6d0d628c18237e9d85b0e7fdadc44cca1131",
+    "out_of_corpus": false
+  }
+]

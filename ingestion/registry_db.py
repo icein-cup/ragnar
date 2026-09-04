@@ -1,8 +1,7 @@
-import sqlite3
-import threading
 import time
 from pathlib import Path
 
+from core.db import connect, write
 from core.models import Document, IngestStatus
 
 SCHEMA = """
@@ -68,12 +67,8 @@ class Registry:
     """
 
     def __init__(self, path: Path):
-        path.parent.mkdir(parents=True, exist_ok=True)
-        self._conn = sqlite3.connect(str(path), check_same_thread=False)
-        self._conn.row_factory = sqlite3.Row
-        self._lock = threading.Lock()
+        self._conn, self._lock = connect(path, SCHEMA)
         with self._lock:
-            self._conn.executescript(SCHEMA)
             self._migrate()
             self._conn.commit()
 
@@ -87,9 +82,7 @@ class Registry:
                 )
 
     def _write(self, sql: str, params: tuple) -> None:
-        with self._lock:
-            self._conn.execute(sql, params)
-            self._conn.commit()
+        write(self._conn, self._lock, sql, params)
 
     def _row_to_doc(self, row) -> Document:
         return Document(
@@ -129,6 +122,30 @@ class Registry:
                 (IngestStatus.QUEUED.value,),
             ).fetchone()
         return self._row_to_doc(row) if row else None
+
+    def claim_next(self) -> Document | None:
+        """Atomically claim the oldest queued document for processing.
+
+        Selects the oldest QUEUED row and flips it to PROCESSING in a single
+        locked transaction, so multiple worker threads can never grab the
+        same document (the race that ``next_queued`` + ``mark_processing``
+        would have).
+        """
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT * FROM documents WHERE status = ? "
+                "ORDER BY added_at LIMIT 1",
+                (IngestStatus.QUEUED.value,),
+            ).fetchone()
+            if row is None:
+                return None
+            self._conn.execute(
+                "UPDATE documents SET status = ?, started_at = ?, "
+                "finished_at = NULL WHERE doc_id = ?",
+                (IngestStatus.PROCESSING.value, time.time(), row["doc_id"]),
+            )
+            self._conn.commit()
+        return self._row_to_doc(row)
 
     def mark_processing(self, doc_id: str) -> None:
         # Stamp the start and clear any prior finish time so a re-run (e.g. a
@@ -172,13 +189,6 @@ class Registry:
             )
             self._conn.commit()
             return cursor.rowcount
-
-    def counts(self) -> dict[str, int]:
-        with self._lock:
-            rows = self._conn.execute(
-                "SELECT status, COUNT(*) AS n FROM documents GROUP BY status"
-            ).fetchall()
-        return {r["status"]: r["n"] for r in rows}
 
     def ingest_eta(self) -> tuple[int, int, float | None]:
         """(processing count, queued count, estimated seconds remaining).

@@ -1,6 +1,7 @@
 import streamlit as st
 
 from ui.services import format_eta
+from ui.static_files import file_url
 
 STATUS_ICONS = {"queued": "⏳", "processing": "⚙️", "done": "✅", "failed": "❌"}
 
@@ -16,10 +17,12 @@ def render(svc) -> None:
         )
         if uploaded and st.button("Upload", type="primary"):
             for file in uploaded:
-                target = svc["storage"].inbox / file.name
-                target.write_bytes(file.getbuffer())
-                svc["registry"].add(svc["storage"].doc_id(target), file.name,
-                                    target.stat().st_size)
+                # stage() hashes the bytes and writes them under a
+                # content-stamped inbox name, so two different uploads that
+                # share a filename no longer overwrite each other.
+                doc_id, target = svc["storage"].stage(file.name,
+                                                      file.getbuffer())
+                svc["registry"].add(doc_id, file.name, target.stat().st_size)
             # Force the uploader widget to reset to empty on the next render.
             st.session_state.uploader_key += 1
             st.rerun()
@@ -46,17 +49,41 @@ def render(svc) -> None:
         _status_strip(svc)
 
 
-@st.fragment(run_every="2s")
 def _status_strip(svc) -> None:
+    # Poll only while ingestion is actually running. run_every is baked
+    # into the fragment decorator, so it can't be toggled at call time —
+    # instead this recomputes it and re-applies the decorator on every
+    # full script rerun (the pattern Streamlit's own docs use for
+    # starting/stopping a fragment's auto-rerun). Polling unconditionally
+    # every 2s would request a rerun in the middle of a chat answer
+    # streaming elsewhere on the page (st.write_stream checks for a
+    # pending rerun on every token) and silently kill it before it's saved.
+    processing, queued, _ = svc["registry"].ingest_eta()
+    run_every = "2s" if (processing or queued) else None
+
+    @st.fragment(run_every=run_every)
+    def _strip() -> None:
+        _render_status_strip(svc)
+
+    _strip()
+
+
+def _render_status_strip(svc) -> None:
     processing, queued, eta = svc["registry"].ingest_eta()
+    docs = svc["registry"].all()
 
     if processing or queued:
-        st.info(
-            f"Indexing — {processing} in progress, "
-            f"{queued} queued{format_eta(eta)}"
+        total = len(docs)
+        completed = total - processing - queued
+        progress = completed / total if total else 0.0
+        st.progress(
+            progress,
+            text=(
+                f"Indexing — {completed} of {total} indexed "
+                f"({processing} in progress, {queued} queued)"
+                f"{format_eta(eta)}"
+            ),
         )
-
-    docs = svc["registry"].all()
 
     def _select_all_changed():
         value = st.session_state.get("select_all_docs", True)
@@ -108,5 +135,53 @@ def _status_strip(svc) -> None:
                         st.rerun()
 
         if doc.status.value == "done" and st.session_state.get(f"show_md_{doc.doc_id}"):
-            markdown = svc["storage"].read_markdown(doc.doc_id)
-            st.markdown(markdown or "_Not yet converted_")
+            _render_document_viewer(svc, doc.doc_id, doc.filename)
+
+
+def _render_document_viewer(svc, doc_id: str, filename: str) -> None:
+    """Render the document viewer with optional page/sheet navigation."""
+    original_path = svc["storage"].archived_path(filename, doc_id)
+    if not original_path.exists():
+        original_path = None
+    # Read (not pop) the navigation targets so they survive across reruns
+    # until the user actually clicks "Open" — popping on the first render
+    # meant the button click on the next rerun always saw None.
+    page_target = st.session_state.get(f"scroll_to_page_{doc_id}")
+    sheet_target = st.session_state.get(f"scroll_to_sheet_{doc_id}")
+
+    # Open original file link (top of viewer). PDFs get a #page=N fragment
+    # so the browser viewer jumps to the cited page; the local file
+    # server makes this work regardless of whether the app runs in Docker.
+    if original_path:
+        cols = st.columns([3, 1])
+        with cols[0]:
+            st.markdown(f"**{filename}**")
+        with cols[1]:
+            archived_name = original_path.name
+            page_for_link = page_target if original_path.suffix.lower() == ".pdf" else None
+            url = file_url(svc["file_base_url"], archived_name, page_for_link)
+            open_label = "Open original"
+            if page_target and page_for_link:
+                open_label = f"Open at page {page_target}"
+            elif sheet_target:
+                open_label = f"Open sheet {sheet_target}"
+            st.markdown(
+                f"<a href='{url}' target='_blank'>{open_label}</a>",
+                unsafe_allow_html=True,
+            )
+    else:
+        st.markdown(f"**{filename}**")
+        st.caption("Original file not found — showing converted text only")
+
+    # Show converted markdown
+    markdown = svc["storage"].read_markdown(doc_id)
+    if not markdown:
+        st.markdown("_Not yet converted_")
+        return
+
+    # If a specific page/sheet is targeted, show a jump indicator above it.
+    if page_target:
+        st.info(f"📍 Jumped to content from page {page_target} — scroll to find the relevant section below.")
+    elif sheet_target:
+        st.info(f"📍 Jumped to sheet {sheet_target} — scroll to find the relevant section below.")
+    st.markdown(markdown)

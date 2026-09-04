@@ -9,6 +9,12 @@ services:
     restart: unless-stopped
     ports:
       - "8501:8501"
+      # Host loopback only: serves archived originals so the browser can
+      # open PDFs at a cited page (the #page=N fragment is handled
+      # client-side). This 127.0.0.1 publish is the ONLY thing keeping the
+      # archive off the LAN — the server itself binds 0.0.0.0 inside the
+      # container, as it must. Do not widen this to a bare "8510:8510".
+      - "127.0.0.1:8510:8510"
     volumes:
       # Bind-mount the whole repo for live code reload during development;
       # this already includes ./data, so no separate data mount is needed.
@@ -16,7 +22,38 @@ services:
     environment:
       OLLAMA_BASE_URL: http://host.docker.internal:11434
       QDRANT_URL: http://qdrant:6333
+      # Reranker runs on the HOST so the cross-encoder can use Metal — this
+      # VM has no GPU access, and the gap is 1.48s vs 10.34s per rerank on an
+      # M5 Pro. Start it with:
+      #     .venv/bin/python retrieval/rerank_server.py
+      # Leave this UNSET to score in-container on CPU instead (slower, but
+      # needs nothing running on the host). If it is set and the server is
+      # down, reranking fails loudly rather than silently reverting to CPU —
+      # a sweep quietly running 7x slower is worse than one that stops.
+      RERANKER_URL: ${RERANKER_URL-http://host.docker.internal:8007}
       HF_TOKEN: ${HF_TOKEN:-}
+      # Eval-only: Ragas LLM judge. Passed through so eval/run_ragas.py can
+      # reach an OpenAI-compatible judge endpoint from inside the container.
+      RAGAS_JUDGE_BASE_URL: ${RAGAS_JUDGE_BASE_URL:-https://ollama.com/v1}
+      RAGAS_JUDGE_API_KEY: ${RAGAS_JUDGE_API_KEY:-}
+      RAGAS_JUDGE_MODEL: ${RAGAS_JUDGE_MODEL:-glm-5.2:cloud}
+      # Docling's AcceleratorOptions reads this directly (env_prefix
+      # "DOCLING_"). Default is 4 regardless of host size. 8 assumes Docker
+      # Desktop's VM has been given at least that many CPUs — check with
+      # `docker compose exec app nproc` and match this to what's actually
+      # available; requesting more threads than the VM has just adds
+      # scheduling overhead. With ingestion.workers=auto (config.yaml), the
+      # worker count is auto-detected from cgroup memory + CPU count, so each
+      # worker gets DOCLING_NUM_THREADS / auto_workers threads. Scale this
+      # up if you add more CPUs.
+      DOCLING_NUM_THREADS: 8
+    deploy:
+      resources:
+        limits:
+          # Sets the cgroup v2 memory limit that auto_worker_count reads via
+          # /sys/fs/cgroup/memory.max. Without this, the container sees host
+          # RAM and may over-provision workers → OOM. Adjust to your machine.
+          memory: 16g
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:

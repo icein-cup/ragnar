@@ -7,10 +7,14 @@ production documents have no code path to an external service.
 Usage:
     python eval/run_eval.py                 # deterministic metrics only
     python eval/run_eval.py --calibrate      # sweep the similarity floor
+    python eval/run_eval.py --agentic        # measure the pipeline the UI runs
 """
 import argparse
+import hashlib
 import json
+import subprocess
 import sys
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -26,85 +30,443 @@ from retrieval.embedder import OllamaEmbedder
 from retrieval.store import QdrantStore
 from retrieval.reranker import BGEReranker
 from retrieval.search import Search
+from retrieval.agentic import AgenticSearch
 from generation.llm import OllamaLLM
-from generation.answerer import Answerer, AnswerMode, classify
-from eval.metrics import refusal_accuracy, citation_accuracy
+from generation.answerer import (Answerer, AnswerMode, citation_labels,
+                                 classify)
+from generation.guards import is_refusal, refusal_text, strip_no_answer
+from eval.metrics import (answer_accuracy, answer_coverage, refusal_accuracy,
+                          citation_accuracy, citation_precision,
+                          multi_hop_citation_accuracy)
 
 ROOT = Path(__file__).parent
 
 
-def run_cases(score_floor: float | None = None) -> list[dict]:
+def resolve_answer(question: str, outcome, mode: AnswerMode,
+                   answerer: Answerer,
+                   temperature: float | None = None
+                   ) -> tuple[str, list[str], bool, bool]:
+    """One case's (answer text, citations, refused, draft_reused).
+
+    Extracted from the run loop so the draft-reuse branch below is testable
+    without a live Qdrant and Ollama behind it.
+
+    Self-correction already generates a full answer from these same excerpts,
+    and the UI displays it directly (ui/app.py). Calling answerer.answer()
+    when that draft exists would generate the whole thing a second time — the
+    most expensive call in the pipeline — and would measure a path no user
+    takes, which is the opposite of what --agentic is for.
+    """
+    if mode is not AnswerMode.ANSWER:
+        return "", [], True, False
+
+    draft = getattr(outcome, "draft_answer", None)
+    if draft:
+        # Same order as the UI: read the sentinel before stripping it, since
+        # stripping is exactly what hides it from is_refusal.
+        refused = is_refusal(draft)
+        if refused:
+            return refusal_text(draft), [], True, True
+        stripped = strip_no_answer(draft)
+        return stripped, citation_labels(outcome.results, stripped), False, True
+
+    answer = answerer.answer(question, outcome.results,
+                             temperature=temperature)
+    return answer.text, answer.citations, answer.refused, False
+
+
+def run_cases(score_floor: float | None = None,
+              vector_floor: float | None = None,
+              agentic: bool = False,
+              collection: str | None = None,
+              golden: Path | None = None,
+              sink: Path | None = None,
+              candidates: int | None = None,
+              top_k: int | None = None,
+              agentic_overrides: dict | None = None,
+              temperature: float | None = None) -> list[dict]:
+    """Run the golden set through retrieval + answering.
+
+    Both floors must be passed: retrieval.search.clears_floor keeps a result
+    when EITHER clears, so leaving vector_floor at its 0.0 default made every
+    reranked result pass (a cosine vector_score is >= 0 in practice) and the
+    floor sweep measured nothing at all.
+
+    agentic=True routes through AgenticSearch, which is what the UI actually
+    runs — the bare Search path below measures a pipeline no user hits.
+
+    sink, when given, receives one JSON line per case as it completes. An
+    agentic run over the HybridQA set is ~37 minutes, and without this a
+    crash or a Ctrl-C at case 120 of 125 threw away all of it. The
+    lines carry the same per-case shape the replay harnesses read, so a
+    partial run is still scoreable.
+    """
     cfg = Config()
     floor = cfg.score_floor if score_floor is None else score_floor
+    vfloor = cfg.vector_floor if vector_floor is None else vector_floor
+    collection = collection or cfg.collection
+    golden = golden or (ROOT / "golden_set.yaml")
+    candidates = cfg.candidates if candidates is None else candidates
+    top_k = cfg.top_k if top_k is None else top_k
 
     embedder = OllamaEmbedder(cfg.ollama_url, cfg.embedding_model)
-    store = QdrantStore(cfg.qdrant_url, cfg.collection, cfg.embedding_dim)
-    search = Search(embedder, store, BGEReranker(cfg.reranker_model),
-                    cfg.candidates, cfg.top_k, floor)
-    answerer = Answerer(OllamaLLM(cfg.ollama_url, cfg.llm_model))
+    store = QdrantStore(cfg.qdrant_url, collection, cfg.embedding_dim)
+    llm = OllamaLLM(cfg.ollama_url, cfg.llm_model,
+                    think=cfg.llm_think, seed=cfg.llm_seed)
+    search = Search(embedder, store, reranker=BGEReranker(cfg.reranker_model),
+                    candidates=candidates, top_k=top_k,
+                    score_floor=floor, vector_floor=vfloor)
+    if agentic:
+        # Same wiring as ui/services.build_services, so the numbers describe
+        # the pipeline the UI takes. agentic_overrides lets a tuning sweep
+        # vary max_hops/multi_query_count without editing config.yaml.
+        agentic_cfg = dict(cfg.agentic)
+        if agentic_overrides:
+            agentic_cfg.update(agentic_overrides)
+        search = AgenticSearch(search, llm, **agentic_cfg)
+    answerer = Answerer(llm)
 
-    golden = yaml.safe_load((ROOT / "golden_set.yaml").read_text())
+    find_kwargs = ({"temperature": temperature}
+                   if agentic and temperature is not None else {})
+
+    golden_entries = yaml.safe_load(golden.read_text())
     cases = []
+    sink_file = sink.open("w") if sink else None
 
-    for entry in golden:
-        outcome = search.find(entry["question"])
-        mode = classify(entry["question"], outcome.refused, outcome.results)
+    # A --agentic run is ~18s per case (measured 2026-08-26 with the host
+    # reranker; ~52s without it) and prints nothing until the end, which reads
+    # as a hang on a 100+ entry golden set. One line per case on stderr, so
+    # the report on stdout stays pipeable.
+    started = time.monotonic()
+    try:
+        for n, entry in enumerate(golden_entries, 1):
+            case_started = time.monotonic()
+            # Only AgenticSearch.find takes a temperature; the base Search
+            # never generates, so passing it there would be a TypeError.
+            outcome = search.find(entry["question"], **find_kwargs)
+            mode = classify(entry["question"], outcome.refused, outcome.results)
 
-        if mode is not AnswerMode.ANSWER:
-            answer_text, citations, refused = "", [], True
-        else:
-            answer = answerer.answer(entry["question"], outcome.results)
-            answer_text = answer.text
-            citations = answer.citations
-            refused = answer.refused
+            answer_text, citations, refused, draft_reused = resolve_answer(
+                entry["question"], outcome, mode, answerer, temperature)
 
-        cases.append({
-            **entry,
-            "answer": answer_text,
-            "citations": citations,
-            "refused": refused,
-            "contexts": [r.chunk.text for r in outcome.results],
-        })
+            case = {
+                **entry,
+                "answer": answer_text,
+                "citations": citations,
+                "refused": refused,
+                "contexts": [r.chunk.text for r in outcome.results],
+                # Scores are what floor calibration needs. Without them, tuning
+                # score_floor/vector_floor means re-running the whole pipeline once
+                # per candidate value; with them it is arithmetic over this file.
+                #
+                # These are the chunks that SURVIVED the floors. Run with both
+                # floors at 0.0 and they are the full reranked top_k instead —
+                # the uncensored population a floor would be chosen from. The
+                # summary records the floors so a reader can tell which they are
+                # looking at.
+                "scores": [{"label": r.chunk.citation_label(),
+                            "rerank": r.score, "vector": r.vector_score}
+                           for r in outcome.results],
+                # Where the run spent its LLM calls. All of these are already on
+                # AgenticSearchOutcome and were simply never written down, so a
+                # slow benchmark gave no clue which stage to attack: a fast-path
+                # case costs about two calls, a self-corrected one about six.
+                # With these saved, every run profiles itself.
+                "stages": {
+                    "seconds": round(time.monotonic() - case_started, 2),
+                    "fast_path": getattr(outcome, "fast_path", False),
+                    "hops": getattr(outcome, "hops_performed", 0),
+                    "self_corrected": getattr(outcome, "self_corrected", False),
+                    "draft_reused": draft_reused,
+                    "queries": len(getattr(outcome, "queries_executed", [])),
+                    # Whether the latency budget cut this case short. Without
+                    # it a truncated case is indistinguishable from a fast
+                    # one, and a coverage drop caused by the ceiling would
+                    # look like a retrieval regression.
+                    "budget_exhausted": getattr(outcome, "budget_exhausted",
+                                                False),
+                },
+            }
+            cases.append(case)
+            if sink_file:
+                sink_file.write(json.dumps(case, ensure_ascii=False) + "\n")
+                sink_file.flush()
 
+            elapsed = time.monotonic() - started
+            eta = elapsed / n * (len(golden_entries) - n)
+            want = "refuse" if entry["out_of_corpus"] else "answer"
+            got = "refuse" if refused else "answer"
+            print(f"[{n}/{len(golden_entries)}] {'ok ' if want == got else 'MISS'} "
+                  f"want={want} got={got} eta={eta / 60:.1f}m "
+                  f"| {entry['question'][:60]}", file=sys.stderr, flush=True)
+
+    finally:
+        if sink_file:
+            sink_file.close()
+        # Release the weights however this ended — normal exit, exception, or
+        # Ctrl-C. keep_alive would otherwise hold them for ten more minutes,
+        # and Ollama does not evict an idle model until memory runs out.
+        llm.unload()
     return cases
 
 
-def calibrate_floor() -> None:
-    """Sweep candidate floors and report which separates the two groups best.
+def _git_revision() -> str:
+    """Short SHA, suffixed "-dirty" when the tree has uncommitted changes.
+
+    A report that cannot be traced to code is a number without a cause.
+
+    The app image ships no `git` binary, so every in-container run stamped
+    "unknown" until the .git fallback below was added — which made the
+    runbook's "no -dirty suffix" pre-launch check silently vacuous. The
+    fallback reads .git directly and can only report the SHA; detecting a
+    dirty tree needs the index hashing only git itself does, so it is
+    suffixed "-nogit" to mark dirtiness as unknown rather than clean. The
+    runbook's host-side clean-tree check is what actually guards that.
+    """
+    def _git(*args: str) -> str:
+        return subprocess.run(("git",) + args, cwd=ROOT.parent,
+                              capture_output=True, text=True,
+                              timeout=10).stdout.strip()
+    try:
+        sha = _git("rev-parse", "--short", "HEAD")
+        if sha:
+            return f"{sha}-dirty" if _git("status", "--porcelain") else sha
+    except Exception:
+        pass
+    return _git_revision_from_dotgit()
+
+
+def _git_revision_from_dotgit() -> str:
+    """Short SHA read straight from .git, for hosts with no git binary.
+
+    HEAD is either a "ref: refs/heads/<branch>" pointer or a detached SHA.
+    A packed ref (no loose file under .git/refs/) falls back to
+    packed-refs, which lists "<sha> <refname>" one per line.
+    """
+    try:
+        git_dir = ROOT.parent / ".git"
+        head = (git_dir / "HEAD").read_text().strip()
+        if not head.startswith("ref: "):
+            return f"{head[:7]}-nogit" if head else "unknown"
+        ref = head[5:].strip()
+        ref_file = git_dir / ref
+        if ref_file.exists():
+            return f"{ref_file.read_text().strip()[:7]}-nogit"
+        packed = git_dir / "packed-refs"
+        if packed.exists():
+            for line in packed.read_text().splitlines():
+                parts = line.split()
+                if len(parts) == 2 and parts[1] == ref:
+                    return f"{parts[0][:7]}-nogit"
+    except Exception:
+        pass
+    return "unknown"
+
+
+def provenance(cfg: Config, golden: Path, *, agentic: bool,
+               collection: str, score_floor: float,
+               vector_floor: float, candidates: int | None = None,
+               top_k: int | None = None,
+               agentic_overrides: dict | None = None,
+               temperature: float | None = None) -> dict:
+    """Everything needed to say what produced a set of numbers.
+
+    Without this a report is five metrics and a timestamp, and two runs that
+    disagree give no way to tell whether the model changed, the floors moved,
+    or the golden set itself was edited underneath. The golden hash is the
+    load-bearing part: this benchmark went 100 -> 84 -> 112 -> 125 cases
+    during development, and scores from different sets are not comparable at
+    all.
+    """
+    body = golden.read_bytes()
+    return {
+        "git": _git_revision(),
+        "model": cfg.llm_model,
+        "think": cfg.llm_think,
+        "seed": cfg.llm_seed,
+        "embedding_model": cfg.embedding_model,
+        "reranker_model": cfg.reranker_model,
+        "collection": collection,
+        "agentic": agentic,
+        "agentic_config": cfg.agentic if agentic else None,
+        "agentic_overrides": agentic_overrides or None,
+        # None means the LLM client default (0.0). Recorded because above 0
+        # the run is no longer reproducible from seed alone.
+        "temperature": temperature,
+        "score_floor": score_floor,
+        "vector_floor": vector_floor,
+        "candidates": cfg.candidates if candidates is None else candidates,
+        "top_k": cfg.top_k if top_k is None else top_k,
+        "golden": golden.name,
+        "golden_sha256": hashlib.sha256(body).hexdigest()[:12],
+        "golden_cases": len(yaml.safe_load(body)),
+    }
+
+
+SWEEP = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8]
+
+
+def calibrate_floor(score_floor: float | None = None,
+                    vector_floor: float | None = None,
+                    agentic: bool = False) -> None:
+    """Sweep score_floor and report which value separates the two groups best.
 
     The floor cannot be chosen in advance - it depends on the corpus. This
     is what the out-of-corpus golden entries exist for.
+
+    vector_floor is PINNED for the sweep, not swept, and printed in the
+    header. It has to be: the two floors are OR'd, so a vector_floor left at
+    0.0 rescues every result and flattens this table into a constant. Sweep
+    the other axis by re-running with a different --vector-floor.
+
+    score_floor is ignored here — this function's whole job is to sweep it —
+    but it is accepted so main() can pass its arguments through uniformly.
+
+    Prefer the offline route: one run with both floors at 0.0 saves every
+    score, and any candidate floor can then be evaluated arithmetically over
+    that report. This sweep re-runs the entire pipeline once per value, so at
+    ~37 minutes a run it costs hours to learn what arithmetic answers in
+    seconds.
     """
+    cfg = Config()
+    vfloor = cfg.vector_floor if vector_floor is None else vector_floor
+    reports = ROOT / "reports"
+    reports.mkdir(exist_ok=True)
+    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    print(f"vector_floor pinned at {vfloor:.2f} "
+          f"(agentic={'on' if agentic else 'off'})")
     print(f"{'floor':>7} {'refusal_acc':>12} {'citation_acc':>13}")
-    for floor in [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8]:
-        cases = run_cases(score_floor=floor)
+    for floor in SWEEP:
+        # Each sweep point gets its own sink: nine sequential runs with
+        # nothing on disk until the last one finishes is a whole day at risk.
+        cases = run_cases(score_floor=floor, vector_floor=vfloor,
+                          agentic=agentic,
+                          sink=reports / f"{stamp}-floor{floor:.2f}.jsonl")
         print(f"{floor:>7.2f} {refusal_accuracy(cases):>12.2f} "
               f"{citation_accuracy(cases):>13.2f}")
+
+
+def _agentic_overrides(args) -> dict:
+    """Collect the agentic CLI overrides that were actually passed.
+
+    Only non-None values are returned, so a bare run leaves config.yaml's
+    agentic section untouched. Kept as a helper so the provenance block can
+    record exactly what a tuning run varied.
+    """
+    overrides = {}
+    if args.max_hops is not None:
+        overrides["max_hops"] = args.max_hops
+    if args.multi_query_count is not None:
+        overrides["multi_query_count"] = args.multi_query_count
+    if args.latency_budget is not None:
+        overrides["latency_budget_s"] = args.latency_budget
+    if args.query_temperature is not None:
+        overrides["query_temperature"] = args.query_temperature
+    return overrides
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--calibrate", action="store_true")
+    parser.add_argument("--agentic", action="store_true",
+                        help="route through AgenticSearch, as the UI does")
+    parser.add_argument("--score-floor", type=float, default=None,
+                        help="override config.yaml's retrieval.score_floor. "
+                             "Pass 0 together with --vector-floor 0 to run "
+                             "with the floors open, which is what makes the "
+                             "saved scores usable for calibration")
+    parser.add_argument("--vector-floor", type=float, default=None,
+                        help="override config.yaml's retrieval.vector_floor")
+    parser.add_argument("--collection", default=None,
+                        help="override the Qdrant collection (e.g. hybridqa)")
+    parser.add_argument("--golden", type=Path, default=None,
+                        help="override the golden set YAML "
+                             "(default: eval/golden_set.yaml)")
+    parser.add_argument("--candidates", type=int, default=None,
+                        help="override config.yaml's retrieval.candidates")
+    parser.add_argument("--top-k", type=int, default=None,
+                        help="override config.yaml's retrieval.top_k")
+    parser.add_argument("--max-hops", type=int, default=None,
+                        help="override config.yaml's agentic.max_hops")
+    parser.add_argument("--multi-query-count", type=int, default=None,
+                        help="override config.yaml's agentic.multi_query_count")
+    parser.add_argument("--temperature", type=float, default=None,
+                        help="answer-generation temperature (default: the "
+                             "LLM client's 0.0). Above 0 the run stops being "
+                             "reproducible — models.seed pins sampling, not "
+                             "the decode path, so two runs will disagree.")
+    parser.add_argument("--query-temperature", type=float, default=None,
+                        help="override config.yaml's agentic.query_temperature "
+                             "(the rewrite and fan-out calls only)")
+    parser.add_argument("--latency-budget", type=float, default=None,
+                        help="override config.yaml's agentic.latency_budget_s "
+                             "(seconds for the retrieval phase; 0 disables "
+                             "the deadline entirely)")
     args = parser.parse_args()
 
     if args.calibrate:
-        calibrate_floor()
+        calibrate_floor(score_floor=args.score_floor,
+                        vector_floor=args.vector_floor, agentic=args.agentic)
         return
 
-    cases = run_cases()
+    cfg = Config()
+    collection = args.collection or cfg.collection
+    golden = args.golden or (ROOT / "golden_set.yaml")
+    floor = cfg.score_floor if args.score_floor is None else args.score_floor
+    vfloor = cfg.vector_floor if args.vector_floor is None else args.vector_floor
+
+    # The stamp is chosen BEFORE the run so the streamed .jsonl and the final
+    # .json share it — a killed run leaves a file you can name.
+    reports = ROOT / "reports"
+    reports.mkdir(exist_ok=True)
+    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    report_path = reports / f"{stamp}.json"
+
+    prov = provenance(cfg, golden, agentic=args.agentic,
+                      collection=collection, score_floor=floor,
+                      vector_floor=vfloor,
+                      candidates=args.candidates, top_k=args.top_k,
+                      agentic_overrides=_agentic_overrides(args),
+                      temperature=args.temperature)
+    # Written before run_cases, not after: a killed/crashed run (Ctrl-C,
+    # exception) never reaches the write below, and previously left its
+    # .jsonl cases with NO provenance anywhere on disk — invisible to
+    # report_table.py and unattributable to any config. Stamping the config
+    # first means a partial run is always at least identifiable; the final
+    # write below overwrites this with the real cases and metrics.
+    report_path.write_text(
+        json.dumps({"summary": {"provenance": prov}, "cases": []},
+                   indent=2, ensure_ascii=False)
+    )
+
+    cases = run_cases(score_floor=args.score_floor,
+                      vector_floor=args.vector_floor, agentic=args.agentic,
+                      collection=collection, golden=golden,
+                      sink=reports / f"{stamp}.jsonl",
+                      candidates=args.candidates, top_k=args.top_k,
+                      agentic_overrides=_agentic_overrides(args),
+                      temperature=args.temperature)
     report = {
         "timestamp": datetime.now().isoformat(timespec="seconds"),
         "n_cases": len(cases),
+        "answer_accuracy": answer_accuracy(cases),
+        "answer_coverage": answer_coverage(cases),
         "refusal_accuracy": refusal_accuracy(cases),
         "citation_accuracy": citation_accuracy(cases),
+        "citation_precision": citation_precision(cases),
+        "multi_hop_citation_accuracy": multi_hop_citation_accuracy(cases),
+        "latency": {
+            "mean_s": round(sum(c["stages"]["seconds"] for c in cases) / len(cases), 2),
+            "median_s": round(sorted(c["stages"]["seconds"] for c in cases)[len(cases) // 2], 2),
+            "p90_s": round(sorted(c["stages"]["seconds"] for c in cases)[int(len(cases) * 0.9)], 2),
+            "max_s": round(max(c["stages"]["seconds"] for c in cases), 2),
+        },
+        "provenance": prov,
     }
 
     print(json.dumps(report, indent=2, ensure_ascii=False))
 
-    reports = ROOT / "reports"
-    reports.mkdir(exist_ok=True)
-    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-    (reports / f"{stamp}.json").write_text(
+    report_path.write_text(
         json.dumps({"summary": report, "cases": cases},
                    indent=2, ensure_ascii=False)
     )

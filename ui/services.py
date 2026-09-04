@@ -4,6 +4,8 @@ Kept apart from the panels and the page script so `build_services` (the
 single cached wiring point) and the small formatting helpers can be reused
 without importing Streamlit page logic.
 """
+import logging
+
 import httpx
 import streamlit as st
 
@@ -18,53 +20,133 @@ from history.chat_store import ChatStore
 from retrieval.embedder import OllamaEmbedder
 from retrieval.store import QdrantStore
 from retrieval.search import Search
+from retrieval.agentic import AgenticSearch
 from retrieval.reranker import BGEReranker
 from generation.llm import OllamaLLM
 from generation.answerer import Answerer
+from ui.static_files import start_file_server
+
+# Eagerly start the archive file server in the main app process. The server
+# must be running before any browser tab opens, otherwise the host sees the
+# port forwarded to a process with nothing listening and gets an empty reply.
+_FILE_BASE_URL = start_file_server(Storage(Config().data_dir).originals)
+logging.info("Archive file server ready at %s", _FILE_BASE_URL)
 
 
 @st.cache_resource
 def build_services():
+    # Cache busted for Answerer update
     cfg = Config()
     storage = Storage(cfg.data_dir)
     registry = Registry(cfg.data_dir / "registry.db")
     chats = ChatStore(cfg.data_dir / "chats.db")
 
+    file_base_url = _FILE_BASE_URL
+
     embedder = OllamaEmbedder(cfg.ollama_url, cfg.embedding_model)
     store = QdrantStore(cfg.qdrant_url, cfg.collection, cfg.embedding_dim)
     store.ensure_collection()
-    llm = OllamaLLM(cfg.ollama_url, cfg.llm_model)
+    llm = OllamaLLM(cfg.ollama_url, cfg.llm_model,
+                    think=cfg.llm_think, seed=cfg.llm_seed)
 
-    pipeline = Pipeline(DoclingParser(), build_chunker(cfg.chunking),
-                        embedder, store)
-    worker = IngestWorker(storage, registry, pipeline)
+    pipeline = Pipeline(
+        DoclingParser(), build_chunker(cfg.chunking, embedder=embedder),
+        embedder, store)
+    worker = IngestWorker(storage, registry, pipeline,
+                          worker_count=cfg.worker_count)
     worker.start()   # resets stale PROCESSING rows on startup
+
+    base_search = Search(
+        embedder, store, reranker=BGEReranker(cfg.reranker_model),
+        candidates=cfg.candidates, top_k=cfg.top_k,
+        score_floor=cfg.score_floor, vector_floor=cfg.vector_floor,
+    )
+    # config.yaml's `agentic:` keys are the AgenticSearch parameter names, so
+    # the defaults live in its signature alone. An unknown key here is a
+    # startup TypeError rather than a silently ignored setting.
+    agentic_search = AgenticSearch(base_search, llm, **cfg.agentic)
 
     return {
         "cfg": cfg, "storage": storage, "registry": registry, "chats": chats,
-        "store": store, "pipeline": pipeline, "search": Search(
-            embedder, store, reranker=BGEReranker(cfg.reranker_model),
-            candidates=cfg.candidates, top_k=cfg.top_k,
-            score_floor=cfg.score_floor),
+        "store": store, "pipeline": pipeline, "embedder": embedder,
+        "search": base_search,
+        "agentic_search": agentic_search,
         "answerer": Answerer(llm), "worker": worker,
+        "file_base_url": file_base_url,
     }
+
+
+def _ollama_models(ollama_url: str, path: str) -> list[dict]:
+    """Model entries from an Ollama listing endpoint, or [] if unreachable."""
+    try:
+        resp = httpx.get(f"{ollama_url}{path}", timeout=5)
+        resp.raise_for_status()
+        return resp.json().get("models", [])
+    except Exception:
+        return []
 
 
 @st.cache_data(ttl=30)
 def list_chat_models(ollama_url: str, exclude: str) -> list[str]:
-    """Chat-capable models pulled in Ollama, excluding the embedding model."""
+    """Chat-capable models pulled in Ollama, excluding the embedding model.
+
+    Filters out cloud-proxy stubs (name ends with ':cloud') and models with
+    no local data (size == 0) — those either require external subscriptions
+    or are not actually available to run locally.
+    """
+    # Exclude the embedding model and any tagged variant of it
+    # ("bge-m3", "bge-m3:latest", ...) — only chat models belong here.
+    base = exclude.split(":")[0]
+    return sorted(
+        m["name"] for m in _ollama_models(ollama_url, "/api/tags")
+        if not m["name"].startswith(base)
+        and not m["name"].endswith(":cloud")
+        and m.get("size", 0) > 0
+    )
+
+
+def list_loaded_models(ollama_url: str) -> list[str]:
+    """Names of models currently loaded in Ollama's memory (via /api/ps).
+
+    Not cached — callers need a live view of what is actually running.
+    """
+    return [m["name"] for m in _ollama_models(ollama_url, "/api/ps")]
+
+
+def warm_model(ollama_url: str, model: str) -> bool:
+    """Pre-load a model into Ollama's memory without generating any text.
+
+    Sends an empty prompt to /api/generate with keep_alive=10m so the model
+    stays resident for at least ten minutes after loading. Returns True on
+    success, False if Ollama rejected the request.
+    """
     try:
-        resp = httpx.get(f"{ollama_url}/api/tags", timeout=5)
-        resp.raise_for_status()
-        # Exclude the embedding model and any tagged variant of it
-        # ("bge-m3", "bge-m3:latest", ...) — only chat models belong here.
-        base = exclude.split(":")[0]
-        return sorted(
-            m["name"] for m in resp.json().get("models", [])
-            if not m["name"].startswith(base)
+        resp = httpx.post(
+            f"{ollama_url}/api/generate",
+            json={"model": model, "prompt": "", "keep_alive": "10m"},
+            timeout=300,
         )
+        return resp.status_code < 400
     except Exception:
-        return []
+        return False
+
+
+def unload_model(ollama_url: str, model: str) -> bool:
+    """The inverse of warm_model: drop a model from Ollama's memory now.
+
+    Same call, keep_alive=0 instead of "10m". Ollama evicts only under memory
+    pressure, so models that are merely idle sit there — two of them on a
+    48 GB host is enough to starve the next thing that loads.
+    """
+    try:
+        resp = httpx.post(
+            f"{ollama_url}/api/generate",
+            json={"model": model, "keep_alive": 0},
+            timeout=60,
+        )
+        return resp.status_code < 400
+    except Exception:
+        return False
 
 
 def format_eta(seconds: float | None) -> str:

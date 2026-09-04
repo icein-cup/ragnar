@@ -1,27 +1,190 @@
 models:
-  llm: qwen2.5:14b
+  # Measured on 20-40 in-corpus HybridQA questions replayed over identical
+  # retrieved contexts (eval/replay_answer.py), scored by answer_coverage —
+  # correct answers over ALL answerable questions, so refusing counts against
+  # the model. See eval/metrics.py for why answer_accuracy alone misleads.
+  #
+  # Head to head on the SAME 20 questions and 10 probes (seed 42), which is
+  # the only fair comparison — earlier numbers used different denominators:
+  #
+  #                                   coverage   probe refusal   sec/call
+  #   qwen2.5:7b                        0.60         0.90           3
+  #   Qwen3.8-27 (thinking, native)     0.70         0.90          20
+  #   Qwen3.8-27 (think: false)         0.05          -             8
+  #
+  # Over the wider 40-question sample: qwen2.5:3b 0.42, qwen2.5:7b 0.47.
+  #
+  # So the 27b buys +10 points of coverage at identical refusal quality, for
+  # ~6x the latency and about 32 GB resident (NOT the 18.2 GB on-disk size).
+  # It needs a 48 GB machine and will not load on 32 GB — a real constraint
+  # on the "runs on a normal laptop" goal. qwen2.5:7b is the fallback for
+  # smaller hosts and gives up roughly a seventh of the answers.
+  #
+  # Retrieval is not the ceiling here: 96% of answered questions cited a
+  # document the question needed. Reading the retrieved text correctly is.
+  llm: qwen2.5:7b
+  # null omits the "think" field from /api/chat; true and false force a
+  # thinking model's reasoning pass on or off.
+  #
+  # DO NOT set this to false for a thinking model. The reasoning is not
+  # decoration this pipeline can discard — it is how the model reaches an
+  # answer at all. Measured on Qwen3.8-27-mlx-nv4-thinking, 20 in-corpus
+  # HybridQA questions replayed over identical retrieved contexts:
+  #
+  #   think: false   answer_coverage 0.05   refused 38 of 40, with a bare
+  #                                         "NO_ANSWER" and no explanation
+  #   think: null    answer_coverage 0.70   (its native mode)
+  #
+  # The two it answered with thinking off were both correct, so it is not
+  # incapable — forcing content-only output makes it decline instead of
+  # reason. Cost of leaving thinking on: about 16s per answering call.
+  #
+  # false remains right for a NON-thinking model that somehow exposes the
+  # flag, and null is the safe default: it cannot surprise a model we have
+  # not measured.
+  think: null
+  # Pinned so a run is reproducible. Query generation samples at a non-zero
+  # temperature (agentic.query_temperature), so without this two eval runs
+  # over identical inputs would disagree and no comparison would mean much.
+  seed: 42
   embedding: bge-m3
   embedding_dim: 1024
   reranker: BAAI/bge-reranker-v2-m3
 
 chunking:
-  strategy: structural   # fixed | structural
-  target_tokens: 500
+  strategy: structural   # structural | semantic
+  target_tokens: 350
   overlap_tokens: 50
-  table_rows_per_group: 20
+  table_rows_per_group: 10
+  # Semantic strategy only: how large a similarity drop between consecutive
+  # sentences counts as a topic boundary, as a percentile of the document's
+  # own drops. Higher = fewer, larger chunks. Overlap does not apply to this
+  # strategy — cuts are chosen to land on topic boundaries.
+  semantic_breakpoint_percentile: 95
 
 retrieval:
-  candidates: 25
-  top_k: 5
+  # SETTLED 2026-08-26 by six full 125-case agentic runs (tuning Phase 1,
+  # coordinate descent — see eval/docs/experiment-results.md "Phase 1").
+  #
+  #   candidates  top_k   coverage   mean    p90     max
+  #        30       5       0.367   10.84s  20.97s  30.17s
+  #        30       8       0.322   11.09s  20.71s  30.21s
+  #        30      10       0.344   11.29s  21.41s  30.88s
+  #        20      10       0.367    9.43s  17.97s  26.45s   <- shipped
+  #        25      10       0.344   10.39s  18.78s  29.89s
+  #        40      10       0.289   12.03s  23.22s  31.32s
+  #
+  # Neither axis moves answer_coverage: the full range is 7.8 points against
+  # a 10-point tie threshold, so every cell ties every other one. Read the
+  # coverage column as six tied results, not a ranking — each is a single
+  # run and repeat-run variance has never been measured here.
+  #
+  # candidates=20 is therefore chosen on LATENCY, where the differences are
+  # real: 2.6s/case under candidates=40 at the mean, 5.3s at p90, against a
+  # max <=35s ceiling. It also ties the best coverage measured and posts the
+  # highest answer_accuracy of the six (0.733).
+  #
+  # Branch D's earlier +9pts for candidates=30/top_k=10 did NOT reproduce.
+  # That was retrieval-only recall plus one non-agentic generation call;
+  # neither predicts pipeline coverage. Do not re-raise these values on
+  # recall evidence alone.
+  #
+  # What these parameters cannot fix: the model refuses 42-47 of the 90
+  # answerable cases in EVERY configuration above, and RAGAS scores
+  # context_recall at 0.889 on the shipped cell — the evidence is arriving
+  # and is not being used. That ceiling is the prompt and the model.
+  candidates: 20
+  top_k: 10
+  # NOT VALIDLY CALIBRATED. The --calibrate sweep this value came from was
+  # broken: eval/run_eval.py left vector_floor at 0.0, and since the floors
+  # are OR'd, every result cleared the gate at every swept floor. The sweep
+  # is fixed now but this number has not been re-derived — see eval/EVAL_README.md.
+  #
   # Was 0.6 from Task 25's calibration (only 5 golden-set cases, explicitly
   # flagged there as not production-trustworthy). Real usage against a real
   # uploaded corpus showed a clean gap: out-of-corpus questions scored
   # 0.50-0.503, relevant ones (even a single vague word) scored 0.578+.
   # 0.55 sits in that gap with margin on both sides. Still a stopgap, not a
-  # real calibration - see eval/README.md, which needs a much larger golden
+  # real calibration - see eval/EVAL_README.md, which needs a much larger golden
   # set before this number should be trusted.
+  #
+  # That 0.578+ gap does NOT hold on table-heavy corpora: bge-reranker-v2-m3
+  # scores markdown table rows as near-neutral (~0.50-0.503, sigmoid of a
+  # ~0 logit) against natural-language questions regardless of whether the
+  # row is the right answer - "no opinion", not "irrelevant". A result is
+  # now kept if EITHER score_floor OR vector_floor below is cleared, so
+  # genuinely relevant table rows aren't refused just because the
+  # cross-encoder is neutral on tabular text.
   score_floor: 0.55
+  # Raw cosine-similarity floor (the embedder's score, before reranking).
+  # Rescues content the reranker scores as neutral but the embedder placed
+  # clearly near the query. Measured on the real corpus: relevant table
+  # rows sat at 0.4494-0.4718 cosine; 0.42 sits just under that with a
+  # little margin. Same stopgap caveat as score_floor above - not a real
+  # calibration, needs a larger golden set via eval/run_eval.py --calibrate.
+  vector_floor: 0.42
 
 storage:
   data_dir: /app/data
   collection: documents
+
+ingestion:
+  # Number of parallel worker threads. Each gets its own Docling converter
+  # (~1-2 GB model memory). "auto" detects from cgroup memory limit + CPU
+  # count; set to an integer to override. # ponytail: N workers = N× converter memory.
+  workers: auto
+  # RAM budget per worker (GB). Auto divides available memory by this to get
+  # the memory-bound worker count. Docling converter ~1-2 GB.
+  worker_memory_gb: 2
+  # Hard cap on auto-detected worker count.
+  max_workers: 8
+
+agentic:
+  enable_rewrite: true
+  enable_multi_query: true
+  enable_multi_hop: true
+  enable_self_correction: true
+  # SETTLED 2026-08-28 by six full 125-case agentic runs at
+  # candidates=20/top_k=10 (tuning Phase 2 — see eval/docs/experiment-results.md).
+  #
+  #   hops  mq   coverage  refusal  mhop_cit   mean    p90     max
+  #     1    2     0.389    0.640     0.227    8.48s  15.36s  21.93s  <- shipped
+  #     1    3     0.356    0.616     0.261    8.85s  15.69s  22.75s
+  #     2    2     0.389    0.632     0.227    9.01s  17.40s  23.99s
+  #     2    3     0.356    0.616     0.261    9.35s  16.64s  25.01s
+  #     3    2     0.378    0.624     0.227    9.30s  18.88s  25.82s
+  #     3    3     0.367    0.624     0.273    9.63s  18.29s  26.74s  <- was
+  #
+  # max_hops does nothing. Hold mq and walk hops 1/2/3: 0.389/0.389/0.378 at
+  # mq=2, 0.356/0.356/0.367 at mq=3 — no trend, ~2s of tail per added hop.
+  # Even multi_hop_citation_accuracy, the metric this parameter exists to
+  # serve, tracks multi_query_count instead (0.227 at every mq=2 cell, 0.261+
+  # at every mq=3 cell). Bridge questions get resolved by asking several ways,
+  # not by chaining retrieval rounds. Do not raise this without evidence that
+  # names a case a second hop actually rescued.
+  max_hops: 1
+  # The one axis that TRADES rather than just costing: mq=2 buys +3.3 points
+  # of answer_coverage and +2.4 of refusal_accuracy; mq=3 buys +3.4 points of
+  # multi_hop_citation_accuracy. answer_coverage is the documented primary
+  # metric (eval/metrics.py), so 2 wins — but if citation quality on bridge
+  # questions ever becomes the target, 3 is the defensible other side.
+  #
+  # 5 and 7 stay untested: more generated queries lengthen exactly the tail
+  # the max <=35s ceiling binds on.
+  multi_query_count: 2
+  # Wall-clock ceiling for the retrieval phase, in seconds. Past it no NEW
+  # expansion starts (no fan-out, no further hop, no self-correction) and the
+  # pipeline answers with what it already has. This exists because the target
+  # is max <=35s per request — a ceiling on every case, not a percentile —
+  # and no parameter value can deliver a ceiling: tuning shifts a
+  # distribution, only a clock bounds a tail. 25 rather than 35 because
+  # answer generation still runs after this and was measured at ~1.5-11s;
+  # the ~10s difference is that reserve. Set 0 to disable (unbounded).
+  # See retrieval/agentic.py:LATENCY_BUDGET_S for the measurements.
+  latency_budget_s: 25
+  # Temperature for the two calls that emit a retrieval query (query rewrite
+  # and multi-query fan-out). Those want lexical variety — three "different
+  # ways to ask the same question" generated greedily come out nearly
+  # identical, which wastes the fan-out. Answer generation is unaffected and
+  # stays deterministic; models.seed keeps runs reproducible regardless.
+  query_temperature: 0.7

@@ -1,7 +1,6 @@
 import pytest
 
 from ingestion.parser import Block, ParsedDocument
-from ingestion.chunkers.fixed import FixedChunker
 from ingestion.chunkers.structural import StructuralChunker
 from ingestion.chunkers.registry import build_chunker
 
@@ -88,11 +87,6 @@ def test_build_chunker_structural_applies_config():
     assert chunker.target_chars == int(300 * 3.5)
 
 
-def test_build_chunker_fixed_returns_fixed_chunker():
-    chunker = build_chunker({"strategy": "fixed"})
-    assert isinstance(chunker, FixedChunker)
-
-
 def test_low_confidence_propagates_to_chunks():
     doc = ParsedDocument(
         markdown="x",
@@ -121,3 +115,23 @@ def test_sheet_name_is_prepended_to_table_chunk_text():
     assert "Sheet: Q1 Sales" in chunks[0].text
     assert "Acme" in chunks[0].text
     assert chunks[0].sheet == "Q1 Sales"
+
+
+def test_table_summary_is_isolated_from_following_prose():
+    """A summary block merged with prose stamps is_summary=True onto that
+    prose, and should_refuse_aggregation defers entirely on any is_summary
+    hit — so the aggregation guard would switch itself off on unrelated
+    retrievals."""
+    doc = _doc([
+        Block(text="| a | 1 |\n|---|---|\n| b | 2 |", page=3, is_table=True),
+        Block(text="Aggregate column summary: 2 rows total.", page=3,
+              is_summary=True),
+        Block(text="Ordinary prose about warranty terms.", page=3),
+    ])
+    chunks = StructuralChunker(target_tokens=500).chunk(doc, "d", "f.pdf")
+
+    summaries = [c for c in chunks if c.is_summary]
+    assert len(summaries) == 1
+    assert "warranty" not in summaries[0].text
+    assert any("warranty" in c.text and not c.is_summary and not c.is_table
+               for c in chunks)

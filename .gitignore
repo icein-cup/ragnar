@@ -16,6 +16,20 @@ build/
 data/
 .env
 
-# eval reports can contain full chunk text from whatever corpus was
-# evaluated - never commit real document content
-eval/reports/
+# eval corpus uploads — real document content, never commit
+corpus/
+
+# Eval reports ARE tracked - they are the evidence behind every number in
+# eval/docs/, and a collaborator cannot check a tuning conclusion without
+# them. Everything committed so far is HybridQA, a public dataset.
+#
+# BEFORE COMMITTING A REPORT FROM A PRIVATE CORPUS: reports embed the full
+# chunk text of whatever was evaluated, so a run against real uploaded
+# documents puts that content in git history permanently. Add an explicit
+# ignore for it here first.
+#
+# The .jsonl sink is excluded because it duplicates the .json's `cases`
+# array exactly (verified: same 125 cases, same keys). It exists so a run
+# killed mid-sweep still leaves its cases on disk; the .json is written at
+# the end and carries the same data plus the summary metrics.
+eval/reports/*.jsonl

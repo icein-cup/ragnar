@@ -1,0 +1,53 @@
+{
+  "phase": "agentic",
+  "results": [
+    {
+      "answer_coverage": 0.3888888888888889,
+      "refusal_accuracy": 0.632,
+      "citation_accuracy": 0.5,
+      "citation_precision": 0.43846185783525937,
+      "multi_hop_citation_accuracy": 0.22727272727272727,
+      "latency_mean_s": 9.01,
+      "latency_p90_s": 17.4,
+      "latency_max_s": 23.99,
+      "max_hops": 2,
+      "multi_query_count": 2
+    },
+    {
+      "answer_coverage": 0.35555555555555557,
+      "refusal_accuracy": 0.616,
+      "citation_accuracy": 0.4777777777777778,
+      "citation_precision": 0.43530393217893215,
+      "multi_hop_citation_accuracy": 0.26136363636363635,
+      "latency_mean_s": 9.35,
+      "latency_p90_s": 16.64,
+      "latency_max_s": 25.01,
+      "max_hops": 2,
+      "multi_query_count": 3
+    },
+    {
+      "answer_coverage": 0.37777777777777777,
+      "refusal_accuracy": 0.624,
+      "citation_accuracy": 0.4888888888888889,
+      "citation_precision": 0.4259832324538207,
+      "multi_hop_citation_accuracy": 0.22727272727272727,
+      "latency_mean_s": 9.3,
+      "latency_p90_s": 18.88,
+      "latency_max_s": 25.82,
+      "max_hops": 3,
+      "multi_query_count": 2
+    },
+    {
+      "answer_coverage": 0.36666666666666664,
+      "refusal_accuracy": 0.624,
+      "citation_accuracy": 0.4888888888888889,
+      "citation_precision": 0.43451940035273373,
+      "multi_hop_citation_accuracy": 0.2727272727272727,
+      "latency_mean_s": 9.63,
+      "latency_p90_s": 18.29,
+      "latency_max_s": 26.74,
+      "max_hops": 3,
+      "multi_query_count": 3
+    }
+  ]
+}

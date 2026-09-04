@@ -30,6 +30,17 @@ class Chunk:
 
 
 @dataclass
+class Citation:
+    """A rich citation with navigation metadata for the UI."""
+    label: str
+    doc_id: str
+    filename: str
+    page: int | None = None
+    sheet: str | None = None
+    chunk_index: int = 0
+
+
+@dataclass
 class Document:
     doc_id: str
     filename: str
@@ -42,6 +53,10 @@ class Document:
 class SearchResult:
     chunk: Chunk
     score: float
+    # Raw vector-similarity score from the store, preserved through
+    # reranking as a second signal — some content (e.g. table rows) scores
+    # near-neutral on the cross-encoder despite being genuinely relevant.
+    vector_score: float | None = None
 
 
 @dataclass

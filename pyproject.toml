@@ -11,16 +11,37 @@ dependencies = [
     "docling>=2.0",
     "qdrant-client>=1.12",
     "httpx>=0.27",
-    "pydantic>=2.9",
-    "pydantic-settings>=2.6",
     "pyyaml>=6.0",
     "sentence-transformers>=3.3",
+    # ONNX Runtime backend for the reranker cross-encoder (retrieval/reranker.py).
+    # The torch backend measured ~10s to rerank 30 candidates on CPU, which the
+    # agentic path pays once per generated query — the dominant cost of an eval
+    # run. optimum provides the one-off torch->ONNX export; onnxruntime executes
+    # it. BAAI/bge-reranker-v2-m3 ships no prebuilt ONNX weights, so the export
+    # is ours to make: see eval/export_reranker_onnx.py.
+    "optimum[onnxruntime]>=1.20",
     "openpyxl>=3.1",
+    "numpy>=1.26",
+    "pandas>=2.0",
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8.3", "pytest-cov>=6.0", "reportlab>=4.2"]
-eval = ["ragas>=0.2", "langchain-openai>=0.2", "datasets>=3.0"]
+dev = [
+    "pytest>=8.3",
+    "pytest-cov>=6.0",
+    "reportlab>=4.2",
+    # Eval-only: Ragas judged metrics and the OpenAI-compatible judge
+    # client. Never imported by the app — this gets installed with the
+    # image's `.[dev]` so the eval harness runs inside the container.
+    # ragas 0.4.x imports langchain_community.chat_models.vertexai, which
+    # was removed in langchain-community 0.4.x — pin below that.
+    "ragas==0.4.3",
+    "langchain-community<0.4",
+    "langchain-openai>=0.3",
+    # eval/gen_golden.py imports it directly; do not rely on langchain-openai
+    # happening to pull it in.
+    "openai>=1.0",
+]
 
 [tool.setuptools.packages.find]
 where = ["."]
