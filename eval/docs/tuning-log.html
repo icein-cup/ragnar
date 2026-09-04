@@ -1,0 +1,1988 @@
+<title>Ragnar Tuning Log</title>
+
+<style>
+  :root {
+    color-scheme: light;
+    --bg: #F3F5F7;
+    --surface: #FFFFFF;
+    --surface-2: #EEF1F4;
+    --ink: #14171C;
+    --ink-soft: #565F6B;
+    --muted: #8A93A0;
+    --line: #DDE1E6;
+    --accent: #B85C2C;
+    --accent-soft: #F2E3D8;
+
+    --good: #0C9A47;
+    --good-soft: #E3F5EA;
+    --critical: #C93A34;
+    --critical-soft: #FAE6E4;
+    --neutral-status: #8A93A0;
+    --neutral-status-soft: #EEF1F4;
+
+    --s-blue: #2a78d6;
+    --s-orange: #eb6834;
+    --s-aqua: #1baf7a;
+    --s-yellow: #c98500;
+
+    --bar-track: #E7EAED;
+
+    --font-display: "IBM Plex Serif", Georgia, "Times New Roman", serif;
+    --font-body: "IBM Plex Sans", -apple-system, "Segoe UI", sans-serif;
+    --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --bg: #14171C;
+      --surface: #1C2027;
+      --surface-2: #23272F;
+      --ink: #E7E9EC;
+      --ink-soft: #A6AEBA;
+      --muted: #7C8794;
+      --line: #2A2F38;
+      --accent: #D97A46;
+      --accent-soft: #3A2A20;
+
+      --good: #4FB578;
+      --good-soft: #1B2E24;
+      --critical: #E06A5F;
+      --critical-soft: #33201E;
+      --neutral-status: #8A93A0;
+      --neutral-status-soft: #23272F;
+
+      --s-blue: #3987e5;
+      --s-orange: #d95926;
+      --s-aqua: #199e70;
+      --s-yellow: #c98500;
+
+      --bar-track: #262B33;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #14171C;
+    --surface: #1C2027;
+    --surface-2: #23272F;
+    --ink: #E7E9EC;
+    --ink-soft: #A6AEBA;
+    --muted: #7C8794;
+    --line: #2A2F38;
+    --accent: #D97A46;
+    --accent-soft: #3A2A20;
+
+    --good: #4FB578;
+    --good-soft: #1B2E24;
+    --critical: #E06A5F;
+    --critical-soft: #33201E;
+    --neutral-status: #8A93A0;
+    --neutral-status-soft: #23272F;
+
+    --s-blue: #3987e5;
+    --s-orange: #d95926;
+    --s-aqua: #199e70;
+    --s-yellow: #c98500;
+
+    --bar-track: #262B33;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font-body);
+    font-size: 16px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .page {
+    max-width: 1360px;
+    margin: 0 auto;
+    padding: 0 24px 96px;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+
+  @media (min-width: 1100px) {
+    .page { grid-template-columns: 220px minmax(0, 1000px); gap: 56px; padding: 0 40px 120px; justify-content: center; }
+  }
+
+  /* ---------- Header ---------- */
+  header.hero {
+    grid-column: 1 / -1;
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 64px 0 32px;
+  }
+  .eyebrow {
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--accent);
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .eyebrow::before {
+    content: "";
+    width: 22px;
+    height: 2px;
+    background: var(--accent);
+    display: inline-block;
+  }
+  h1 {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: clamp(34px, 5vw, 48px);
+    line-height: 1.08;
+    letter-spacing: -0.01em;
+    margin: 14px 0 12px;
+    text-wrap: balance;
+  }
+  .dek {
+    font-size: 18px;
+    color: var(--ink-soft);
+    max-width: 62ch;
+    margin: 0 0 28px;
+  }
+
+  .status-strip {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 1px;
+    background: var(--line);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .stat {
+    background: var(--surface);
+    padding: 16px 18px;
+  }
+  .stat .stat-label {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .stat .stat-value {
+    font-family: var(--font-body);
+    font-weight: 600;
+    font-size: 20px;
+    margin-top: 4px;
+    color: var(--ink);
+  }
+  .stat .stat-note {
+    font-size: 12.5px;
+    color: var(--ink-soft);
+    margin-top: 2px;
+  }
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    padding: 2px 8px 2px 6px;
+    border-radius: 100px;
+    margin-top: 6px;
+  }
+  .chip::before { content: ""; width: 6px; height: 6px; border-radius: 50%; }
+  .chip.good { background: var(--good-soft); color: var(--good); }
+  .chip.good::before { background: var(--good); }
+  .chip.critical { background: var(--critical-soft); color: var(--critical); }
+  .chip.critical::before { background: var(--critical); }
+  .chip.pending { background: var(--neutral-status-soft); color: var(--neutral-status); }
+  .chip.pending::before { background: var(--neutral-status); }
+
+  /* ---------- TOC rail ---------- */
+  /* display:block is set only inside the min-width:1100px media query above;
+     this rule must not repeat "display" or it wins the cascade by source
+     order regardless of viewport and the sidebar never shows. */
+  .toc {
+    display: none;
+    position: sticky;
+    top: 48px;
+    align-self: start;
+    padding-top: 96px;
+  }
+  @media (min-width: 1100px) {
+    .toc { display: block; }
+  }
+  .toc-label {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 10px;
+  }
+  .toc a {
+    display: block;
+    font-size: 13.5px;
+    color: var(--ink-soft);
+    text-decoration: none;
+    padding: 5px 0 5px 12px;
+    border-left: 2px solid var(--line);
+    transition: color .15s, border-color .15s;
+  }
+  .toc a:hover { color: var(--ink); border-color: var(--accent); }
+
+  /* ---------- Main column ---------- */
+  main { min-width: 0; padding-top: 8px; }
+
+  section {
+    padding: 44px 0;
+    border-bottom: 1px solid var(--line);
+  }
+  section:last-of-type { border-bottom: none; }
+
+  .section-num {
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+  h2 {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 26px;
+    letter-spacing: -0.005em;
+    margin: 0 0 10px;
+    text-wrap: balance;
+  }
+  .framing {
+    color: var(--ink-soft);
+    max-width: 62ch;
+    margin: 0 0 24px;
+    font-size: 15.5px;
+  }
+  .framing code, p code, li code {
+    font-family: var(--font-mono);
+    font-size: 0.88em;
+    background: var(--surface-2);
+    padding: 1px 5px;
+    border-radius: 4px;
+  }
+
+  /* ---------- Chart card ---------- */
+  .chart-card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 22px 24px 18px;
+  }
+  .chart-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ink);
+    margin-bottom: 2px;
+  }
+  .chart-sub {
+    font-size: 12.5px;
+    color: var(--muted);
+    margin-bottom: 18px;
+  }
+  .legend-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+    margin-bottom: 16px;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--ink-soft);
+    font-family: var(--font-mono);
+  }
+  .legend-swatch { width: 10px; height: 10px; border-radius: 2.5px; flex: none; }
+
+  .bar-group { margin-bottom: 14px; }
+  .bar-group:last-child { margin-bottom: 0; }
+  .bar-group-label {
+    font-size: 12.5px;
+    color: var(--ink-soft);
+    margin-bottom: 5px;
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 8px;
+  }
+  .bar-group-label .caveat { font-size: 11px; color: var(--muted); font-style: italic; }
+
+  .bar-row { display: flex; align-items: center; height: 20px; margin-bottom: 2px; position: relative; }
+  .bar-row:last-child { margin-bottom: 0; }
+  .bar-track {
+    flex: 1;
+    height: 14px;
+    background: var(--bar-track);
+    border-radius: 4px;
+    position: relative;
+    overflow: visible;
+  }
+  .bar-fill {
+    position: absolute;
+    top: 0; left: 0; height: 100%;
+    border-radius: 4px;
+    transition: filter .12s;
+  }
+  .bar-fill:hover { filter: brightness(1.08); }
+  .bar-fill.na {
+    background: repeating-linear-gradient(135deg, var(--bar-track), var(--bar-track) 4px, var(--line) 4px, var(--line) 7px);
+  }
+  .bar-value {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 12.5px;
+    color: var(--ink);
+    font-weight: 500;
+    margin-left: 8px;
+    min-width: 40px;
+    flex: none;
+  }
+  .bar-value.delta-good { color: var(--good); }
+  .bar-value.delta-critical { color: var(--critical); }
+
+  /* stacked composition bar */
+  .stack-row { margin-bottom: 16px; }
+  .stack-row:last-child { margin-bottom: 0; }
+  .stack-label { font-size: 12.5px; color: var(--ink-soft); margin-bottom: 6px; }
+  .stack-track { display: flex; height: 22px; border-radius: 5px; overflow: hidden; gap: 2px; }
+  .stack-seg { height: 100%; display: flex; align-items: center; justify-content: center; }
+  .stack-seg span {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 600;
+    color: #fff;
+    mix-blend-mode: normal;
+  }
+
+  /* ---------- Finding callout ---------- */
+  .finding {
+    display: flex;
+    gap: 14px;
+    margin-top: 20px;
+    padding: 16px 18px;
+    border-radius: 10px;
+    border: 1px solid var(--line);
+    background: var(--surface);
+  }
+  .finding .rail { width: 3px; border-radius: 3px; flex: none; align-self: stretch; }
+  .finding.good .rail { background: var(--good); }
+  .finding.critical .rail { background: var(--critical); }
+  .finding.pending .rail { background: var(--neutral-status); }
+  .finding .body { min-width: 0; }
+  .finding .tag {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+  .finding.good .tag { color: var(--good); }
+  .finding.critical .tag { color: var(--critical); }
+  .finding.pending .tag { color: var(--neutral-status); }
+  .finding p { margin: 0; font-size: 14.5px; color: var(--ink); }
+  .finding p + p { margin-top: 8px; color: var(--ink-soft); }
+
+  /* ---------- lesson pull-quote ---------- */
+  .lesson {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 32px 32px;
+    position: relative;
+    overflow: hidden;
+  }
+  .lesson::before {
+    content: "";
+    position: absolute; top: 0; left: 0; right: 0; height: 3px;
+    background: linear-gradient(90deg, var(--critical), var(--accent), var(--good));
+  }
+  .lesson .lesson-eyebrow {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 10px;
+  }
+  .lesson h3 {
+    font-family: var(--font-display);
+    font-size: 21px;
+    margin: 0 0 12px;
+    text-wrap: balance;
+  }
+  .lesson p { color: var(--ink-soft); font-size: 15px; margin: 0 0 10px; }
+  .lesson p:last-child { margin-bottom: 0; }
+  .lesson strong { color: var(--ink); }
+
+  .steps {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    gap: 12px;
+    margin-top: 18px;
+  }
+  .step {
+    background: var(--surface-2);
+    border-radius: 8px;
+    padding: 12px 14px;
+  }
+  .step .step-n {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--muted);
+    margin-bottom: 4px;
+  }
+  .step .step-t { font-size: 13.5px; font-weight: 600; margin-bottom: 3px; }
+  .step .step-d { font-size: 12.5px; color: var(--ink-soft); }
+  .step .step-verdict { margin-top: 8px; }
+
+  /* ---------- table ---------- */
+  .table-wrap { overflow-x: auto; margin-top: 4px; }
+  table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+  th, td {
+    text-align: left;
+    padding: 7px 12px;
+    border-bottom: 1px solid var(--line);
+    white-space: nowrap;
+  }
+  th {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 500;
+  }
+  td.num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+  tr.win td.num.delta { color: var(--good); }
+  tr.loss td.num.delta { color: var(--critical); }
+
+  footer {
+    grid-column: 1 / -1;
+    max-width: 1000px;
+    margin: 24px auto 0;
+    padding-top: 28px;
+    border-top: 1px solid var(--line);
+    font-size: 13px;
+    color: var(--muted);
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  footer span { font-family: var(--font-mono); }
+
+  /* tooltip */
+  #tt {
+    position: fixed;
+    pointer-events: none;
+    background: var(--ink);
+    color: var(--bg);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    padding: 6px 9px;
+    border-radius: 6px;
+    opacity: 0;
+    transform: translate(-50%, calc(-100% - 10px));
+    transition: opacity .1s;
+    z-index: 50;
+    white-space: nowrap;
+  }
+  #tt.show { opacity: 1; }
+</style>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Serif:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+
+<div class="page">
+
+  <header class="hero">
+    <div class="eyebrow">Ragnar System &middot; Parameter Evaluation</div>
+    <h1>Prompt and Retrieval Configuration Evaluation</h1>
+    <p class="dek">A record of every prompt, retrieval, and model configuration evaluated against the
+      125-case HybridQA benchmark, 2026&#8209;08&#8209;24 to 2026&#8209;08&#8209;28. States which
+      configurations were adopted, which were reverted following full-benchmark disconfirmation, and
+      the methodological finding governing minimum evaluation sample size for a change expected to
+      alter refusal frequency. Sections 09&ndash;14 cover the three completed tuning phases
+      &mdash; retrieval width, agentic expansion, and retrieval floors &mdash; together with the
+      judged-metric evaluation, the decoding-temperature trial, and the first measurement of
+      repeat-run variance on this benchmark.</p>
+    <p class="dek" style="font-size:14px; margin-top:-10px;">
+      <strong style="color:var(--ink); font-weight:600;">Test conditions, unless stated otherwise:</strong>
+      HybridQA benchmark, 125 cases (90 in&#8209;corpus, 35 out&#8209;of&#8209;corpus probes) &middot;
+      model qwen2.5:7b &middot; embedding bge&#8209;m3 &middot; reranker BAAI/bge&#8209;reranker&#8209;v2&#8209;m3
+      &middot; seed 42.
+    </p>
+
+    <div class="status-strip">
+      <div class="stat">
+        <div class="stat-label">Model, adopted</div>
+        <div class="stat-value">qwen2.5:7b</div>
+        <div class="stat-note">selected over 14b and 27B variants (Section 01)</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">System prompt, adopted</div>
+        <div class="stat-value">sentinel + CoT</div>
+        <span class="chip critical">2 candidates evaluated, both reverted</span>
+      </div>
+      <div class="stat">
+        <div class="stat-label">top_k / candidates</div>
+        <div class="stat-value">10 / 20</div>
+        <span class="chip good">shipped to config.yaml 2026&#8209;08&#8209;26 (0344bcd)</span>
+      </div>
+      <div class="stat">
+        <div class="stat-label">max_hops / multi_query</div>
+        <div class="stat-value">1 / 2</div>
+        <span class="chip good">shipped to config.yaml 2026&#8209;08&#8209;28 (c1dc291)</span>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Worst-case latency</div>
+        <div class="stat-value">21.9s</div>
+        <span class="chip good">shipped config &middot; inside the &le;35s ceiling</span>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Tuning phases closed</div>
+        <div class="stat-value">3 of 4</div>
+        <span class="chip pending">chunking budget outstanding</span>
+      </div>
+    </div>
+  </header>
+
+  <nav class="toc">
+    <div class="toc-label">Contents</div>
+    <a href="#models">01 &middot; Model size</a>
+    <a href="#sentinel">02 &middot; Refusal sentinel</a>
+    <a href="#round1">03 &middot; Trial 1 &mdash; full replacement</a>
+    <a href="#round2">04 &middot; Trial 2 &mdash; additive merge</a>
+    <a href="#lesson">05 &middot; Sampling validity</a>
+    <a href="#topk">06 &middot; Retrieval width</a>
+    <a href="#chunking">07 &middot; Chunking strategy</a>
+    <a href="#latency">08 &middot; Latency</a>
+    <a href="#phase1">09 &middot; Retrieval sweep</a>
+    <a href="#ragas">10 &middot; Judged metrics</a>
+    <a href="#temperature">11 &middot; Decoding temperature</a>
+    <a href="#phase2">12 &middot; Agentic sweep</a>
+    <a href="#determinism">13 &middot; Repeat-run variance</a>
+    <a href="#phase3">14 &middot; Retrieval floors</a>
+    <a href="#state">15 &middot; Configuration state</a>
+    <a href="#remaining">16 &middot; What remains</a>
+  </nav>
+
+  <main>
+
+    <section id="models">
+      <div class="section-num">01</div>
+      <h2>Model Size Comparison</h2>
+      <p class="framing">Four model configurations were evaluated on an identical set of 20
+        in&#8209;corpus questions and 10 out&#8209;of&#8209;corpus probes, replayed over identical
+        retrieved contexts (single generation call per case; retrieval not repeated). Coverage is
+        defined as the proportion of correct answers over all answerable questions. Probe refusal
+        is the proportion of out&#8209;of&#8209;corpus questions correctly declined.</p>
+
+      <div class="chart-card">
+        <div class="chart-title">Coverage and probe-refusal rate by model configuration</div>
+        <div class="chart-sub">eval/replay_answer.py &middot; n=20 in-corpus + n=10 probes &middot; seed 42 &middot; think: default (native mode per model)</div>
+        <div class="legend-row">
+          <div class="legend-item"><span class="legend-swatch" style="background:var(--s-blue)"></span>coverage</div>
+          <div class="legend-item"><span class="legend-swatch" style="background:var(--s-orange)"></span>probe refusal</div>
+        </div>
+        <div id="chart-models"></div>
+      </div>
+
+      <div class="chart-card" style="margin-top:14px;">
+        <div class="chart-title">Latency &amp; resident memory per call</div>
+        <div id="chart-models-cost"></div>
+      </div>
+
+      <div class="finding good">
+        <div class="rail"></div>
+        <div class="body">
+          <div class="tag">Confirmed</div>
+          <p>Increasing parameter count from 7B to 14B produced no measurable change in coverage
+            (0.60 for both) or probe refusal (0.90 for both), at 1.7&times; the latency and 1.4&times;
+            the resident memory. The 27B model, evaluated in its native thinking mode, gained 10
+            coverage points over the 7B baseline but required 32&nbsp;GB resident memory and
+            approximately 20 seconds per call before any agentic overhead &mdash; exceeding the
+            latency budget independent of pipeline cost. Disabling the 27B model's reasoning pass
+            (think: false) reduced coverage to 0.05.</p>
+          <p>qwen2.5:7b was retained as the production model. The prompt-wording change in Section 02
+            produced a larger coverage gain than doubling parameter count.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="sentinel">
+      <div class="section-num">02</div>
+      <h2>Refusal Sentinel Instruction</h2>
+      <p class="framing">Evaluated whether instructing the model to prefix a genuine non-answer with a
+        literal token (<code>NO_ANSWER</code>) improves refusal-detection reliability independent of a
+        given model's phrasing habits. n=40 in-corpus, n=20 probes, qwen2.5:7b.</p>
+
+      <div class="chart-card">
+        <div class="chart-title">Coverage and refusal rate by instruction wording</div>
+        <div class="legend-row">
+          <div class="legend-item"><span class="legend-swatch" style="background:var(--s-blue)"></span>coverage</div>
+          <div class="legend-item"><span class="legend-swatch" style="background:var(--s-orange)"></span>refusal rate</div>
+        </div>
+        <div id="chart-sentinel"></div>
+      </div>
+
+      <div class="finding good">
+        <div class="rail"></div>
+        <div class="body">
+          <div class="tag">Adopted</div>
+          <p>A sentinel instruction that also required the model to justify a refusal (v1) reduced
+            coverage by 10 points relative to no sentinel, trading 4 correct answers for 2 correct
+            refusals. A sentinel instruction stating an explicit answer-preference bias (v2) recovered
+            the loss and additionally improved refusal rate by 10 points over the no-sentinel
+            condition.</p>
+          <p>The answer-preference instruction is necessary to the sentinel's function on this model,
+            not incidental to it.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="round1">
+      <div class="section-num">03</div>
+      <h2>Trial 1: Full Prompt Replacement</h2>
+      <p class="framing">Candidate prompt <code>hops_example</code> removes the sentinel instruction
+        and the 4-step reasoning instruction, and adds a bridge-resolution rule with a worked example.
+        A 40-case single-call replay (retrieved contexts held fixed; n=40 in-corpus, n=20 probes)
+        indicated a coverage improvement. The candidate was subsequently evaluated on the complete
+        125-case agentic benchmark, in which retrieval is executed fresh per case.</p>
+
+      <div class="chart-card">
+        <div class="chart-title">Full 125-case benchmark: production baseline vs. <code>hops_example</code></div>
+        <div class="chart-sub">eval/reports/20260824-132940.json &rarr; 20260825-152139.json &middot; n=125 (90 in-corpus + 35 probes)</div>
+        <div class="legend-row">
+          <div class="legend-item"><span class="legend-swatch" style="background:var(--muted)"></span>baseline (production)</div>
+          <div class="legend-item"><span class="legend-swatch" style="background:var(--good)"></span>improved</div>
+          <div class="legend-item"><span class="legend-swatch" style="background:var(--critical)"></span>regressed</div>
+        </div>
+        <div id="chart-round1"></div>
+      </div>
+
+      <div class="chart-card" style="margin-top:14px;">
+        <div class="chart-title">Case outcome by disposition</div>
+        <div class="chart-sub">n=90 in-corpus &middot; refusal frequency decreased from 32/90 to 9/90</div>
+        <div id="chart-round1-conv"></div>
+      </div>
+
+      <div class="finding critical">
+        <div class="rail"></div>
+        <div class="body">
+          <div class="tag">Reverted</div>
+          <p><code>answer_coverage</code> &mdash; the primary outcome measure, which does not exclude
+            refused cases from its denominator &mdash; increased by 3.3 points, within the scorer's
+            documented uncertainty band of 2&ndash;5 points and not distinguishable from no effect.
+            <code>answer_accuracy</code> (proportion correct among non-refused cases) decreased by
+            17.8 points. Of 23 cases for which the model ceased to refuse, 3 (13%) produced a correct
+            answer and 20 (87%) produced an incorrect answer.</p>
+          <p>This indicates the production prompt's sentinel-and-reasoning instructions do not
+            primarily suppress correct answers to tractable questions: a substantial share of its
+            refusals occur on questions for which no reliable answer is resolvable from the retrieved
+            context, where refusal carries lower cost than an incorrect answer.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="round2">
+      <div class="section-num">04</div>
+      <h2>Trial 2: Additive Instruction Integration</h2>
+      <p class="framing">The bridge-resolution rule from Trial 1 was added to the production prompt
+        without removing the sentinel instruction or the reasoning steps. Prior to full-benchmark
+        evaluation, the candidate was evaluated on a stratified subsample of 55 cases (40 in-corpus,
+        15 probes) run through the complete agentic pipeline &mdash; fresh retrieval and generation,
+        not a replay.</p>
+
+      <div class="chart-card">
+        <div class="chart-title"><code>answer_coverage</code> under two evaluation sample sizes</div>
+        <div class="chart-sub">Same metric, same candidate; the 55-case and 125-case evaluations report opposite conclusions</div>
+        <div id="chart-divergence"></div>
+      </div>
+
+      <div class="chart-card" style="margin-top:14px;">
+        <div class="chart-title">Full 125-case benchmark: production baseline vs. Trial 2 candidate</div>
+        <div class="chart-sub">eval/reports/20260824-132940.json &rarr; 20260825-165051.json &middot; n=125 (90 in-corpus + 35 probes)</div>
+        <div class="legend-row">
+          <div class="legend-item"><span class="legend-swatch" style="background:var(--muted)"></span>baseline (production)</div>
+          <div class="legend-item"><span class="legend-swatch" style="background:var(--good)"></span>improved</div>
+          <div class="legend-item"><span class="legend-swatch" style="background:var(--critical)"></span>regressed</div>
+        </div>
+        <div id="chart-round2"></div>
+      </div>
+
+      <div class="finding critical">
+        <div class="rail"></div>
+        <div class="body">
+          <div class="tag">Reverted &mdash; exceeds Trial 1 regression</div>
+          <p>On the 55-case subsample, the candidate showed no measurable difference from baseline on
+            accuracy, coverage, or refusal rate, and a measurable improvement in citation precision.
+            On the full 125-case benchmark: <code>answer_coverage</code> decreased by 17.8 points
+            (0.489&rarr;0.311) and <code>answer_accuracy</code> decreased by 19.9 points
+            (0.759&rarr;0.560) &mdash; a larger regression than Trial 1.</p>
+          <p>The subsample's baseline score (0.325 coverage) was itself substantially below the
+            baseline's full-benchmark score (0.489), indicating the subsample was not representative
+            of the full case distribution. A null difference measured on an unrepresentative sample
+            provides no evidence about the full population.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="lesson">
+      <div class="section-num">05</div>
+      <div class="lesson">
+        <div class="lesson-eyebrow">Methodological finding</div>
+        <h3>Evaluation sample size and composition determine whether a pipeline-level regression is detectable.</h3>
+        <p>Two independent evaluation tiers each produced a false negative for a regression that the
+          complete benchmark subsequently confirmed &mdash; each one tier more computationally
+          expensive to run than the last.</p>
+        <div class="steps">
+          <div class="step">
+            <div class="step-n">Tier 1</div>
+            <div class="step-t">Single-call replay</div>
+            <div class="step-d">One generation call per case, over a fixed, previously-retrieved
+              context (n=40&ndash;60, minutes to run). Does not exercise the self-correction stage and
+              cannot measure a prompt's effect on refusal calibration under retrieval variance.</div>
+            <div class="step-verdict"><span class="chip critical">Regression not detected (Trial 1)</span></div>
+          </div>
+          <div class="step">
+            <div class="step-n">Tier 2</div>
+            <div class="step-t">Full pipeline, partial sample</div>
+            <div class="step-d">Complete retrieval, self-correction, and generation stages, evaluated
+              on a subsample matched in size class to the replay (n=55, ~20 min). An unrepresentative
+              subsample can depress both conditions equally and mask a regression concentrated outside
+              the sampled cases.</div>
+            <div class="step-verdict"><span class="chip critical">Regression not detected (Trial 2)</span></div>
+          </div>
+          <div class="step">
+            <div class="step-n">Tier 3</div>
+            <div class="step-t">Full 125-case benchmark</div>
+            <div class="step-d">The only evaluation tier at which both regressions were detected
+              (30&ndash;50 min per run). Required for any candidate expected to alter refusal
+              frequency.</div>
+            <div class="step-verdict"><span class="chip good">Regression detected, both trials</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="topk">
+      <div class="section-num">06</div>
+      <h2>Retrieval Width Parameter (<code>top_k</code>, <code>candidates</code>)</h2>
+      <p class="framing"><code>top_k</code> and <code>candidates</code> control the number of chunks
+        passed to the reranker and, subsequently, to the generation call. Unlike the two prompt trials
+        above, this parameter does not alter refusal-instruction wording. Evaluated in two stages
+        prior to full-benchmark confirmation.</p>
+
+      <div class="chart-card">
+        <div class="chart-title">Stage 1: retrieval recall, no generation</div>
+        <div class="chart-sub">n=89 in-corpus &middot; embedding and reranking only</div>
+        <div class="legend-row">
+          <div class="legend-item"><span class="legend-swatch" style="background:var(--s-blue)"></span>answer recall</div>
+          <div class="legend-item"><span class="legend-swatch" style="background:var(--s-aqua)"></span>source recall</div>
+        </div>
+        <div id="chart-topk-retrieval"></div>
+      </div>
+
+      <div class="chart-card" style="margin-top:14px;">
+        <div class="chart-title">Stage 2: single generation call per case, base retrieval (no agentic stages)</div>
+        <div class="chart-sub">n=89 in-corpus + n=35 probes &middot; production system prompt &middot; outcome composition</div>
+        <div class="legend-row">
+          <div class="legend-item"><span class="legend-swatch" style="background:var(--good)"></span>correct</div>
+          <div class="legend-item"><span class="legend-swatch" style="background:var(--critical)"></span>wrong</div>
+          <div class="legend-item"><span class="legend-swatch" style="background:var(--neutral-status)"></span>refused</div>
+        </div>
+        <div id="chart-topk-gen"></div>
+      </div>
+
+      <div class="finding critical">
+        <div class="rail"></div>
+        <div class="body">
+          <div class="tag">Superseded &mdash; not reproduced on the full pipeline</div>
+          <p>Answer recall increased monotonically with <code>top_k</code> (0.75 at k=5, 0.80 at
+            k=10); no case present in a lower-k result set was absent from a higher-k result set. At
+            the generation stage, correct-answer count increased by 9 points with no increase in
+            wrong-answer count; probe refusal decreased by 8.5 points (3 of 35 additional probes
+            answered rather than declined).</p>
+          <p>The full 125-case agentic evaluation was subsequently completed across six
+            configurations (Section 09). The 9-point gain did not reproduce. Both measurements above
+            are retrieval-side: recall establishes that a document <em>can</em> be retrieved, and the
+            single-call generation stage omits the multi-query, multi-hop, and self-correction stages
+            through which retrieved context actually reaches the answer. Neither predicts pipeline
+            coverage &mdash; the same class of false positive documented in Section 05, one tier
+            earlier.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="chunking">
+      <div class="section-num">07</div>
+      <h2>Chunking Strategy Comparison</h2>
+      <p class="framing">Topic-boundary (semantic) chunking &mdash; sentence segmentation, embedding,
+        cosine-distance breakpoint detection &mdash; evaluated against the production structural
+        chunker. Retrieval only, n=89 in-corpus, no generation.</p>
+
+      <div class="chart-card">
+        <div class="chart-title">Answer and source recall by chunking strategy</div>
+        <div class="legend-row">
+          <div class="legend-item"><span class="legend-swatch" style="background:var(--s-blue)"></span>answer recall</div>
+          <div class="legend-item"><span class="legend-swatch" style="background:var(--s-aqua)"></span>source recall</div>
+        </div>
+        <div id="chart-chunking"></div>
+      </div>
+
+      <div class="finding pending">
+        <div class="rail"></div>
+        <div class="body">
+          <div class="tag">No change adopted</div>
+          <p>Semantic chunking produced a 1-point difference in answer recall relative to structural
+            chunking (3 cases gained, 2 lost), not distinguishable from sampling variation at n=89.
+            Re-ingesting the corpus under an alternative chunking strategy is not justified by this
+            result.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="latency">
+      <div class="section-num">08</div>
+      <h2>Latency Characterization</h2>
+      <p class="framing">Measured on the full 125-case production-baseline run. This is the constraint
+        every configuration above was evaluated against in addition to accuracy.</p>
+
+      <div class="chart-card">
+        <div class="chart-title">Mean latency by retrieval path</div>
+        <div id="chart-latency"></div>
+      </div>
+
+      <div class="status-strip" style="margin-top:16px;">
+        <div class="stat"><div class="stat-label">Median</div><div class="stat-value">15.9s</div></div>
+        <div class="stat"><div class="stat-label">p90</div><div class="stat-value">53.5s</div></div>
+        <div class="stat"><div class="stat-label">Max</div><div class="stat-value">144.9s</div></div>
+        <div class="stat"><div class="stat-label">Slow path share</div><div class="stat-value">18%</div></div>
+      </div>
+
+      <div class="finding critical">
+        <div class="rail"></div>
+        <div class="body">
+          <div class="tag">Exceeded stated target &mdash; at time of measurement</div>
+          <p>The agentic pipeline previously executed within a single blocking UI element with no
+            intermediate output. Specified target: p50 &le; 6&ndash;8s, p90 &le; 15&ndash;20s. Measured
+            p90 (53.5s) exceeds this target independent of any accuracy-affecting change. An accuracy
+            improvement that further increases p90 does not constitute a net improvement under this
+            constraint.</p>
+        </div>
+      </div>
+
+      <p class="framing" style="margin-top:28px;">The target was subsequently restated as a hard
+        ceiling &mdash; <strong style="color:var(--ink)">max &le; 35s on every case</strong>, not a
+        percentile &mdash; and the cross-encoder reranker was moved from the container (CPU) to the
+        host GPU, where a 30-candidate rerank costs 1.48s rather than 10.34s. The chart below compares
+        the baseline run against the same benchmark under the configuration selected in Section 09.</p>
+
+      <div class="chart-card">
+        <div class="chart-title">Latency before and after the reranker move</div>
+        <div class="chart-sub">Baseline 20260824-132940 (candidates=25/top_k=5, container CPU) vs. 20260826-150718 (candidates=20/top_k=10, host GPU) &middot; n=125 each</div>
+        <div class="legend-row">
+          <div class="legend-item"><span class="legend-swatch" style="background:var(--muted)"></span>baseline</div>
+          <div class="legend-item"><span class="legend-swatch" style="background:var(--good)"></span>after</div>
+        </div>
+        <div id="chart-latency-after"></div>
+      </div>
+
+      <div class="finding good">
+        <div class="rail"></div>
+        <div class="body">
+          <div class="tag">Target met</div>
+          <p>Worst single case fell from 144.9s to 26.5s, and p90 from 53.5s to 18.0s. Across the six
+            sweep runs in Section 09 &mdash; 750 cases &mdash; no case exceeded the 35s ceiling, worst
+            case 31.3s. This is attributable to the reranker relocation and the 25s in-pipeline
+            expansion budget, not to any parameter tuned in Section 09.</p>
+          <p>The component speedup is 7&times; and the end-to-end speedup is not: reranks inside a
+            case's multi-query fan-out execute concurrently, so per-case time fell approximately
+            1.5&times;. Any estimate scaling a per-component ratio into a run total will overstate it.</p>
+        </div>
+      </div>
+    </section>
+
+
+    <section id="phase1">
+      <div class="section-num">09</div>
+      <h2>Retrieval Parameter Sweep &mdash; Six Full Benchmark Runs</h2>
+      <p class="framing">The confirmation Section 06 called for, executed as coordinate descent rather
+        than the full 4&times;4 grid: <code>top_k</code> swept at fixed <code>candidates=30</code>,
+        then <code>candidates</code> swept at the retained <code>top_k</code>. Six complete 125-case
+        agentic runs, 2h55m, all under one revision with the host reranker serving. The scorer's
+        documented tie threshold for this benchmark is 10 points of <code>answer_coverage</code>.</p>
+
+      <div class="chart-card">
+        <div class="chart-title"><code>answer_coverage</code> by configuration</div>
+        <div class="chart-sub">n=90 in-corpus per run &middot; full spread 7.8 points, against a 10-point tie threshold</div>
+        <div id="chart-phase1-cov"></div>
+      </div>
+
+      <div class="chart-card" style="margin-top:14px;">
+        <div class="chart-title">Case outcome by disposition</div>
+        <div class="chart-sub">n=90 in-corpus &middot; refusal count moves by at most 5 cases while the reranked pool doubles</div>
+        <div class="legend-row">
+          <div class="legend-item"><span class="legend-swatch" style="background:var(--good)"></span>correct</div>
+          <div class="legend-item"><span class="legend-swatch" style="background:var(--critical)"></span>wrong</div>
+          <div class="legend-item"><span class="legend-swatch" style="background:var(--neutral-status)"></span>refused</div>
+        </div>
+        <div id="chart-phase1-comp"></div>
+      </div>
+
+      <div class="chart-card" style="margin-top:14px;">
+        <div class="chart-title">Latency by configuration</div>
+        <div class="chart-sub">Where the configurations actually differ &mdash; and the axis the selection was made on</div>
+        <div class="legend-row">
+          <div class="legend-item"><span class="legend-swatch" style="background:var(--s-blue)"></span>mean</div>
+          <div class="legend-item"><span class="legend-swatch" style="background:var(--s-aqua)"></span>p90</div>
+          <div class="legend-item"><span class="legend-swatch" style="background:var(--s-orange)"></span>max</div>
+        </div>
+        <div id="chart-phase1-lat"></div>
+      </div>
+
+      <div class="table-wrap" style="margin-top:18px;">
+        <table>
+          <thead>
+            <tr>
+              <th>candidates</th><th>top_k</th><th>coverage</th><th>answer_acc</th>
+              <th>refusal_acc</th><th>cite_prec</th><th>mean</th><th>p90</th><th>max</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td class="num">30</td><td class="num">5</td><td class="num">0.367</td><td class="num">0.688</td><td class="num">0.640</td><td class="num">0.452</td><td class="num">10.84s</td><td class="num">20.97s</td><td class="num">30.17s</td></tr>
+            <tr><td class="num">30</td><td class="num">8</td><td class="num">0.322</td><td class="num">0.617</td><td class="num">0.640</td><td class="num">0.407</td><td class="num">11.09s</td><td class="num">20.71s</td><td class="num">30.21s</td></tr>
+            <tr><td class="num">30</td><td class="num">10</td><td class="num">0.344</td><td class="num">0.646</td><td class="num">0.648</td><td class="num">0.368</td><td class="num">11.29s</td><td class="num">21.41s</td><td class="num">30.88s</td></tr>
+            <tr class="win"><td class="num">20</td><td class="num">10</td><td class="num delta">0.367</td><td class="num delta">0.733</td><td class="num">0.624</td><td class="num">0.435</td><td class="num delta">9.43s</td><td class="num delta">17.97s</td><td class="num delta">26.45s</td></tr>
+            <tr><td class="num">25</td><td class="num">10</td><td class="num">0.344</td><td class="num">0.674</td><td class="num">0.632</td><td class="num">0.413</td><td class="num">10.39s</td><td class="num">18.78s</td><td class="num">29.89s</td></tr>
+            <tr class="loss"><td class="num">40</td><td class="num">10</td><td class="num delta">0.289</td><td class="num delta">0.605</td><td class="num">0.608</td><td class="num">0.336</td><td class="num delta">12.03s</td><td class="num delta">23.22s</td><td class="num">31.32s</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="finding critical">
+        <div class="rail"></div>
+        <div class="body">
+          <div class="tag">Neither parameter affects the primary outcome</div>
+          <p><code>answer_coverage</code> spans 0.289&ndash;0.367 across all six configurations &mdash;
+            a 7.8-point range against a 10-point tie threshold, on parameters that vary retrieval work
+            by a factor of two. <code>top_k</code> at fixed <code>candidates</code> is not even
+            monotonic (0.367 / 0.322 / 0.344 at k=5 / 8 / 10), so the incumbent k=10 was retained.
+            <code>candidates</code> declines monotonically above 20 (0.367 / 0.344 / 0.344 / 0.289 at
+            20 / 25 / 30 / 40).</p>
+          <p>In-corpus refusals held at 42&ndash;47 of 90 in every run. Tripling the reranked candidate
+            pool moved the count by at most five cases, while <code>answer_accuracy</code> stayed at
+            0.61&ndash;0.73 &mdash; when the system commits to an answer it is usually right. The
+            ceiling is the decision to decline, and no retrieval-side parameter reaches it.</p>
+        </div>
+      </div>
+
+      <div class="finding good">
+        <div class="rail"></div>
+        <div class="body">
+          <div class="tag">Selected &mdash; candidates=20, top_k=10</div>
+          <p>Selected on latency, where the differences are outside sampling variation: 2.6s per case
+            faster at the mean than <code>candidates=40</code> and 5.3s faster at p90, while tying the
+            best coverage measured and posting the highest <code>answer_accuracy</code> of the six.
+            <code>candidates=40</code> is rejected on every axis &mdash; worst coverage, worst refusal
+            accuracy, worst citation precision, slowest.</p>
+          <p>The coverage column should be read as six tied results, not a ranking &mdash; the tie
+            threshold is sampling error over <em>which</em> 90 questions the golden set holds. It is
+            not run-to-run noise: Section 13 re-ran one of these configurations two days later and
+            reproduced all 90 case outcomes exactly.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="ragas">
+      <div class="section-num">10</div>
+      <h2>Judged Metrics &mdash; External LLM Evaluation</h2>
+      <p class="framing">The Section 09 selection's saved report, scored by an external judge
+        (<code>glm-5.2:cloud</code>) as a post-process &mdash; no retrieval or generation re-run. Seven
+        Ragas metrics plus one custom check on numeric fabrication. The agentic parameters were still
+        at their defaults here (<code>max_hops=3</code>, <code>multi_query_count=3</code>); Section 12
+        tuned them afterwards and moved coverage 0.367&nbsp;&rarr;&nbsp;0.389.</p>
+
+      <div class="chart-card">
+        <div class="chart-title">Evidence retrieved vs. answers produced</div>
+        <div class="chart-sub">Both measured on the same 90 in-corpus cases of run 20260826-150718</div>
+        <div id="chart-ragas-gap"></div>
+      </div>
+
+      <div class="chart-card" style="margin-top:14px;">
+        <div class="chart-title">All judged metrics</div>
+        <div class="chart-sub">eval/reports/ragas-20260826-170955.json</div>
+        <div id="chart-ragas-all"></div>
+      </div>
+
+      <div class="finding critical">
+        <div class="rail"></div>
+        <div class="body">
+          <div class="tag">Independent confirmation of the Section 09 finding</div>
+          <p><code>context_recall</code> 0.889 against <code>answer_coverage</code> 0.367. An external
+            judge finds the retrieved context supports the expected answer in approximately nine of ten
+            in-corpus cases; the pipeline produces the correct answer in fewer than four. The evidence
+            is arriving and is not being used.</p>
+          <p><code>no_invented_numbers</code> 0.978 and <code>faithfulness</code> 0.793 exclude
+            fabrication as the competing explanation. The system is not answering wrongly from good
+            evidence &mdash; it is declining to answer from good evidence, which is the behaviour
+            Section 09 measured directly and Section 11 attempted to change.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="temperature">
+      <div class="section-num">11</div>
+      <h2>Decoding Temperature Trial</h2>
+      <p class="framing">Answer generation runs at temperature 0. The hypothesis under test: greedy
+        decoding reproduces an identical refusal on every pass, and a small sampling temperature would
+        let the model reach an answer it otherwise declines. Evaluated at the Section 09 configuration,
+        so the temperature 0.0 column is that configuration's own run. The 0.2 run was terminated at
+        case 77 of 125; both columns below cover the same first 77 cases.</p>
+
+      <div class="chart-card">
+        <div class="chart-title">Temperature 0.0 vs. 0.2 &mdash; outcome</div>
+        <div class="chart-sub">n=78 in-corpus within the first 77 benchmark cases</div>
+        <div class="legend-row">
+          <div class="legend-item"><span class="legend-swatch" style="background:var(--muted)"></span>temperature 0.0</div>
+          <div class="legend-item"><span class="legend-swatch" style="background:var(--critical)"></span>temperature 0.2</div>
+        </div>
+        <div id="chart-temp-quality"></div>
+      </div>
+
+      <div class="chart-card" style="margin-top:14px;">
+        <div class="chart-title">Temperature 0.0 vs. 0.2 &mdash; latency</div>
+        <div class="chart-sub">The 35s ceiling is marked on the max row &middot; 3 of 77 cases breached it at 0.2, 0 of 750 across Section 09</div>
+        <div id="chart-temp-latency"></div>
+      </div>
+
+      <div class="finding critical">
+        <div class="rail"></div>
+        <div class="body">
+          <div class="tag">Rejected &mdash; terminated before completion</div>
+          <p>Temperature 0.2 refused four more of the same cases than temperature 0.0 (44 vs. 40) and
+            produced two fewer correct answers. <code>answer_accuracy</code> rose (0.737 &rarr; 0.765)
+            only because refusals shrank its denominator &mdash; the precise artefact
+            <code>answer_coverage</code> exists to expose. The hypothesis is not supported: sampling
+            did not release the locked-in refusals.</p>
+          <p>The cost is unambiguous. Mean latency rose 9.26s &rarr; 11.72s, p90 18.26s &rarr; 21.09s,
+            and the worst case 26.45s &rarr; 48.86s. Three cases breached the 35s ceiling where the six
+            runs of Section 09 produced none in 750. A ceiling that binds on every case cannot be
+            traded against a distribution improvement, and there was no improvement to trade.</p>
+          <p>Mechanism, from the case records: sampling lengthens generation before it stops. Each
+            breaching case carries <code>budget_exhausted</code> &mdash; it overran the 25s in-pipeline
+            expansion budget, and generation after that carried it past the ceiling. One case ran 39.4s
+            at temperature 0.2 against 21.0s at 0.0 <em>while doing less work</em> (7 generated queries
+            and 0 hops, against 10 and 3). The pinned seed fixes sampling; it does not fix decode
+            length.</p>
+        </div>
+      </div>
+
+      <div class="finding pending">
+        <div class="rail"></div>
+        <div class="body">
+          <div class="tag">Not evaluated</div>
+          <p>Temperature 0.5 was planned conditional on 0.2 improving coverage; it was dropped without
+            running, as it amplifies the mechanism producing the latency cost.
+            <code>query_temperature</code> &mdash; which governs query rewriting and fan-out rather
+            than answer decoding &mdash; was also deferred: with <code>context_recall</code> already at
+            0.889, query diversity competes for the ~11% of cases where evidence is genuinely missing,
+            while roughly half of all answerable cases are declined with the evidence present.</p>
+        </div>
+      </div>
+    </section>
+
+
+    <section id="phase2">
+      <div class="section-num">12</div>
+      <h2>Agentic Expansion Sweep &mdash; <code>max_hops</code> &times; <code>multi_query_count</code></h2>
+      <p class="framing">The two parameters governing how much retrieval the agentic path performs per
+        question: <code>max_hops</code> chains additional retrieval rounds, <code>multi_query_count</code>
+        fans the question out into several reformulations. Six complete 125-case runs at the Section 09
+        selection. The grid was pruned from 16 combinations to 6 before running &mdash;
+        <code>multi_query_count</code> 5 and 7 lengthen exactly the tail the 35s ceiling binds on, and
+        <code>max_hops=4</code> follows the same argument. Because the system was missing its latency
+        target rather than its accuracy target, this phase asks how far <em>down</em> both parameters can
+        go before coverage breaks, and rows are ranked on <code>latency_max</code> rather than coverage.</p>
+
+      <div class="chart-card">
+        <div class="chart-title"><code>answer_coverage</code> by configuration</div>
+        <div class="chart-sub">n=90 in-corpus per run &middot; full spread 3.3 points &middot; ranked here by the phase criterion, worst-case latency</div>
+        <div id="chart-phase2-cov"></div>
+      </div>
+
+      <div class="chart-card" style="margin-top:14px;">
+        <div class="chart-title">Worst-case latency by configuration</div>
+        <div class="chart-sub">The ranking axis &mdash; approximately 2s of tail per added hop, monotonic</div>
+        <div id="chart-phase2-lat"></div>
+      </div>
+
+      <div class="chart-card" style="margin-top:14px;">
+        <div class="chart-title">Holding one parameter and walking the other</div>
+        <div class="chart-sub">Above: <code>max_hops</code> walked at fixed <code>multi_query_count</code>. Below: <code>multi_hop_citation_accuracy</code>, the metric <code>max_hops</code> exists to serve.</div>
+        <div id="chart-phase2-walk"></div>
+      </div>
+
+      <div class="table-wrap" style="margin-top:18px;">
+        <table>
+          <thead>
+            <tr>
+              <th>max_hops</th><th>mq</th><th>coverage</th><th>refusal_acc</th>
+              <th>cite_acc</th><th>cite_prec</th><th>mhop_cite</th><th>mean</th><th>p90</th><th>max</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="win"><td class="num">1</td><td class="num">2</td><td class="num delta">0.389</td><td class="num delta">0.640</td><td class="num delta">0.500</td><td class="num">0.419</td><td class="num">0.227</td><td class="num delta">8.48s</td><td class="num delta">15.36s</td><td class="num delta">21.93s</td></tr>
+            <tr><td class="num">1</td><td class="num">3</td><td class="num">0.356</td><td class="num">0.616</td><td class="num">0.478</td><td class="num">0.436</td><td class="num">0.261</td><td class="num">8.85s</td><td class="num">15.69s</td><td class="num">22.75s</td></tr>
+            <tr><td class="num">2</td><td class="num">2</td><td class="num">0.389</td><td class="num">0.632</td><td class="num">0.500</td><td class="num">0.438</td><td class="num">0.227</td><td class="num">9.01s</td><td class="num">17.40s</td><td class="num">23.99s</td></tr>
+            <tr><td class="num">2</td><td class="num">3</td><td class="num">0.356</td><td class="num">0.616</td><td class="num">0.478</td><td class="num">0.435</td><td class="num">0.261</td><td class="num">9.35s</td><td class="num">16.64s</td><td class="num">25.01s</td></tr>
+            <tr><td class="num">3</td><td class="num">2</td><td class="num">0.378</td><td class="num">0.624</td><td class="num">0.489</td><td class="num">0.426</td><td class="num">0.227</td><td class="num">9.30s</td><td class="num">18.88s</td><td class="num">25.82s</td></tr>
+            <tr><td class="num">3</td><td class="num">3</td><td class="num">0.367</td><td class="num">0.624</td><td class="num">0.489</td><td class="num">0.435</td><td class="num">0.273</td><td class="num">9.63s</td><td class="num">18.29s</td><td class="num">26.74s</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="finding critical">
+        <div class="rail"></div>
+        <div class="body">
+          <div class="tag"><code>max_hops</code> is inert on quality and monotonic on cost</div>
+          <p>Holding <code>multi_query_count</code> and walking hops 1&nbsp;&rarr;&nbsp;2&nbsp;&rarr;&nbsp;3
+            gives 0.389 / 0.389 / 0.378 at mq=2 and 0.356 / 0.356 / 0.367 at mq=3. Neither walk shows a
+            trend; both pay approximately 2s of worst-case latency per added hop.</p>
+          <p><code>multi_hop_citation_accuracy</code> &mdash; the metric this parameter exists to serve
+            &mdash; tracks <code>multi_query_count</code> instead: 0.227 at every mq=2 cell and
+            0.261&ndash;0.273 at every mq=3 cell, regardless of hop count. Bridge questions are resolved
+            by asking several ways, not by chaining retrieval rounds.</p>
+        </div>
+      </div>
+
+      <div class="finding good">
+        <div class="rail"></div>
+        <div class="body">
+          <div class="tag">Selected &mdash; max_hops=1, multi_query_count=2</div>
+          <p>Best coverage, best refusal accuracy, best citation accuracy, and the fastest cell on mean,
+            p90 and max. Against the previously shipped <code>3, 3</code>: <strong>+2.2 points of
+            coverage and 4.8s off the worst case</strong>. The phase's inverted question &mdash; how far
+            down can these go before coverage breaks &mdash; answers: all the way down, and coverage
+            improves slightly on the way.</p>
+          <p><code>multi_query_count</code> is the first parameter in this log that trades rather than
+            simply costing. mq=2 buys 3.3 points of <code>answer_coverage</code> and 2.4 of
+            <code>refusal_accuracy</code>; mq=3 buys 3.4 points of
+            <code>multi_hop_citation_accuracy</code>. Coverage is the documented primary metric, so mq=2
+            is selected &mdash; but if citation quality on bridge questions ever becomes the target,
+            mq=3 is the defensible other side.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="determinism">
+      <div class="section-num">13</div>
+      <div class="lesson">
+        <div class="lesson-eyebrow">Methodological finding</div>
+        <h3>The benchmark is deterministic end to end, which retires the caveat attached to every result above it.</h3>
+        <p>The <code>3, 3</code> cell of Section 12 re-runs the exact configuration already measured in
+          Section 09, two days later, on a different Docker daemon instance after a full restart. The two
+          runs agree on <strong>all 90 in-corpus cases &mdash; zero flips</strong>: 45 refused, 33 correct,
+          12 wrong in both. At temperature 0 with <code>models.seed</code> pinned, this pipeline reproduces
+          itself exactly.</p>
+        <p>Until this run, every table in this document carried a note that its differences might be
+          re-run noise, because repeat-run variance had never been measured here. That note was wrong in
+          its implication and is now removed. <strong>The 10-point tie threshold is binomial sampling
+          error over n=90</strong> &mdash; it answers &ldquo;would a different set of 90 questions rank
+          these differently&rdquo;, which remains the right question for generalisation. It was never a
+          statement about re-running the same configuration.</p>
+        <p>The honest reading of every sweep above is therefore: the differences are small, but
+          <strong>real and reproducible</strong> &mdash; not noise. What a tie threshold still forbids is
+          claiming that a 3-point win on these 90 questions would survive a different 90.</p>
+      </div>
+    </section>
+
+    <section id="phase3">
+      <div class="section-num">14</div>
+      <h2>Retrieval Floor Calibration &mdash; <code>score_floor</code> &times; <code>vector_floor</code></h2>
+      <p class="framing">The two thresholds a retrieved chunk must clear to reach the model. They are
+        OR'd &mdash; a chunk is kept if <em>either</em> its reranker score clears
+        <code>score_floor</code> or its raw cosine similarity clears <code>vector_floor</code>. Both
+        production values were flagged in <code>config.yaml</code> as not validly calibrated: the sweep
+        that produced them left <code>vector_floor</code> at 0.0, so every candidate cleared the gate at
+        every swept value and the sweep could not have discriminated. This phase re-derives them against
+        the pipeline Sections 09 and 12 settled.</p>
+
+      <div class="chart-card">
+        <div class="chart-title">Do retrieval scores separate answerable from unanswerable questions?</div>
+        <div class="chart-sub">Median best-chunk score per case &middot; 90 in-corpus vs. 35 out-of-corpus probes</div>
+        <div class="legend-row">
+          <div class="legend-item"><span class="legend-swatch" style="background:var(--s-blue)"></span>in-corpus (answerable)</div>
+          <div class="legend-item"><span class="legend-swatch" style="background:var(--s-orange)"></span>probe (unanswerable)</div>
+        </div>
+        <div id="chart-phase3-sep"></div>
+      </div>
+
+      <div class="finding critical">
+        <div class="rail"></div>
+        <div class="body">
+          <div class="tag">The premise of a floor does not hold on this corpus</div>
+          <p>Probes do not score lower than answerable questions. On cosine similarity they score
+            <em>higher</em> &mdash; median 0.642 against 0.558. This is structural rather than a
+            calibration failure: a HybridQA probe such as &ldquo;What is the average annual rainfall in
+            Multan?&rdquo; retrieves the correct and genuinely relevant Multan table. The corpus
+            <em>is</em> about the entity; it simply lacks the fact asked for. No retrieval-score
+            threshold can see that distinction. Only a model reading the content can.</p>
+        </div>
+      </div>
+
+      <p class="framing" style="margin-top:28px;">A 30-cell replay over a fresh uncensored run
+        (<code>20260828-200425</code>, both floors at 0.0) identified <code>0.55/0.48</code> as the
+        challenger. Replaying is arithmetic over saved scores rather than a re-run: seconds instead of
+        37 minutes per cell. Its winner was then confirmed live, which is what the runbook requires
+        before <code>config.yaml</code> changes.</p>
+
+      <div class="chart-card">
+        <div class="chart-title">Confirm run: shipped <code>0.55/0.42</code> vs. challenger <code>0.55/0.48</code></div>
+        <div class="chart-sub">20260828-190114 vs. 20260828-203220 &middot; n=125 each, identical pipeline otherwise</div>
+        <div class="legend-row">
+          <div class="legend-item"><span class="legend-swatch" style="background:var(--muted)"></span>0.55 / 0.42 (shipped)</div>
+          <div class="legend-item"><span class="legend-swatch" style="background:var(--s-blue)"></span>0.55 / 0.48 (challenger)</div>
+        </div>
+        <div id="chart-phase3-confirm"></div>
+      </div>
+
+      <div class="finding good">
+        <div class="rail"></div>
+        <div class="body">
+          <div class="tag">No change adopted &mdash; both floors held</div>
+          <p>The replay predicted 2 points of <code>refusal_accuracy</code> at zero coverage cost. Live,
+            the higher floor lost 0.8 points of refusal accuracy, lost 1.1 points of coverage, and
+            refused one probe <em>fewer</em>. Every gap sits inside the tie threshold, so the incumbent's
+            rule applies and both values stand.</p>
+          <p>Their status has nonetheless changed. <code>score_floor: 0.55</code> and
+            <code>vector_floor: 0.42</code> now rest on a sweep against the settled pipeline plus a live
+            confirmation, rather than on the broken calibration the code comments describe. The
+            <code>NOT VALIDLY CALIBRATED</code> warning should now be read as <em>confirmed adequate,
+            effect size approximately one case</em>.</p>
+        </div>
+      </div>
+
+      <div class="finding critical">
+        <div class="rail"></div>
+        <div class="body">
+          <div class="tag">Why the replay mispredicted &mdash; open defect</div>
+          <p><code>replay_floor.py</code>'s <code>apply_floor</code> sets <code>refused = not kept</code>,
+            overwriting whatever the model itself decided with what the floor decides. In the uncensored
+            run, <strong>76 of 125 cases were model refusals</strong> &mdash; so the replay ranked cells
+            on a quantity the live pipeline never computes, and reported coverage 0.433 against the run's
+            actual 0.367.</p>
+          <p>The script already documented this bias as an upper/lower bound. What the confirm run adds is
+            that the bias is <em>not uniform across cells</em>, so cell-to-cell ranking does not survive
+            it. The tool's usable output is its wiped-case counts and score distributions, not its metric
+            columns. Fix is one line; not yet applied.</p>
+        </div>
+      </div>
+
+      <div class="finding pending">
+        <div class="rail"></div>
+        <div class="body">
+          <div class="tag">Recorded for a different objective</div>
+          <p>The one substantial effect in the phase is on citations: <code>citation_precision</code> rose
+            0.419 &rarr; 0.477 at <code>vector_floor=0.48</code>, the largest single-metric move measured,
+            because a stricter vector floor prunes marginal chunks that were being cited. It costs about
+            one point of coverage. If citation quality ever displaces coverage as the target, that is the
+            lever.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="state">
+      <div class="section-num">15</div>
+      <h2>Configuration State &mdash; What Is Set by Measurement</h2>
+      <p class="framing">Which production values rest on a completed evaluation, and which are still
+        carrying a placeholder. A parameter is only as trustworthy as the evidence behind it, and this
+        table is the difference between the two.</p>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>parameter</th><th>value</th><th>basis</th><th>status</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>models.llm</code></td><td class="num">qwen2.5:7b</td><td>Section 01</td><td><span class="chip good">measured</span></td></tr>
+            <tr><td><code>SYSTEM_PROMPT</code></td><td class="num">sentinel + CoT</td><td>Sections 02&ndash;04</td><td><span class="chip good">measured</span></td></tr>
+            <tr><td><code>chunking.strategy</code></td><td class="num">structural</td><td>Section 07</td><td><span class="chip good">measured</span></td></tr>
+            <tr><td><code>retrieval.candidates</code></td><td class="num">20</td><td>Section 09</td><td><span class="chip good">measured</span></td></tr>
+            <tr><td><code>retrieval.top_k</code></td><td class="num">10</td><td>Section 09</td><td><span class="chip good">measured &mdash; tie, incumbent held</span></td></tr>
+            <tr><td><code>models.temperature</code></td><td class="num">0.0</td><td>Section 11</td><td><span class="chip good">measured &mdash; 0.2 rejected</span></td></tr>
+            <tr><td><code>agentic.latency_budget_s</code></td><td class="num">25</td><td>generation reserve measured at 1.5&ndash;11s</td><td><span class="chip good">derived</span></td></tr>
+            <tr><td><code>retrieval.score_floor</code></td><td class="num">0.55</td><td>Section 14</td><td><span class="chip good">measured &mdash; incumbent confirmed</span></td></tr>
+            <tr><td><code>retrieval.vector_floor</code></td><td class="num">0.42</td><td>Section 14</td><td><span class="chip good">measured &mdash; 0.48 rejected live</span></td></tr>
+            <tr><td><code>agentic.max_hops</code></td><td class="num">1</td><td>Section 12</td><td><span class="chip good">measured &mdash; was 3</span></td></tr>
+            <tr><td><code>agentic.multi_query_count</code></td><td class="num">2</td><td>Section 12</td><td><span class="chip good">measured &mdash; was 3</span></td></tr>
+            <tr><td><code>agentic.query_temperature</code></td><td class="num">0.7</td><td>&mdash;</td><td><span class="chip pending">deferred, Section 11</span></td></tr>
+            <tr><td><code>chunking.target_tokens</code></td><td class="num">350 / 50 / 10</td><td>&mdash;</td><td><span class="chip pending">never swept</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="finding good">
+        <div class="rail"></div>
+        <div class="body">
+          <div class="tag">Shipped across three phases</div>
+          <p><code>candidates</code> 30&nbsp;&rarr;&nbsp;20 (<code>0344bcd</code>),
+            <code>max_hops</code> 3&nbsp;&rarr;&nbsp;1 and <code>multi_query_count</code>
+            3&nbsp;&rarr;&nbsp;2 (<code>c1dc291</code>), both floors held after a live confirmation. All
+            four are latency decisions taken where coverage ties; the one genuine trade in the set is
+            <code>multi_query_count</code>, and it was resolved on the documented primary metric.</p>
+          <p>End to end, the worst single case fell from 144.9s to 21.9s while
+            <code>answer_coverage</code> moved from 0.344 to 0.389 &mdash; a coverage difference inside
+            the tie threshold, and a latency difference that is not.</p>
+        </div>
+      </div>
+
+      <div class="finding critical">
+        <div class="rail"></div>
+        <div class="body">
+          <div class="tag">The quality ceiling was never in this table</div>
+          <p>Across thirteen full benchmark runs <code>answer_coverage</code> stayed inside
+            0.289&ndash;0.389, and the model declined 42&ndash;47 of 90 answerable questions in every
+            configuration measured. Four independent lines of evidence now converge on the same place:
+            the retrieval sweep, the agentic sweep, the judged metrics
+            (<code>context_recall</code> 0.889 against <code>answer_coverage</code> 0.367), and the
+            uncensored run &mdash; which refused 33 of 35 probes with <em>both floors at zero</em>.</p>
+          <p>Refusal is carried by the prompt's <code>NO_ANSWER</code> sentinel, not by any retrieval
+            threshold, and no parameter in this table reaches it. What remains is the prompt and the
+            model. Sections 03 and 04 record what happens when the prompt is changed without
+            full-benchmark evidence, and Section 05 records why smaller evaluations will not catch it.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="remaining">
+      <div class="section-num">16</div>
+      <h2>What Remains</h2>
+      <p class="framing">Three of the four planned tuning phases are closed. What follows is the
+        outstanding work, in the order it should be taken.</p>
+
+      <div class="steps">
+        <div class="step">
+          <div class="step-n">Phase 4 &middot; approximately 2h</div>
+          <div class="step-t">Chunking token budget</div>
+          <div class="step-d">The only remaining phase, and the only untested explanation for low
+            coverage: the current chunker splits prose on a raw character window with <strong>zero
+            overlap</strong>, so an answer sentence can land split across two chunks. Two configurations,
+            each requiring a full re-ingest into its own collection.</div>
+          <div class="step-verdict"><span class="chip pending">not started</span></div>
+        </div>
+        <div class="step">
+          <div class="step-n">Defect &middot; one line</div>
+          <div class="step-t">Floor replay refusal flag</div>
+          <div class="step-d">Section 14's open defect. Until it is fixed, no cell ranking produced by
+            <code>replay_floor.py</code> should be acted on.</div>
+          <div class="step-verdict"><span class="chip critical">documented, unfixed</span></div>
+        </div>
+        <div class="step">
+          <div class="step-n">Robustness</div>
+          <div class="step-t">Connect-retry in the eval runner</div>
+          <div class="step-d">A single transient connection error to the model service discards every
+            completed case in a run. Four configurations were lost to this mid-sweep. A bounded retry
+            would make long sweeps survivable &mdash; worth doing before Phase 4's re-ingest runs.</div>
+          <div class="step-verdict"><span class="chip critical">documented, unfixed</span></div>
+        </div>
+        <div class="step">
+          <div class="step-n">Beyond the runbook</div>
+          <div class="step-t">The refusal ceiling</div>
+          <div class="step-d">Roughly half of all answerable questions are declined with the supporting
+            evidence retrieved. This is a prompt and model question, it is not in the tuning plan, and it
+            is where the remaining coverage lives.</div>
+          <div class="step-verdict"><span class="chip pending">not scoped</span></div>
+        </div>
+      </div>
+
+      <div class="chart-card" style="margin-top:20px;">
+        <div class="chart-title">Rerank cost with and without an oversized chunk in the batch</div>
+        <div class="chart-sub">The cross-encoder pads every pair in a batch to the longest sequence in it &middot; 5 of 2846 chunks exceed 4000 characters, all tables</div>
+        <div id="chart-chunks"></div>
+      </div>
+
+      <div class="finding pending">
+        <div class="rail"></div>
+        <div class="body">
+          <div class="tag">Phase 4 is the only phase that reduces the tail's cause</div>
+          <p>Five chunks of 2846 (0.2%) exceed 4000 characters, the largest at 10409, and all five are
+            tables. A query that retrieves one pays roughly 5&times; on <em>every</em> rerank in its
+            fan-out &mdash; 1.74s becomes 9.00s, measured. Prose is already bounded; 258 chunks sit at
+            exactly 1750 characters and only tables exceed it.</p>
+          <p>Halving the rows per table group would shrink four of the five. It cannot bound them: the
+            fifth reaches 9804 characters from only 9 rows of long cell content, and the parameter counts
+            rows rather than characters. Report worst-case latency on every row of this phase &mdash;
+            before this effect was identified, any chunking comparison measured quality while silently
+            varying latency.</p>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <footer>
+    <span>eval/docs/experiment-results.md &middot; eval/docs/decisions-log.md &middot; eval/docs/tuning-runbook.md &middot; config.yaml</span>
+    <span>2026&#8209;08&#8209;24 &rarr; 2026&#8209;08&#8209;28</span>
+  </footer>
+
+</div>
+
+<div id="tt"></div>
+
+<script>
+(function () {
+  const cssVar = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  const tt = document.getElementById('tt');
+
+  function showTip(e, text) {
+    tt.textContent = text;
+    tt.style.left = e.clientX + 'px';
+    tt.style.top = e.clientY + 'px';
+    tt.classList.add('show');
+  }
+  function moveTip(e) {
+    tt.style.left = e.clientX + 'px';
+    tt.style.top = e.clientY + 'px';
+  }
+  function hideTip() { tt.classList.remove('show'); }
+
+  // Grouped horizontal bar chart.
+  // groups: [{ label, caveat?, bars: [{label, value, max, color, display, tip, na}] }]
+  function renderGrouped(containerId, groups) {
+    const root = document.getElementById(containerId);
+    groups.forEach(g => {
+      const gEl = document.createElement('div');
+      gEl.className = 'bar-group';
+      const labelEl = document.createElement('div');
+      labelEl.className = 'bar-group-label';
+      labelEl.innerHTML = `<span>${g.label}</span>` + (g.caveat ? `<span class="caveat">${g.caveat}</span>` : '');
+      gEl.appendChild(labelEl);
+
+      g.bars.forEach(b => {
+        const row = document.createElement('div');
+        row.className = 'bar-row';
+        const track = document.createElement('div');
+        track.className = 'bar-track';
+        const fill = document.createElement('div');
+        if (b.na) {
+          fill.className = 'bar-fill na';
+          fill.style.width = '100%';
+        } else {
+          fill.className = 'bar-fill';
+          fill.style.width = Math.max(2, (b.value / b.max) * 100) + '%';
+          fill.style.background = b.color;
+        }
+        fill.addEventListener('mouseenter', (e) => showTip(e, b.tip || `${b.label}: ${b.display}`));
+        fill.addEventListener('mousemove', moveTip);
+        fill.addEventListener('mouseleave', hideTip);
+        track.appendChild(fill);
+        row.appendChild(track);
+        const val = document.createElement('div');
+        val.className = 'bar-value' + (b.deltaClass ? ' ' + b.deltaClass : '');
+        val.textContent = b.na ? 'n/a' : b.display;
+        row.appendChild(val);
+        gEl.appendChild(row);
+      });
+      root.appendChild(gEl);
+    });
+  }
+
+  function statusColor(delta, kind) {
+    // kind: 'good-up' (higher is better) or 'good-down' (lower is better) or 'noise'
+    if (kind === 'noise') return cssVar('--neutral-status');
+    if (kind === 'good-up') return delta >= 0 ? cssVar('--good') : cssVar('--critical');
+    return delta <= 0 ? cssVar('--good') : cssVar('--critical');
+  }
+
+  // ---------------- 01 Model comparison ----------------
+  renderGrouped('chart-models', [
+    { label: 'qwen2.5:7b', bars: [
+      { label: 'coverage', value: 0.60, max: 1, color: cssVar('--s-blue'), display: '0.60' },
+      { label: 'probe refusal', value: 0.90, max: 1, color: cssVar('--s-orange'), display: '0.90' },
+    ]},
+    { label: 'qwen2.5:14b', bars: [
+      { label: 'coverage', value: 0.60, max: 1, color: cssVar('--s-blue'), display: '0.60' },
+      { label: 'probe refusal', value: 0.90, max: 1, color: cssVar('--s-orange'), display: '0.90' },
+    ]},
+    { label: 'Qwen3.8-27 (thinking)', bars: [
+      { label: 'coverage', value: 0.70, max: 1, color: cssVar('--s-blue'), display: '0.70' },
+      { label: 'probe refusal', value: 0.90, max: 1, color: cssVar('--s-orange'), display: '0.90' },
+    ]},
+    { label: 'Qwen3.8-27 (think: false)', caveat: 'forced not to think', bars: [
+      { label: 'coverage', value: 0.05, max: 1, color: cssVar('--s-blue'), display: '0.05' },
+      { label: 'probe refusal', value: 0, max: 1, na: true, tip: 'not measured' },
+    ]},
+  ]);
+
+  renderGrouped('chart-models-cost', [
+    { label: '7b &middot; 6.6 GB resident', bars: [{ value: 3, max: 20, color: cssVar('--s-yellow'), display: '3s/call' }]},
+    { label: '14b &middot; 9.0 GB resident', bars: [{ value: 5, max: 20, color: cssVar('--s-yellow'), display: '5s/call' }]},
+    { label: '27B thinking &middot; 32 GB resident', bars: [{ value: 20, max: 20, color: cssVar('--s-yellow'), display: '20s/call' }]},
+    { label: '27B think:false &middot; 32 GB resident', bars: [{ value: 8, max: 20, color: cssVar('--s-yellow'), display: '8s/call' }]},
+  ]);
+
+  // ---------------- 02 Sentinel A/B ----------------
+  renderGrouped('chart-sentinel', [
+    { label: 'original (no sentinel)', bars: [
+      { value: 0.60, max: 1, color: cssVar('--s-blue'), display: '0.60' },
+      { value: 0.85, max: 1, color: cssVar('--s-orange'), display: '0.85' },
+    ]},
+    { label: 'sentinel v1 ("explain why")', bars: [
+      { value: 0.50, max: 1, color: cssVar('--s-blue'), display: '0.50' },
+      { value: 0.95, max: 1, color: cssVar('--s-orange'), display: '0.95' },
+    ]},
+    { label: 'sentinel v2 (shipped)', bars: [
+      { value: 0.62, max: 1, color: cssVar('--s-blue'), display: '0.62' },
+      { value: 0.95, max: 1, color: cssVar('--s-orange'), display: '0.95' },
+    ]},
+  ]);
+
+  // ---------------- 03 Round 1 full pipeline ----------------
+  const muted = cssVar('--muted');
+  function beforeAfter(pairs) {
+    return pairs.map(p => ({
+      label: p.label,
+      bars: [
+        { value: p.before, max: 1, color: muted, display: p.before.toFixed(3) },
+        { value: p.after, max: 1, color: statusColor(p.after - p.before, p.kind),
+          display: p.after.toFixed(3), deltaClass: (p.after - p.before) >= 0 === (p.kind !== 'good-down') ? '' : '' },
+      ]
+    }));
+  }
+
+  renderGrouped('chart-round1', beforeAfter([
+    { label: 'answer_accuracy', before: 0.759, after: 0.580, kind: 'good-up' },
+    { label: 'answer_coverage', before: 0.489, after: 0.522, kind: 'noise' },
+    { label: 'refusal_accuracy', before: 0.736, after: 0.888, kind: 'good-up' },
+    { label: 'citation_accuracy', before: 0.622, after: 0.811, kind: 'good-up' },
+  ]));
+
+  // stacked composition, round 1
+  (function () {
+    const root = document.getElementById('chart-round1-conv');
+    const rows = [
+      { label: 'old prompt (90 in-corpus)', correct: 44, wrong: 14, refused: 32 },
+      { label: 'hops_example', correct: 47, wrong: 34, refused: 9 },
+    ];
+    rows.forEach(r => {
+      const total = r.correct + r.wrong + r.refused;
+      const wrap = document.createElement('div');
+      wrap.className = 'stack-row';
+      const lab = document.createElement('div');
+      lab.className = 'stack-label';
+      lab.textContent = r.label;
+      wrap.appendChild(lab);
+      const track = document.createElement('div');
+      track.className = 'stack-track';
+      const segs = [
+        { n: r.correct, color: cssVar('--good'), name: 'correct' },
+        { n: r.wrong, color: cssVar('--critical'), name: 'wrong' },
+        { n: r.refused, color: cssVar('--neutral-status'), name: 'refused' },
+      ];
+      segs.forEach(s => {
+        const seg = document.createElement('div');
+        seg.className = 'stack-seg';
+        seg.style.background = s.color;
+        seg.style.width = (s.n / total * 100) + '%';
+        if (s.n / total > 0.09) {
+          const span = document.createElement('span');
+          span.textContent = s.n;
+          seg.appendChild(span);
+        }
+        seg.addEventListener('mouseenter', (e) => showTip(e, `${s.name}: ${s.n}/${total}`));
+        seg.addEventListener('mousemove', moveTip);
+        seg.addEventListener('mouseleave', hideTip);
+        track.appendChild(seg);
+      });
+      wrap.appendChild(track);
+      root.appendChild(wrap);
+    });
+  })();
+
+  // ---------------- 04 Round 2 ----------------
+  (function () {
+    const root = document.getElementById('chart-divergence');
+    const groups = [
+      { label: '55-case subset (full pipeline)', bars: [
+        { value: 0.325, max: 0.6, color: muted, display: '0.325 baseline' },
+        { value: 0.325, max: 0.6, color: cssVar('--neutral-status'), display: '0.325 candidate (delta 0.000)' },
+      ]},
+      { label: '125-case full benchmark', bars: [
+        { value: 0.489, max: 0.6, color: muted, display: '0.489 baseline' },
+        { value: 0.311, max: 0.6, color: cssVar('--critical'), display: '0.311 candidate (delta -0.178)' },
+      ]},
+    ];
+    renderGrouped('chart-divergence', groups);
+  })();
+
+  renderGrouped('chart-round2', beforeAfter([
+    { label: 'answer_accuracy', before: 0.759, after: 0.560, kind: 'good-up' },
+    { label: 'answer_coverage', before: 0.489, after: 0.311, kind: 'good-up' },
+    { label: 'refusal_accuracy', before: 0.736, after: 0.656, kind: 'good-up' },
+    { label: 'citation_accuracy', before: 0.622, after: 0.522, kind: 'good-up' },
+    { label: 'citation_precision', before: 0.265, after: 0.503, kind: 'good-up' },
+  ]));
+
+  // ---------------- 06 top_k ----------------
+  renderGrouped('chart-topk-retrieval', [
+    { label: 'top_k=5 / candidates=25 (shipped)', bars: [
+      { value: 0.75, max: 1, color: cssVar('--s-blue'), display: '0.75' },
+      { value: 0.88, max: 1, color: cssVar('--s-aqua'), display: '0.88' },
+    ]},
+    { label: 'top_k=8 / candidates=25', bars: [
+      { value: 0.78, max: 1, color: cssVar('--s-blue'), display: '0.78' },
+      { value: 0.89, max: 1, color: cssVar('--s-aqua'), display: '0.89' },
+    ]},
+    { label: 'top_k=10 / candidates=30', bars: [
+      { value: 0.80, max: 1, color: cssVar('--s-blue'), display: '0.80' },
+      { value: 0.90, max: 1, color: cssVar('--s-aqua'), display: '0.90' },
+    ]},
+  ]);
+
+  (function () {
+    const root = document.getElementById('chart-topk-gen');
+    const rows = [
+      { label: 'top_k=5 (shipped)', correct: 24, wrong: 23, refused: 42 },
+      { label: 'top_k=10 (staged)', correct: 32, wrong: 22, refused: 35 },
+    ];
+    rows.forEach(r => {
+      const total = r.correct + r.wrong + r.refused;
+      const wrap = document.createElement('div');
+      wrap.className = 'stack-row';
+      const lab = document.createElement('div');
+      lab.className = 'stack-label';
+      lab.textContent = r.label;
+      wrap.appendChild(lab);
+      const track = document.createElement('div');
+      track.className = 'stack-track';
+      const segs = [
+        { n: r.correct, color: cssVar('--good'), name: 'correct' },
+        { n: r.wrong, color: cssVar('--critical'), name: 'wrong' },
+        { n: r.refused, color: cssVar('--neutral-status'), name: 'refused' },
+      ];
+      segs.forEach(s => {
+        const seg = document.createElement('div');
+        seg.className = 'stack-seg';
+        seg.style.background = s.color;
+        seg.style.width = (s.n / total * 100) + '%';
+        if (s.n / total > 0.09) {
+          const span = document.createElement('span');
+          span.textContent = s.n;
+          seg.appendChild(span);
+        }
+        seg.addEventListener('mouseenter', (e) => showTip(e, `${s.name}: ${s.n}/${total}`));
+        seg.addEventListener('mousemove', moveTip);
+        seg.addEventListener('mouseleave', hideTip);
+        track.appendChild(seg);
+      });
+      wrap.appendChild(track);
+      root.appendChild(wrap);
+    });
+  })();
+
+  // ---------------- 07 chunking ----------------
+  renderGrouped('chart-chunking', [
+    { label: 'structural (shipped)', bars: [
+      { value: 0.75, max: 1, color: cssVar('--s-blue'), display: '0.75' },
+      { value: 0.88, max: 1, color: cssVar('--s-aqua'), display: '0.88' },
+    ]},
+    { label: 'semantic', bars: [
+      { value: 0.76, max: 1, color: cssVar('--s-blue'), display: '0.76' },
+      { value: 0.87, max: 1, color: cssVar('--s-aqua'), display: '0.87' },
+    ]},
+  ]);
+
+  // ---------------- 08 latency ----------------
+  renderGrouped('chart-latency', [
+    { label: 'all cases', bars: [{ value: 23.2, max: 45, color: cssVar('--s-yellow'), display: '23.2s' }]},
+    { label: 'fast path (82%)', bars: [{ value: 19.0, max: 45, color: cssVar('--s-blue'), display: '19.0s' }]},
+    { label: 'slow path (18%, multi-hop)', bars: [{ value: 42.8, max: 45, color: cssVar('--s-orange'), display: '42.8s' }]},
+  ]);
+
+  // ---------------- 08 latency after the reranker move ----------------
+  renderGrouped('chart-latency-after', [
+    { label: 'median', bars: [
+      { value: 15.9, max: 145, color: muted, display: '15.9s' },
+      { value: 8.43, max: 145, color: cssVar('--good'), display: '8.4s' },
+    ]},
+    { label: 'p90', bars: [
+      { value: 53.5, max: 145, color: muted, display: '53.5s' },
+      { value: 17.97, max: 145, color: cssVar('--good'), display: '18.0s' },
+    ]},
+    { label: 'max', caveat: 'ceiling: 35s', bars: [
+      { value: 144.9, max: 145, color: muted, display: '144.9s' },
+      { value: 26.45, max: 145, color: cssVar('--good'), display: '26.5s' },
+    ]},
+  ]);
+
+  // ---------------- 09 retrieval sweep ----------------
+  (function () {
+    const rows = [
+      { label: 'candidates=30, top_k=5', cov: 0.367, best: false },
+      { label: 'candidates=30, top_k=8', cov: 0.322, best: false },
+      { label: 'candidates=30, top_k=10  (previous default)', cov: 0.344, best: false },
+      { label: 'candidates=20, top_k=10  (selected)', cov: 0.367, best: true },
+      { label: 'candidates=25, top_k=10', cov: 0.344, best: false },
+      { label: 'candidates=40, top_k=10', cov: 0.289, best: false },
+    ];
+    renderGrouped('chart-phase1-cov', rows.map(r => ({
+      label: r.label,
+      bars: [{
+        value: r.cov, max: 0.5,
+        color: r.best ? cssVar('--s-blue') : cssVar('--neutral-status'),
+        display: r.cov.toFixed(3),
+        tip: `answer_coverage ${r.cov.toFixed(3)} — ${Math.round(r.cov * 90)}/90 in-corpus cases`,
+      }],
+    })));
+  })();
+
+  // stacked composition across all six sweep runs
+  (function () {
+    const root = document.getElementById('chart-phase1-comp');
+    const rows = [
+      { label: 'candidates=30, top_k=5', correct: 33, wrong: 15, refused: 42 },
+      { label: 'candidates=30, top_k=8', correct: 29, wrong: 18, refused: 43 },
+      { label: 'candidates=30, top_k=10', correct: 31, wrong: 17, refused: 42 },
+      { label: 'candidates=20, top_k=10 (selected)', correct: 33, wrong: 12, refused: 45 },
+      { label: 'candidates=25, top_k=10', correct: 31, wrong: 15, refused: 44 },
+      { label: 'candidates=40, top_k=10', correct: 26, wrong: 17, refused: 47 },
+    ];
+    rows.forEach(r => {
+      const total = r.correct + r.wrong + r.refused;
+      const wrap = document.createElement('div');
+      wrap.className = 'stack-row';
+      const lab = document.createElement('div');
+      lab.className = 'stack-label';
+      lab.textContent = r.label;
+      wrap.appendChild(lab);
+      const track = document.createElement('div');
+      track.className = 'stack-track';
+      [
+        { n: r.correct, color: cssVar('--good'), name: 'correct' },
+        { n: r.wrong, color: cssVar('--critical'), name: 'wrong' },
+        { n: r.refused, color: cssVar('--neutral-status'), name: 'refused' },
+      ].forEach(sg => {
+        const seg = document.createElement('div');
+        seg.className = 'stack-seg';
+        seg.style.background = sg.color;
+        seg.style.width = (sg.n / total * 100) + '%';
+        if (sg.n / total > 0.09) {
+          const span = document.createElement('span');
+          span.textContent = sg.n;
+          seg.appendChild(span);
+        }
+        seg.addEventListener('mouseenter', (e) => showTip(e, `${sg.name}: ${sg.n}/${total}`));
+        seg.addEventListener('mousemove', moveTip);
+        seg.addEventListener('mouseleave', hideTip);
+        track.appendChild(seg);
+      });
+      wrap.appendChild(track);
+      root.appendChild(wrap);
+    });
+  })();
+
+  renderGrouped('chart-phase1-lat', [
+    { label: 'candidates=20, top_k=10  (selected)', bars: [
+      { value: 9.43, max: 35, color: cssVar('--s-blue'), display: '9.43s' },
+      { value: 17.97, max: 35, color: cssVar('--s-aqua'), display: '17.97s' },
+      { value: 26.45, max: 35, color: cssVar('--s-orange'), display: '26.45s' },
+    ]},
+    { label: 'candidates=25, top_k=10', bars: [
+      { value: 10.39, max: 35, color: cssVar('--s-blue'), display: '10.39s' },
+      { value: 18.78, max: 35, color: cssVar('--s-aqua'), display: '18.78s' },
+      { value: 29.89, max: 35, color: cssVar('--s-orange'), display: '29.89s' },
+    ]},
+    { label: 'candidates=30, top_k=10', bars: [
+      { value: 11.29, max: 35, color: cssVar('--s-blue'), display: '11.29s' },
+      { value: 21.41, max: 35, color: cssVar('--s-aqua'), display: '21.41s' },
+      { value: 30.88, max: 35, color: cssVar('--s-orange'), display: '30.88s' },
+    ]},
+    { label: 'candidates=40, top_k=10', caveat: 'ceiling: 35s', bars: [
+      { value: 12.03, max: 35, color: cssVar('--s-blue'), display: '12.03s' },
+      { value: 23.22, max: 35, color: cssVar('--s-aqua'), display: '23.22s' },
+      { value: 31.32, max: 35, color: cssVar('--s-orange'), display: '31.32s' },
+    ]},
+  ]);
+
+  // ---------------- 10 judged metrics ----------------
+  renderGrouped('chart-ragas-gap', [
+    { label: 'context_recall — judge says the evidence was retrieved', bars: [
+      { value: 0.889, max: 1, color: cssVar('--s-aqua'), display: '0.889' },
+    ]},
+    { label: 'answer_coverage — the pipeline answered correctly', bars: [
+      { value: 0.367, max: 1, color: cssVar('--critical'), display: '0.367' },
+    ]},
+  ]);
+
+  renderGrouped('chart-ragas-all', [
+    { label: 'context_recall', bars: [{ value: 0.889, max: 1, color: cssVar('--s-aqua'), display: '0.889' }]},
+    { label: 'no_invented_numbers', bars: [{ value: 0.978, max: 1, color: cssVar('--s-aqua'), display: '0.978' }]},
+    { label: 'faithfulness', bars: [{ value: 0.793, max: 1, color: cssVar('--s-blue'), display: '0.793' }]},
+    { label: 'context_precision', bars: [{ value: 0.676, max: 1, color: cssVar('--s-blue'), display: '0.676' }]},
+    { label: 'answer_similarity', bars: [{ value: 0.664, max: 1, color: cssVar('--s-blue'), display: '0.664' }]},
+    { label: 'answer_relevancy', bars: [{ value: 0.646, max: 1, color: cssVar('--s-blue'), display: '0.646' }]},
+    { label: 'context_entity_recall', bars: [{ value: 0.621, max: 1, color: cssVar('--s-blue'), display: '0.621' }]},
+    { label: 'answer_correctness', bars: [{ value: 0.559, max: 1, color: cssVar('--s-yellow'), display: '0.559' }]},
+  ]);
+
+  // ---------------- 11 temperature ----------------
+  renderGrouped('chart-temp-quality', [
+    { label: 'refused (of 78 in-corpus)', bars: [
+      { value: 40, max: 78, color: muted, display: '40' },
+      { value: 44, max: 78, color: cssVar('--critical'), display: '44' },
+    ]},
+    { label: 'answer_coverage', bars: [
+      { value: 0.359, max: 0.5, color: muted, display: '0.359' },
+      { value: 0.333, max: 0.5, color: cssVar('--critical'), display: '0.333' },
+    ]},
+    { label: 'answer_accuracy', caveat: 'denominator shrank with refusals', bars: [
+      { value: 0.737, max: 1, color: muted, display: '0.737' },
+      { value: 0.765, max: 1, color: cssVar('--neutral-status'), display: '0.765' },
+    ]},
+  ]);
+
+  renderGrouped('chart-temp-latency', [
+    { label: 'mean', bars: [
+      { value: 9.26, max: 50, color: muted, display: '9.26s' },
+      { value: 11.72, max: 50, color: cssVar('--critical'), display: '11.72s' },
+    ]},
+    { label: 'p90', bars: [
+      { value: 18.26, max: 50, color: muted, display: '18.26s' },
+      { value: 21.09, max: 50, color: cssVar('--critical'), display: '21.09s' },
+    ]},
+    { label: 'max', caveat: 'ceiling: 35s', bars: [
+      { value: 26.45, max: 50, color: muted, display: '26.45s' },
+      { value: 48.86, max: 50, color: cssVar('--critical'), display: '48.86s' },
+    ]},
+    { label: 'cases over the 35s ceiling', bars: [
+      { value: 0, max: 5, color: muted, display: '0 of 77' },
+      { value: 3, max: 5, color: cssVar('--critical'), display: '3 of 77' },
+    ]},
+  ]);
+
+  // ---------------- 12 agentic sweep ----------------
+  const phase2 = [
+    { label: 'max_hops=1, mq=2  (selected)', cov: 0.389, max: 21.93, mean: 8.48, p90: 15.36, best: true },
+    { label: 'max_hops=1, mq=3', cov: 0.356, max: 22.75, mean: 8.85, p90: 15.69, best: false },
+    { label: 'max_hops=2, mq=2', cov: 0.389, max: 23.99, mean: 9.01, p90: 17.40, best: false },
+    { label: 'max_hops=2, mq=3', cov: 0.356, max: 25.01, mean: 9.35, p90: 16.64, best: false },
+    { label: 'max_hops=3, mq=2', cov: 0.378, max: 25.82, mean: 9.30, p90: 18.88, best: false },
+    { label: 'max_hops=3, mq=3  (previous default)', cov: 0.367, max: 26.74, mean: 9.63, p90: 18.29, best: false },
+  ];
+
+  renderGrouped('chart-phase2-cov', phase2.map(r => ({
+    label: r.label,
+    bars: [{
+      value: r.cov, max: 0.5,
+      color: r.best ? cssVar('--s-blue') : cssVar('--neutral-status'),
+      display: r.cov.toFixed(3),
+      tip: `answer_coverage ${r.cov.toFixed(3)} — ${Math.round(r.cov * 90)}/90 in-corpus cases`,
+    }],
+  })));
+
+  renderGrouped('chart-phase2-lat', phase2.map((r, i) => ({
+    label: r.label,
+    caveat: i === phase2.length - 1 ? 'ceiling: 35s' : undefined,
+    bars: [{
+      value: r.max, max: 35,
+      color: r.best ? cssVar('--s-orange') : cssVar('--neutral-status'),
+      display: r.max.toFixed(2) + 's',
+      tip: `latency_max ${r.max.toFixed(2)}s — mean ${r.mean.toFixed(2)}s, p90 ${r.p90.toFixed(2)}s`,
+    }],
+  })));
+
+  renderGrouped('chart-phase2-walk', [
+    { label: 'answer_coverage at mq=2 — hops 1 / 2 / 3', caveat: 'no trend', bars: [
+      { value: 0.389, max: 0.5, color: cssVar('--s-blue'), display: '0.389' },
+      { value: 0.389, max: 0.5, color: cssVar('--s-blue'), display: '0.389' },
+      { value: 0.378, max: 0.5, color: cssVar('--s-blue'), display: '0.378' },
+    ]},
+    { label: 'answer_coverage at mq=3 — hops 1 / 2 / 3', caveat: 'no trend', bars: [
+      { value: 0.356, max: 0.5, color: cssVar('--s-blue'), display: '0.356' },
+      { value: 0.356, max: 0.5, color: cssVar('--s-blue'), display: '0.356' },
+      { value: 0.367, max: 0.5, color: cssVar('--s-blue'), display: '0.367' },
+    ]},
+    { label: 'multi_hop_citation_accuracy at mq=2 — hops 1 / 2 / 3', caveat: 'flat', bars: [
+      { value: 0.227, max: 0.35, color: cssVar('--s-aqua'), display: '0.227' },
+      { value: 0.227, max: 0.35, color: cssVar('--s-aqua'), display: '0.227' },
+      { value: 0.227, max: 0.35, color: cssVar('--s-aqua'), display: '0.227' },
+    ]},
+    { label: 'multi_hop_citation_accuracy at mq=3 — hops 1 / 2 / 3', caveat: 'tracks mq, not hops', bars: [
+      { value: 0.261, max: 0.35, color: cssVar('--s-aqua'), display: '0.261' },
+      { value: 0.261, max: 0.35, color: cssVar('--s-aqua'), display: '0.261' },
+      { value: 0.273, max: 0.35, color: cssVar('--s-aqua'), display: '0.273' },
+    ]},
+  ]);
+
+  // ---------------- 14 floors ----------------
+  renderGrouped('chart-phase3-sep', [
+    { label: 'reranker score — median best chunk', caveat: 'barely separated', bars: [
+      { value: 0.726, max: 0.8, color: cssVar('--s-blue'), display: '0.726',
+        tip: 'in-corpus median 0.726 (p25 0.699, max 0.731)' },
+      { value: 0.687, max: 0.8, color: cssVar('--s-orange'), display: '0.687',
+        tip: 'probe median 0.687 (p25 0.597, max 0.731)' },
+    ]},
+    { label: 'cosine similarity — median best chunk', caveat: 'inverted: probes score higher', bars: [
+      { value: 0.558, max: 0.8, color: cssVar('--s-blue'), display: '0.558',
+        tip: 'in-corpus median 0.558 (p25 0.522, max 0.714)' },
+      { value: 0.642, max: 0.8, color: cssVar('--s-orange'), display: '0.642',
+        tip: 'probe median 0.642 (p25 0.546, max 0.726)' },
+    ]},
+  ]);
+
+  renderGrouped('chart-phase3-confirm', [
+    { label: 'answer_coverage', bars: [
+      { value: 0.389, max: 1, color: muted, display: '0.389' },
+      { value: 0.378, max: 1, color: cssVar('--critical'), display: '0.378' },
+    ]},
+    { label: 'refusal_accuracy', bars: [
+      { value: 0.640, max: 1, color: muted, display: '0.640' },
+      { value: 0.632, max: 1, color: cssVar('--critical'), display: '0.632' },
+    ]},
+    { label: 'citation_accuracy', bars: [
+      { value: 0.500, max: 1, color: muted, display: '0.500' },
+      { value: 0.489, max: 1, color: cssVar('--critical'), display: '0.489' },
+    ]},
+    { label: 'citation_precision', caveat: 'the one real gain', bars: [
+      { value: 0.419, max: 1, color: muted, display: '0.419' },
+      { value: 0.477, max: 1, color: cssVar('--good'), display: '0.477' },
+    ]},
+    { label: 'probes correctly refused (of 35)', bars: [
+      { value: 34, max: 35, color: muted, display: '34' },
+      { value: 33, max: 35, color: cssVar('--critical'), display: '33' },
+    ]},
+  ]);
+
+  // ---------------- 16 chunking cost ----------------
+  renderGrouped('chart-chunks', [
+    { label: 'rerank of a batch with no oversized chunk', bars: [
+      { value: 1.74, max: 10, color: cssVar('--s-blue'), display: '1.74s' },
+    ]},
+    { label: 'rerank of a batch containing one', caveat: '5 of 2846 chunks, all tables', bars: [
+      { value: 9.00, max: 10, color: cssVar('--s-orange'), display: '9.00s',
+        tip: 'largest chunk 10409 chars — paid on every rerank in the fan-out' },
+    ]},
+  ]);
+})();
+
+</script>
+
+
